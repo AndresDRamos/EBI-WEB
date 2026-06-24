@@ -1,0 +1,41 @@
+{
+  "name": "ebi-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "eslint",
+    "db:gen": "kysely-codegen --dialect mssql --out-file src/lib/db/types.ts --url \"mssql://${DB_USER}:${DB_PASSWORD}@${DB_SERVER}:1433/${DB_DATABASE}?encrypt=${DB_ENCRYPT}\""
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^4.7.0",
+    "@azure/msal-react": "^2.2.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "kysely": "^0.27.6",
+    "lucide-react": "^0.469.0",
+    "next": "16.2.9",
+    "powerbi-client": "^2.22.3",
+    "powerbi-client-react": "^1.4.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
+    "tailwind-merge": "^2.6.0",
+    "tarn": "^3.0.2",
+    "tedious": "^18.6.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "kysely-codegen": "^0.18.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

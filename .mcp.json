@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "ebi-sql-dev": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@whmpro/mssql-mcp"],
+      "env": {
+        "MSSQL_SERVER": "servereps.database.windows.net",
+        "MSSQL_PORT": "1433",
+        "MSSQL_DATABASE": "EBI_dev",
+        "MSSQL_USERNAME": "ebi_agent_ro",
+        "MSSQL_PASSWORD": "${EBI_AGENT_RO_PASSWORD}",
+        "MSSQL_ENCRYPT": "true",
+        "MSSQL_TRUST_SERVER_CERTIFICATE": "false"
+      }
+    }
+  }
+}

@@ -1,0 +1,42 @@
+# Dependencias
+node_modules/
+.pnpm-store/
+
+# Next.js
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+
+# Variables de entorno y secretos (NUNCA versionar)
+.env
+.env.local
+.env.*.local
+*.pem
+*.pfx
+
+# Flyway / credenciales de base de datos
+db/flyway.*.conf.local
+db/.flyway/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Cobertura y caché de tests
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Salidas temporales de agentes
+.opencode/cache/

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "ebi-sql-dev": {
+      "type": "local",
+      "command": ["npx", "-y", "@whmpro/mssql-mcp"],
+      "enabled": true,
+      "environment": {
+        "MSSQL_SERVER": "servereps.database.windows.net",
+        "MSSQL_PORT": "1433",
+        "MSSQL_DATABASE": "EBI_dev",
+        "MSSQL_USERNAME": "ebi_agent_ro",
+        "MSSQL_PASSWORD": "${EBI_AGENT_RO_PASSWORD}",
+        "MSSQL_ENCRYPT": "true",
+        "MSSQL_TRUST_SERVER_CERTIFICATE": "false"
+      }
+    }
+  }
+}

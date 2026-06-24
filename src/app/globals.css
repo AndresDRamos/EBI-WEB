@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+/*
+  EBI portal — EZI brand tokens (charcoal #373a36, orange #ff5c35, Montserrat,
+  minimalist industrial). See the `ezi-brand` skill for the full token reference.
+  shadcn/ui variables are mapped to the EZI palette so component primitives stay
+  on-brand without forking them.
+*/
+
+:root {
+  /* ── EZI brand ── */
+  --ezi-gray: #373a36;
+  --ezi-orange: #ff5c35;
+  --ezi-gray-light: #c7c8c7;
+  --ezi-white: #ffffff;
+
+  /* ── Extended palette ── */
+  --gray-950: #1a1c19;
+  --gray-900: #2a2c28;
+  --gray-800: #373a36;
+  --gray-700: #4a4d48;
+  --gray-600: #5e615c;
+  --gray-500: #787b76;
+  --gray-400: #9b9d99;
+  --gray-300: #c7c8c7;
+  --gray-200: #dfe0df;
+  --gray-100: #eef0ee;
+  --gray-50: #f6f7f6;
+
+  --orange-900: #7a1e00;
+  --orange-800: #a32b00;
+  --orange-700: #cc3800;
+  --orange-600: #e84a1a;
+  --orange-500: #ff5c35;
+  --orange-400: #ff7d5c;
+  --orange-300: #ff9e85;
+  --orange-200: #ffc4b5;
+  --orange-100: #ffe3db;
+  --orange-50: #fff3ef;
+
+  /* ── shadcn/ui surface tokens (mapped to EZI) ── */
+  --background: var(--ezi-white);
+  --foreground: var(--gray-900);
+  --card: var(--ezi-white);
+  --card-foreground: var(--gray-900);
+  --popover: var(--ezi-white);
+  --popover-foreground: var(--gray-900);
+  --primary: var(--ezi-orange);
+  --primary-foreground: var(--ezi-white);
+  --secondary: var(--gray-100);
+  --secondary-foreground: var(--gray-900);
+  --muted: var(--gray-50);
+  --muted-foreground: var(--gray-500);
+  --accent: var(--gray-100);
+  --accent-foreground: var(--gray-900);
+  --destructive: #d62828;
+  --destructive-foreground: var(--ezi-white);
+  --border: var(--gray-200);
+  --input: var(--gray-200);
+  --ring: var(--ezi-orange);
+  --radius: 6px;
+
+  /* ── semantic ── */
+  --color-success: #2d8a39;
+  --color-warning: #d4870a;
+  --color-danger: #d62828;
+  --color-info: #2563eb;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ezi-gray: var(--ezi-gray);
+  --color-ezi-orange: var(--ezi-orange);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+
+  --font-sans: var(--font-montserrat), system-ui, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: 12px;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  ::selection {
+    background-color: var(--ezi-orange);
+    color: var(--ezi-white);
+  }
+}

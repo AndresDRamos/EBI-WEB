@@ -52,6 +52,19 @@ export async function isAdmin(): Promise<boolean> {
   return (session?.user?.roles ?? []).includes("admin");
 }
 
+/**
+ * Server-side guard for admin-only pages. Returns true when the caller is an
+ * admin; returns false (so the page can redirect) when forbidden.
+ */
+export async function assertAdminOrRedirect(): Promise<boolean> {
+  try {
+    await requireAnyRole(["admin"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export { ForbiddenError as Forbidden };
 
 /**

@@ -13,7 +13,7 @@ import { authConfig } from "@/auth.config";
  */
 const { auth } = NextAuth(authConfig);
 
-const PUBLIC_PATHS = ["/login", "/invite"];
+const PUBLIC_PATHS = ["/login", "/invite", "/api/invite"];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;

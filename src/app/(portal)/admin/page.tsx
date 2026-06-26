@@ -6,6 +6,7 @@ import {
 } from "@/lib/db/reports";
 import { ReportAdminTable } from "@/components/admin/report-admin-table";
 import { CategoryManager } from "@/components/admin/category-manager";
+import { AdminNav } from "@/components/admin/admin-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,8 @@ export default async function AdminPage() {
           </p>
         </div>
       </header>
+
+      <AdminNav />
 
       <ReportAdminTable rows={rows} />
 

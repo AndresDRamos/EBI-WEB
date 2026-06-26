@@ -1,4 +1,5 @@
 import "server-only";
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { ForbiddenError, UnauthenticatedError } from "@/lib/auth/rbac";
 
@@ -15,4 +16,9 @@ export function authErrorResponse(err: unknown): NextResponse | null {
     return NextResponse.json({ error: "Prohibido." }, { status: 403 });
   }
   return null;
+}
+
+/** Parse a JSON request body (throws on invalid JSON). */
+export async function parseJsonBody(request: NextRequest): Promise<unknown> {
+  return request.json();
 }

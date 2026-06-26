@@ -27,10 +27,11 @@ High-level view of the EBI portal. Authoritative details live in
 
 ## Key flows
 
-- **Login:** Entra ID (MSAL) → portal session. See
-  [ADR 0001](adr/0001-auth-login-entra-embed-sp.md).
-- **Embedding:** dev uses the user's AAD token (`Aad`); prod uses a service-principal embed
-  token (`Embed`) with RLS by UPN.
+- **Login:** portal-owned credentials (username/password, Auth.js v5) → portal session. See
+  [ADR 0001](adr/0001-portal-owned-auth.md).
+- **Embedding:** deferred from v1. When reintroduced, Power BI Embedded (app-owns-data) uses
+  a service-principal embed token (`Embed`) with RLS driven by the portal identity via
+  `effectiveIdentity`/`CUSTOMDATA`.
 - **Data ingestion:** EPS → `staging` (read-only ETL) → `core` (Flyway procedures) →
   consumed by the portal and Power BI.
 

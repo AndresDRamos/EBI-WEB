@@ -2,7 +2,7 @@
 
 - **Status:** Approved — 2026-06-24
 - **Author:** EBI team
-- **Related ADRs:** [0001 — Entra for login, embed via service principal](../architecture/adr/0001-auth-login-entra-embed-sp.md)
+- **Related ADRs:** [0001 — Portal-owned auth; Power BI deferred](../architecture/adr/0001-portal-owned-auth.md)
 
 ## Context
 

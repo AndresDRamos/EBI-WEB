@@ -23,8 +23,9 @@ Goal of the split: diversify token consumption per session.
 - **App:** Next.js (App Router) + TypeScript. Package manager **pnpm** (never npm/yarn).
 - **Styling:** Tailwind + shadcn/ui. EZI identity: charcoal gray `#373a36`, orange
   `#ff5c35`, Montserrat typeface, minimalist industrial aesthetic.
-- **Auth:** Entra ID (MSAL) for **portal login only**. See
-  `docs/architecture/adr/0001-auth-login-entra-embed-sp.md`.
+- **Auth:** **portal-owned credentials** (username/password, Auth.js v5) for portal login;
+  design stays open to add Entra SSO later. See
+  `docs/architecture/adr/0001-portal-owned-auth.md`.
 - **Power BI:** `powerbi-client-react`. The `src/lib/powerbi/` layer is **mode-agnostic**
   (`tokenType: Aad` in dev/PPU; `tokenType: Embed` in prod/capacity). Do not fork the embed
   component: fork only the token acquisition.

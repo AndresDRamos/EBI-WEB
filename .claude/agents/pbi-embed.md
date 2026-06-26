@@ -30,7 +30,7 @@ Going from dev to prod must be configuration, not a rewrite.
 
 ## References
 
-- `docs/architecture/adr/0001-auth-login-entra-embed-sp.md` (Entra login vs embed token).
+- `docs/architecture/adr/0001-portal-owned-auth.md` (portal-owned login vs embed token).
 - Verify Power BI API details with WebSearch/WebFetch when in doubt; do not assume
   method names.
 

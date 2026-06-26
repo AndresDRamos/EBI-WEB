@@ -21,11 +21,18 @@ You are the **DBA** of the EBI database (Azure SQL: `EBI_dev` in development, `E
 
 ## How you work
 
-1. Introspect the live schema with the **`ebi-sql-dev`** MCP (`ebi_agent_ro`,
-   **read-only**). Never assume the schema: verify it.
-2. Propose the migration as a SQL file ready for a human to apply with
+1. **Load the current documented context first.** Before designing any migration or query,
+   read the existing database docs so you build on the real, known state and keep naming and
+   relationships consistent:
+   - `docs/database/erd.md` (current Mermaid ERD).
+   - `docs/database/data-dictionary.md` (tables, columns, meanings).
+   - `docs/database/migrations-log.md` (what has already been applied and the next number).
+2. Introspect the live schema with the **`ebi-sql-dev`** MCP (`ebi_agent_ro`,
+   **read-only**) to confirm reality and catch drift vs. the docs. Never assume the schema:
+   verify it against both the docs and the live database.
+3. Propose the migration as a SQL file ready for a human to apply with
    `flyway -configFiles=db/flyway.dev.conf migrate`.
-3. After a change, update the ERD and dictionary and record it in
+4. After a change, update the ERD and dictionary and record it in
    `docs/database/migrations-log.md`.
 
 ## Boundaries

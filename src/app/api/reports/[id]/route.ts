@@ -6,6 +6,8 @@ import {
   deleteReport,
   type ReportInput,
 } from "@/lib/db/reports";
+import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { authErrorResponse } from "@/lib/auth/api";
 
 interface UpdateReportBody {
   name?: unknown;
@@ -27,6 +29,7 @@ export async function GET(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
+    await requireUser();
     const report = await getReport(id);
     if (!report) {
       return NextResponse.json({ error: "Reporte no encontrado." }, { status: 404 });
@@ -49,6 +52,13 @@ export async function PUT(
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+  }
+  try {
+    await requireAnyRole(["admin"]);
+  } catch (err) {
+    const res = authErrorResponse(err);
+    if (res) return res;
+    throw err;
   }
   let body: UpdateReportBody;
   try {
@@ -79,7 +89,7 @@ export async function PUT(
     if (Number.isInteger(n)) changes.sort_order = n;
   }
   if (typeof body.is_active === "boolean") {
-    changes.is_active = body.is_active ? 1 : 0;
+    changes.is_active = body.is_active;
   }
 
   if (Object.keys(changes).length === 0) {
@@ -107,6 +117,13 @@ export async function PATCH(
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+  }
+  try {
+    await requireAnyRole(["admin"]);
+  } catch (err) {
+    const res = authErrorResponse(err);
+    if (res) return res;
+    throw err;
   }
   let body: { active?: unknown };
   try {
@@ -142,6 +159,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
+    await requireAnyRole(["admin"]);
     await deleteReport(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

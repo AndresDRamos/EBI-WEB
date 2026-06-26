@@ -2,24 +2,31 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useMsal } from "@azure/msal-react";
+import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { LayoutDashboard, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import type { SessionUser } from "@/lib/auth/rbac";
 
 const navItems = [
   { href: "/dashboards", label: "Dashboards", icon: LayoutDashboard },
   { href: "/admin", label: "Administración", icon: Settings },
 ];
 
-/** Top bar + sidebar shell for the authenticated portal. */
+/**
+ * Top bar + sidebar shell for the authenticated portal. Receives the session
+ * user from the server layout (no MSAL). Logout via Auth.js `signOut()`.
+ */
 export function PortalShell({
+  user,
   children,
 }: {
+  user: SessionUser;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const isAdmin = user.roles.includes("admin");
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -34,33 +41,35 @@ export function PortalShell({
             · Inteligencia de negocio
           </span>
         </Link>
-        <UserMenu />
+        <UserMenu user={user} />
       </header>
 
       <div className="flex flex-1">
         <aside className="hidden w-56 shrink-0 border-r bg-white md:block">
           <nav className="flex flex-col gap-1 p-3">
-            {navItems.map((item) => {
-              const active =
-                pathname === item.href ||
-                pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors",
-                    active
-                      ? "bg-orange-50 font-semibold text-ezi-gray"
-                      : "text-gray-700 hover:bg-gray-100",
-                    active && "border-l-2 border-ezi-orange",
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
+            {navItems
+              .filter((item) => item.href !== "/admin" || isAdmin)
+              .map((item) => {
+                const active =
+                  pathname === item.href ||
+                  pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-sm px-3 py-2 text-sm transition-colors",
+                      active
+                        ? "bg-orange-50 font-semibold text-ezi-gray"
+                        : "text-gray-700 hover:bg-gray-100",
+                      active && "border-l-2 border-ezi-orange",
+                    )}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
           </nav>
         </aside>
 
@@ -70,26 +79,31 @@ export function PortalShell({
   );
 }
 
-function UserMenu() {
-  const { instance, accounts } = useMsal();
-  const account = accounts[0];
-  const initials = account?.name
-    ? account.name
+function UserMenu({ user }: { user: SessionUser }) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState(false);
+
+  async function handleSignOut() {
+    setBusy(true);
+    await signOut({ redirect: false });
+    router.replace("/login");
+  }
+
+  const initials = user.name
+    ? user.name
         .split(" ")
         .slice(0, 2)
         .map((p) => p[0])
         .join("")
         .toUpperCase()
-    : (account?.username?.[0]?.toUpperCase() ?? "");
+    : (user.username?.[0]?.toUpperCase() ?? "");
 
   return (
     <div className="flex items-center gap-3">
-      {account ? (
-        <div className="hidden text-right sm:block">
-          <div className="text-sm font-medium leading-4">{account.name}</div>
-          <div className="text-xs text-gray-400">{account.username}</div>
-        </div>
-      ) : null}
+      <div className="hidden text-right sm:block">
+        <div className="text-sm font-medium leading-4">{user.name ?? user.username}</div>
+        <div className="text-xs text-gray-400">{user.username}</div>
+      </div>
       <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/10 text-xs font-semibold">
         {initials}
       </div>
@@ -97,7 +111,8 @@ function UserMenu() {
         variant="ghost"
         size="sm"
         className="gap-2 text-white hover:bg-white/10 hover:text-white"
-        onClick={() => instance.logoutRedirect({ account })}
+        onClick={handleSignOut}
+        disabled={busy}
       >
         <LogOut className="h-4 w-4" />
         <span className="hidden sm:inline">Salir</span>

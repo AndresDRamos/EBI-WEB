@@ -5,6 +5,8 @@ import {
   listCategories,
   listActiveReports,
 } from "@/lib/db/reports";
+import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { authErrorResponse } from "@/lib/auth/api";
 
 interface CreateReportBody {
   name?: unknown;
@@ -21,6 +23,7 @@ interface CreateReportBody {
 export async function GET(request: NextRequest) {
   const activeOnly = request.nextUrl.searchParams.get("active") === "1";
   try {
+    await requireUser();
     if (activeOnly) {
       const reports = await listActiveReports();
       return NextResponse.json({ reports });
@@ -42,6 +45,13 @@ export async function GET(request: NextRequest) {
 
 /** POST /api/reports — create a report. */
 export async function POST(request: NextRequest) {
+  try {
+    await requireAnyRole(["admin"]);
+  } catch (err) {
+    const res = authErrorResponse(err);
+    if (res) return res;
+    throw err;
+  }
   let body: CreateReportBody;
   try {
     body = (await request.json()) as CreateReportBody;
@@ -66,7 +76,7 @@ export async function POST(request: NextRequest) {
       category_id: validation.value.category_id,
       description: validation.value.description,
       sort_order: validation.value.sort_order,
-      is_active: validation.value.is_active ? 1 : 0,
+      is_active: validation.value.is_active,
     });
     return NextResponse.json({ report: created }, { status: 201 });
   } catch (err) {

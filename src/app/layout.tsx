@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import "./globals.css";
-import { MsalProviderWrapper } from "@/components/providers/msal-provider-wrapper";
+import { AuthSessionProvider } from "@/components/providers/auth-session-provider";
 
 const montserrat = Montserrat({
   variable: "--font-montserrat",
@@ -12,7 +12,7 @@ const montserrat = Montserrat({
 export const metadata: Metadata = {
   title: "EBI — Portal de inteligencia de negocio",
   description:
-    "Portal interno EBI: catálogo y embebido de reportes de Power BI con administración.",
+    "Portal interno EBI: inteligencia de negocio y administración.",
   robots: { index: false, follow: false },
 };
 
@@ -27,7 +27,7 @@ export default function RootLayout({
       className={`${montserrat.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground">
-        <MsalProviderWrapper>{children}</MsalProviderWrapper>
+        <AuthSessionProvider>{children}</AuthSessionProvider>
       </body>
     </html>
   );

@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateCategory, deleteCategory } from "@/lib/db/reports";
+import { requireAnyRole } from "@/lib/auth/rbac";
+import { authErrorResponse } from "@/lib/auth/api";
 
 export async function PUT(
   request: NextRequest,
@@ -8,6 +10,13 @@ export async function PUT(
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) {
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+  }
+  try {
+    await requireAnyRole(["admin"]);
+  } catch (err) {
+    const res = authErrorResponse(err);
+    if (res) return res;
+    throw err;
   }
   let body: { name?: unknown; sort_order?: unknown };
   try {
@@ -47,6 +56,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
+    await requireAnyRole(["admin"]);
     await deleteCategory(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

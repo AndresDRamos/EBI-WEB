@@ -7,18 +7,16 @@
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint",
-    "db:gen": "kysely-codegen --dialect mssql --out-file src/lib/db/types.ts --url \"mssql://${DB_USER}:${DB_PASSWORD}@${DB_SERVER}:1433/${DB_DATABASE}?encrypt=${DB_ENCRYPT}\""
+    "db:gen": "kysely-codegen --dialect mssql --out-file src/lib/db/types.ts --url \"Server=${DB_SERVER},1433;Database=${DB_DATABASE};User Id=${DB_USER};Password=${DB_PASSWORD}\""
   },
   "dependencies": {
-    "@azure/msal-browser": "^4.7.0",
-    "@azure/msal-react": "^2.2.0",
+    "@node-rs/argon2": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "kysely": "^0.27.6",
     "lucide-react": "^0.469.0",
     "next": "16.2.9",
-    "powerbi-client": "^2.22.3",
-    "powerbi-client-react": "^1.4.0",
+    "next-auth": "5.0.0-beta.31",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
@@ -29,6 +27,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@tailwindcss/postcss": "^4",
+    "@tediousjs/connection-string": "^0.5.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

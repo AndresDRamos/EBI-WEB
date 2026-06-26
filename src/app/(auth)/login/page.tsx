@@ -1,5 +1,11 @@
-import { SignInButton } from "@/components/auth/sign-in-button";
+import { Suspense } from "react";
+import { LoginForm } from "@/components/auth/login-form";
 
+/**
+ * Portal login (username + password). Uses Auth.js v5 Credentials.
+ * Unauthenticated by design; middleware redirects already-authenticated
+ * visitors away to /dashboards.
+ */
 export default function LoginPage() {
   return (
     <main className="w-full max-w-md">
@@ -17,14 +23,16 @@ export default function LoginPage() {
           Portal de inteligencia de negocio
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Inicie sesión con su cuenta de Microsoft para acceder a los reportes
-          de Power BI.
+          Inicie sesión con su usuario y contraseña para acceder al portal.
         </p>
         <div className="mt-6">
-          <SignInButton />
+          <Suspense fallback={null}>
+            <LoginForm />
+          </Suspense>
         </div>
         <p className="mt-6 text-xs text-muted-foreground">
-          Acceso restringido a usuarios autorizados de EZI Metales.
+          Acceso restringido a usuarios autorizados de EZI Metales. Si no
+          tiene cuenta, solicítela a un administrador.
         </p>
       </div>
     </main>

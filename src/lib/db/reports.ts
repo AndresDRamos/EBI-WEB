@@ -27,7 +27,7 @@ export interface ReportWithCategory {
   category_id: number | null;
   description: string | null;
   sort_order: number;
-  is_active: number;
+  is_active: boolean;
   created_at: Date;
   updated_at: Date;
   category_name: string | null;
@@ -44,7 +44,7 @@ export interface AdminReportViewItem {
   category_name: string | null;
   description: string | null;
   sort_order: number;
-  is_active: number;
+  is_active: boolean;
   updated_at: Date;
 }
 
@@ -80,7 +80,7 @@ export async function listActiveReports(): Promise<ReportWithCategory[]> {
       "report_category.name as category_name",
       "report_category.sort_order as category_sort_order",
     ])
-    .where("report.is_active", "=", 1)
+    .where("report.is_active", "=", true)
     .orderBy("report_category.sort_order", "asc")
     .orderBy("report.sort_order", "asc")
     .orderBy("report.name", "asc")
@@ -157,7 +157,7 @@ export async function createReport(input: ReportInput): Promise<ReportRow> {
       category_id: input.category_id,
       description: input.description,
       sort_order: input.sort_order,
-      is_active: Number(input.is_active),
+      is_active: Boolean(input.is_active),
     })
     .executeTakeFirst();
   const id = Number(result.insertId);
@@ -185,7 +185,7 @@ export async function updateReport(
   if (input.category_id !== undefined) changes.category_id = input.category_id;
   if (input.description !== undefined) changes.description = input.description;
   if (input.sort_order !== undefined) changes.sort_order = input.sort_order;
-  if (input.is_active !== undefined) changes.is_active = Number(input.is_active);
+  if (input.is_active !== undefined) changes.is_active = Boolean(input.is_active);
   if (Object.keys(changes).length === 0) {
     return;
   }
@@ -200,7 +200,7 @@ export async function updateReport(
 export async function setActive(id: number, active: boolean): Promise<void> {
   await db
     .updateTable("report")
-    .set({ is_active: active ? 1 : 0, updated_at: new Date() })
+    .set({ is_active: active, updated_at: new Date() })
     .where("report_id", "=", id)
     .execute();
 }

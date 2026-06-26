@@ -29,8 +29,14 @@ const dialect = new MssqlDialect({
   tarn: {
     ...Tarn,
     options: {
-      min: 0,
+      // Keep one warm connection alive so each request avoids a full TCP+TLS+
+      // login round-trip to Azure SQL (the main source of per-navigation
+      // latency). Idle connections above `min` are still reaped.
+      min: 1,
       max: 10,
+      idleTimeoutMillis: 60_000,
+      createTimeoutMillis: 15_000,
+      acquireTimeoutMillis: 15_000,
     },
   },
   tedious: {

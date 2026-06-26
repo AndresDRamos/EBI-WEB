@@ -1,9 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createCategory, listCategories } from "@/lib/db/reports";
+import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { authErrorResponse } from "@/lib/auth/api";
 
 /** GET /api/reports/categories */
 export async function GET() {
   try {
+    await requireUser();
     const categories = await listCategories();
     return NextResponse.json({ categories });
   } catch (err) {
@@ -18,6 +21,13 @@ export async function GET() {
 
 /** POST /api/reports/categories */
 export async function POST(request: NextRequest) {
+  try {
+    await requireAnyRole(["admin"]);
+  } catch (err) {
+    const res = authErrorResponse(err);
+    if (res) return res;
+    throw err;
+  }
   let body: { name?: unknown; sort_order?: unknown };
   try {
     body = (await request.json()) as { name?: unknown; sort_order?: unknown };

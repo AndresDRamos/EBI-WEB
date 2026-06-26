@@ -20,7 +20,7 @@ export interface AdminReportRow {
   name: string;
   category_name: string | null;
   sort_order: number;
-  is_active: number;
+  is_active: boolean;
   updated_at: string;
 }
 
@@ -127,7 +127,7 @@ export function ReportAdminTable({
                       variant="outline"
                       disabled={busyId === row.report_id}
                       onClick={() =>
-                        toggle(row.report_id, row.is_active !== 1)
+                        toggle(row.report_id, !row.is_active)
                       }
                     >
                       {row.is_active ? "Desactivar" : "Activar"}

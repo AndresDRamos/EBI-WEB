@@ -1,36 +1,31 @@
-"use client";
-
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import {
-  AuthenticatedTemplate,
-  UnauthenticatedTemplate,
-} from "@azure/msal-react";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { PortalShell } from "@/components/portal-shell";
+import type { SessionUser } from "@/lib/auth/rbac";
 
-/** Sends unauthenticated visitors to the login page. */
-function RedirectToLogin() {
-  const router = useRouter();
-  React.useEffect(() => {
-    router.replace("/login");
-  }, [router]);
-  return null;
-}
+/**
+ * Guard for everything under `(portal)`. Server-side: middleware already
+ * rejects unauthenticated requests, but `auth()` here gives the layout the
+ * user to render the shell with (and is a second line of defense).
+ */
+export const dynamic = "force-dynamic";
 
-/** Protects everything under (portal): requires an Entra session. */
-export default function PortalLayout({
+export default async function PortalLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <>
-      <AuthenticatedTemplate>
-        <PortalShell>{children}</PortalShell>
-      </AuthenticatedTemplate>
-      <UnauthenticatedTemplate>
-        <RedirectToLogin />
-      </UnauthenticatedTemplate>
-    </>
-  );
+  const session = await auth();
+  if (!session?.user?.userId) {
+    redirect("/login");
+  }
+
+  const user: SessionUser = {
+    id: session.user.userId,
+    name: session.user.name ?? null,
+    username: session.user.username ?? "",
+    roles: session.user.roles ?? [],
+  };
+
+  return <PortalShell user={user}>{children}</PortalShell>;
 }

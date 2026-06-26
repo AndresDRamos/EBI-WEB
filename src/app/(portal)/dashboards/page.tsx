@@ -23,7 +23,7 @@ export default async function DashboardsPage() {
         <div>
           <h1 className="text-2xl font-bold">Dashboards</h1>
           <p className="text-sm text-muted-foreground">
-            Catálogo de reportes de Power BI.
+            Catálogo de reportes (el embebido se reincorporará próximamente).
           </p>
         </div>
       </header>

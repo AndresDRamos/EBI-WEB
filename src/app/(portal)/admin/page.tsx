@@ -42,7 +42,8 @@ export default async function AdminPage() {
         <div>
           <h1 className="text-2xl font-bold">Administración</h1>
           <p className="text-sm text-muted-foreground">
-            Gestione el catálogo de reportes y categorías de Power BI.
+            Gestione el catálogo de reportes y categorías (inventario para el
+            futuro módulo de embebido).
           </p>
         </div>
       </header>
@@ -53,14 +54,12 @@ export default async function AdminPage() {
         <CategoryManager categories={categories} />
         <div className="rounded-lg border bg-white p-4 text-sm text-muted-foreground">
           <h2 className="mb-2 font-semibold text-ezi-gray">
-            Datos de Power BI
+            Catálogo de reportes
           </h2>
           <p>
-            Para embeber un reporte se requiere su GUID de workspace y de
-            reporte, disponibles en la URL de Power BI Service. El modo de
-            embebido actual es{" "}
-            <strong className="text-ezi-gray">org-embed</strong> (usuario
-            propietario, token AAD).
+            El embebido de Power BI está fuera de v1 y se reincorporará como
+            módulo dedicado (app-owns-data). Mientras tanto, este catálogo se
+            mantiene como inventario dormiente, protegido por autenticación.
           </p>
           <p className="mt-2">
             <Link

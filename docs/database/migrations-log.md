@@ -8,3 +8,4 @@ successful `flyway migrate`.
 | V1 | `db/migrations/V1__init.sql` | Report metadata (`dbo.report`, `dbo.report_category`) | EBI_dev / 2026-06-24 |
 | V2 | `db/migrations/V2__schemas_staging_core.sql` | `staging` + `core` + `etl` schemas and `etl.run_log` | EBI_dev / 2026-06-24 |
 | V3 | `db/migrations/V3__auth_schema.sql` | Portal-owned auth RBAC (`auth` schema: `app_user`, `role`, `plant`, `department`, `user_role`, `user_plant`, `user_department`, `invitation`); seeds `admin` and `viewer` roles | EBI_dev / 2026-06-26 |
+| V4 | `db/migrations/V4__user_admin_catalog_columns.sql` | User-admin catalog columns (`auth.role.is_active`; `auth.department.description`; `auth.plant.address`, `auth.plant.postal_code`) | pending |

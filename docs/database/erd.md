@@ -3,7 +3,7 @@
 > Generated from the live schema by `/sync-docs` (read-only `ebi-sql-dev` MCP).
 > Do not edit by hand; rerun `/sync-docs` after applying migrations.
 >
-> Last synced: 2026-06-26. Reflects V1 + V2 + V3.
+> Last synced: 2026-06-27. Reflects V1 + V2 + V3 + V4 (V4 pending `flyway migrate`; re-run `/sync-docs` after applying).
 
 ```mermaid
 erDiagram
@@ -62,12 +62,15 @@ erDiagram
         int role_id PK
         nvarchar_40 name
         nvarchar_256 description
+        bit is_active
     }
 
     plant {
         int plant_id PK
         nvarchar_32 code
         nvarchar_160 name
+        nvarchar_256 address
+        nvarchar_16 postal_code
         bit is_active
         datetime2 created_at
         datetime2 updated_at
@@ -76,6 +79,7 @@ erDiagram
     department {
         int department_id PK
         nvarchar_160 name
+        nvarchar_256 description
         bit is_active
         datetime2 created_at
         datetime2 updated_at

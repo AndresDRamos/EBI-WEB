@@ -3,7 +3,7 @@
 > Generated from the live schema by `/sync-docs` (read-only `ebi-sql-dev` MCP).
 > Do not edit by hand; rerun `/sync-docs` after applying migrations.
 >
-> Last synced: 2026-06-26. Reflects V1 + V2 + V3.
+> Last synced: 2026-06-27. Reflects V1 + V2 + V3 + V4 (V4 pending `flyway migrate`; re-run `/sync-docs` after applying).
 
 ---
 
@@ -96,6 +96,7 @@ RBAC role catalog. Seeded with `admin` and `viewer`.
 | role_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
 | name | nvarchar(40) | no | UQ | Role name (`admin`, `viewer`) |
 | description | nvarchar(256) | yes | | Human-readable description |
+| is_active | bit | no | DEFAULT 1 | Soft-disable flag for non-system roles. Only `admin` is protected from deactivation at the application layer (no DB constraint) |
 
 ### `auth.plant`
 
@@ -106,6 +107,8 @@ Plant catalog managed by portal admins. May later map to EPS plant IDs.
 | plant_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
 | code | nvarchar(32) | no | UQ | Short plant code |
 | name | nvarchar(160) | no | | Full plant name |
+| address | nvarchar(256) | yes | | Optional street address |
+| postal_code | nvarchar(16) | yes | | Optional postal/ZIP code |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
@@ -118,6 +121,7 @@ Department catalog managed by portal admins.
 |---|---|---|---|---|
 | department_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
 | name | nvarchar(160) | no | UQ | Department name |
+| description | nvarchar(256) | yes | | Optional human-readable description |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |

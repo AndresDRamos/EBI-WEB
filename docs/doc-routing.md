@@ -35,11 +35,11 @@
 - **Gotchas:** embedding is **deferred in v1**. Keep `src/lib/powerbi/` mode-agnostic (`Aad` dev / `Embed` prod); fork token acquisition, not the embed component.
 
 ### Admin CRUD (users, catalogs, report metadata)
-- **Read always:** relevant `docs/modules/*.md` · `docs/database/erd.md`
-- **Read if:** `docs/database/data-dictionary.md` (when adding/altering columns)
-- **Skip (known noise):** ETL docs · ADR 0001 unless touching auth/roles.
-- **Ask up front:** which least-privilege DB user runs this (`ebi_app`)? soft vs hard delete?
-- **Gotchas:** all DB access through `src/lib/db/` (Kysely) — no raw queries elsewhere.
+- **Read always:** `docs/database/erd.md` · existing `src/lib/db/*.ts` + `src/app/api/**` for the entity (M2 already built users/plants/departments/reports CRUD — extend, don't rebuild)
+- **Read if:** `docs/database/data-dictionary.md` (when adding/altering columns) · relevant `docs/modules/*.md` (only if one exists for the entity)
+- **Skip (known noise):** ETL docs · ADR 0001 unless touching auth/roles · `docs/modules/powerbi-admin.md` (Reportes admin is dormant; don't refactor it for unrelated work).
+- **Ask up front:** which least-privilege DB user runs this (`ebi_app`)? soft vs hard delete (and what does the inactive-view "permanent delete" do for referenced rows)? are any roles code-coupled — which are protected (only `admin`; `viewer` is normal CRUD)?
+- **Gotchas:** all DB access through `src/lib/db/` (Kysely) — no raw queries elsewhere · the session JWT carries only `userId/username/display_name/roles/token_version` (NO email) — read profile fields server-side via `getUserDetail`, not from the session · catalog DELETEs 409 on FK by design (block referenced rows); user deletes cascade via the junction FKs.
 
 ### Pure UI / no data
 - **Read always:** relevant `docs/modules/*.md`

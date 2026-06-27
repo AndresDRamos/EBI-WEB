@@ -91,7 +91,7 @@ export function ReportForm({ categories, initial }: ReportFormProps) {
         };
         throw new Error(data.error ?? "Error al guardar el reporte.");
       }
-      router.push("/admin");
+      router.push("/admin/reports");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
@@ -203,7 +203,7 @@ export function ReportForm({ categories, initial }: ReportFormProps) {
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/admin")}
+          onClick={() => router.push("/admin/reports")}
           disabled={busy}
         >
           Cancelar

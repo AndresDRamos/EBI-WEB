@@ -60,7 +60,7 @@ WHERE r.name = N'admin'
 SELECT @uid AS user_id;
 `;
 
-function connect() {
+function connectOnce() {
   return new Promise((resolve, reject) => {
     const conn = new Connection({
       server: DB_SERVER,
@@ -71,11 +71,26 @@ function connect() {
         encrypt: String(DB_ENCRYPT ?? 'true').toLowerCase() !== 'false',
         trustServerCertificate: false,
         rowCollectionOnRequestCompletion: true,
+        connectTimeout: 30000,
       },
     });
     conn.on('connect', (err) => (err ? reject(err) : resolve(conn)));
     conn.connect();
   });
+}
+
+// Azure SQL serverless auto-pauses; the first attempt can fail with ENOTFOUND / connect
+// timeout while the gateway resumes the database. Retry a few times before giving up.
+async function connect(attempts = 4, delayMs = 8000) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await connectOnce();
+    } catch (e) {
+      if (i === attempts) throw e;
+      console.log(`… connect attempt ${i}/${attempts} failed (${e.code ?? e.message}); waking DB, retrying in ${delayMs / 1000}s`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
 }
 
 function run(conn, passwordHash) {
@@ -93,7 +108,14 @@ function run(conn, passwordHash) {
 
 let conn;
 try {
-  const passwordHash = await hash(ADMIN_PASSWORD); // argon2id (library default)
+  // Match src/lib/auth/password.ts (argon2id, same cost params). Verification only needs
+  // the algorithm/params encoded in the hash (no pepper in the app), but keep them aligned.
+  const passwordHash = await hash(ADMIN_PASSWORD, {
+    algorithm: 2, // Argon2id
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
   conn = await connect();
   const userId = await run(conn, passwordHash);
   console.log(`✓ Bootstrap admin '${ADMIN_USERNAME}' ready (user_id=${userId}, role=admin, all_plants=1).`);

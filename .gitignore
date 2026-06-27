@@ -40,3 +40,4 @@ coverage/
 
 # Salidas temporales de agentes
 .opencode/cache/
+.claude/traces/

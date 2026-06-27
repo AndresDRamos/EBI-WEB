@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { LayoutDashboard, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import type { SessionUser } from "@/lib/auth/rbac";
 
 const navItems = [
@@ -31,15 +31,15 @@ export function PortalShell({
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex h-14 items-center justify-between bg-ezi-gray px-4 text-white">
-        <Link href="/dashboards" className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="inline-block h-5 w-5 rounded-full bg-ezi-orange"
+        <Link href="/dashboards" className="flex items-center">
+          <Image
+            src="/EZI-LOGO-POSITIVO.png"
+            alt="EZI Metales"
+            width={120}
+            height={40}
+            className="h-8 w-auto object-contain"
+            priority
           />
-          <span className="text-base font-bold tracking-tight">EBI</span>
-          <span className="hidden text-sm text-gray-400 sm:inline">
-            · Inteligencia de negocio
-          </span>
         </Link>
         <UserMenu user={user} />
       </header>
@@ -82,6 +82,28 @@ export function PortalShell({
 function UserMenu({ user }: { user: SessionUser }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
 
   async function handleSignOut() {
     setBusy(true);
@@ -99,24 +121,44 @@ function UserMenu({ user }: { user: SessionUser }) {
     : (user.username?.[0]?.toUpperCase() ?? "");
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="hidden text-right sm:block">
-        <div className="text-sm font-medium leading-4">{user.name ?? user.username}</div>
-        <div className="text-xs text-gray-400">{user.username}</div>
-      </div>
-      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/10 text-xs font-semibold">
-        {initials}
-      </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-2 text-white hover:bg-white/10 hover:text-white"
-        onClick={handleSignOut}
-        disabled={busy}
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-3 rounded-sm p-1 text-white hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        aria-expanded={open}
+        aria-haspopup="true"
       >
-        <LogOut className="h-4 w-4" />
-        <span className="hidden sm:inline">Salir</span>
-      </Button>
+        <div className="hidden text-right sm:block">
+          <div className="text-sm font-medium leading-4">
+            {user.name ?? user.username}
+          </div>
+          <div className="text-xs text-gray-400">{user.username}</div>
+        </div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/10 text-xs font-semibold">
+          {initials}
+        </div>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-md border border-white/10 bg-white py-1 shadow-lg">
+          <div className="border-b border-gray-100 px-4 py-2 sm:hidden">
+            <div className="text-sm font-medium">
+              {user.name ?? user.username}
+            </div>
+            <div className="text-xs text-gray-500">{user.username}</div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={busy}
+            className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:bg-gray-50 disabled:opacity-50"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Salir</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

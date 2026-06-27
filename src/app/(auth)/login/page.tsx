@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Image from "next/image";
 import { LoginForm } from "@/components/auth/login-form";
 
 /**
@@ -13,17 +14,30 @@ export default function LoginPage() {
         <div className="mb-6 flex items-center gap-3">
           <span
             aria-hidden
-            className="inline-block h-8 w-8 rounded-full bg-ezi-orange"
-          />
-          <span className="text-xl font-bold tracking-tight text-ezi-gray">
-            EBI
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-ezi-orange"
+          >
+            <Image
+              src="/EZI-E.png"
+              alt=""
+              width={28}
+              height={28}
+              className="object-contain brightness-0 invert"
+              priority
+            />
           </span>
+          <h1 className="group flex items-center text-2xl font-bold tracking-tight">
+            <span className="text-ezi-orange">B</span>
+            <span className="inline-flex min-w-0 max-w-0 overflow-hidden transition-[max-width] duration-500 ease-out group-hover:max-w-[9rem]">
+              <span className="whitespace-nowrap text-ezi-gray">usiness&nbsp;</span>
+            </span>
+            <span className="text-ezi-gray">I</span>
+            <span className="inline-flex min-w-0 max-w-0 overflow-hidden transition-[max-width] duration-500 ease-out group-hover:max-w-[18rem]">
+              <span className="whitespace-nowrap text-ezi-gray">ntelligence</span>
+            </span>
+          </h1>
         </div>
-        <h1 className="text-2xl font-bold text-ezi-gray">
-          Portal de inteligencia de negocio
-        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Inicie sesión con su usuario y contraseña para acceder al portal.
+          Inicie sesión con su usuario y contraseña para acceder.
         </p>
         <div className="mt-6">
           <Suspense fallback={null}>

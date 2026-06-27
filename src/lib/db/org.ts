@@ -1,7 +1,12 @@
 import "server-only";
-import { db } from "./client";
+import { db as rootDb } from "./client";
 import type { Selectable, Insertable, Transaction } from "kysely";
 import type { Plant, Department, Role } from "./types";
+
+// All tables here (role, plant, department) live in the `auth` schema. See the
+// note in users.ts: kysely-codegen dropped the schema from the generated keys,
+// so bind the client to `auth` or SQL Server looks under dbo and 208s.
+const db = rootDb.withSchema("auth");
 
 export type PlantRow = Selectable<Plant>;
 export type DepartmentRow = Selectable<Department>;

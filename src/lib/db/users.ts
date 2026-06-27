@@ -160,6 +160,62 @@ export async function getUserScope(userId: number): Promise<UserScope> {
 // Admin CRUD
 // ---------------------------------------------------------------------------
 
+export interface AdminUserItemWithNames extends AdminUserItem {
+  /** Plant names parallel to `plant_ids` (joined from catalog). Empty when `all_plants`. */
+  plant_names: { plant_id: number; name: string; code: string }[];
+  /** Department names parallel to `department_ids` (joined from catalog). */
+  department_names: { department_id: number; name: string }[];
+}
+
+/**
+ * Same shape as `listUsers()` but joins plant/department names so the Usuarios
+ * admin table can render "Planta(s)" / "Departamento(s)" without re-fetching
+ * catalogs. Roles already come as names from `listUsers()`. Uses the same
+ * batched pattern: one SELECT per junction to avoid N+1.
+ */
+export async function listUsersWithNames(): Promise<AdminUserItemWithNames[]> {
+  const users = await listUsers();
+  if (users.length === 0) return [];
+
+  const ids = users.map((u) => u.user_id);
+
+  const [plantRows, deptRows] = await Promise.all([
+    db
+      .selectFrom("user_plant")
+      .innerJoin("plant", "plant.plant_id", "user_plant.plant_id")
+      .select(["user_plant.user_id", "plant.plant_id", "plant.name", "plant.code"])
+      .where("user_plant.user_id", "in", ids)
+      .orderBy("plant.name", "asc")
+      .execute(),
+    db
+      .selectFrom("user_department")
+      .innerJoin("department", "department.department_id", "user_department.department_id")
+      .select(["user_department.user_id", "department.department_id", "department.name"])
+      .where("user_department.user_id", "in", ids)
+      .orderBy("department.name", "asc")
+      .execute(),
+  ]);
+
+  const plantsByUser = new Map<number, { plant_id: number; name: string; code: string }[]>();
+  for (const r of plantRows) {
+    const arr = plantsByUser.get(r.user_id) ?? [];
+    arr.push({ plant_id: r.plant_id, name: r.name, code: r.code });
+    plantsByUser.set(r.user_id, arr);
+  }
+  const deptsByUser = new Map<number, { department_id: number; name: string }[]>();
+  for (const r of deptRows) {
+    const arr = deptsByUser.get(r.user_id) ?? [];
+    arr.push({ department_id: r.department_id, name: r.name });
+    deptsByUser.set(r.user_id, arr);
+  }
+
+  return users.map((u) => ({
+    ...u,
+    plant_names: plantsByUser.get(u.user_id) ?? [],
+    department_names: deptsByUser.get(u.user_id) ?? [],
+  }));
+}
+
 export async function listUsers(): Promise<AdminUserItem[]> {
   const users = await db
     .selectFrom("app_user")

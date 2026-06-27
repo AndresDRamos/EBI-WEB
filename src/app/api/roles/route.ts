@@ -1,14 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listDepartments, createDepartment } from "@/lib/db/org";
+import { listRoles, createRole } from "@/lib/db/org";
 import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
-/** GET /api/departments — list departments (any authenticated user). */
+/** GET /api/roles — list roles (any authenticated user). Returns is_active + description. */
 export async function GET() {
   try {
     await requireUser();
-    const departments = await listDepartments();
-    return NextResponse.json({ departments });
+    const roles = await listRoles();
+    return NextResponse.json({ roles });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
@@ -21,7 +21,7 @@ interface CreateBody {
   description?: unknown;
 }
 
-/** POST /api/departments — create a department (admin). */
+/** POST /api/roles — create a role (admin). */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
   try {
@@ -39,16 +39,16 @@ export async function POST(request: NextRequest) {
       : null;
   try {
     await requireAnyRole(["admin"]);
-    const department = await createDepartment({ name, description });
-    return NextResponse.json({ department }, { status: 201 });
+    const role = await createRole({ name, description });
+    return NextResponse.json({ role }, { status: 201 });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
     const msg = err instanceof Error ? err.message : "";
     if (/unique/i.test(msg)) {
-      return NextResponse.json({ error: "El departamento ya existe." }, { status: 409 });
+      return NextResponse.json({ error: "El rol ya existe." }, { status: 409 });
     }
-    console.error("POST /api/departments failed:", err);
-    return NextResponse.json({ error: "No se pudo crear el departamento." }, { status: 500 });
+    console.error("POST /api/roles failed:", err);
+    return NextResponse.json({ error: "No se pudo crear el rol." }, { status: 500 });
   }
 }

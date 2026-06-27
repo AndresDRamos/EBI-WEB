@@ -6,6 +6,8 @@ import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 interface UpdateBody {
   code?: unknown;
   name?: unknown;
+  address?: unknown;
+  postal_code?: unknown;
   is_active?: unknown;
 }
 
@@ -27,10 +29,23 @@ export async function PUT(
   const changes: {
     code?: string;
     name?: string;
+    address?: string | null;
+    postal_code?: string | null;
     is_active?: boolean;
   } = {};
   if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
   if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
+  if (body.address === null || (typeof body.address === "string" && body.address.trim())) {
+    changes.address =
+      typeof body.address === "string" ? body.address.trim() : null;
+  }
+  if (
+    body.postal_code === null ||
+    (typeof body.postal_code === "string" && body.postal_code.trim())
+  ) {
+    changes.postal_code =
+      typeof body.postal_code === "string" ? body.postal_code.trim() : null;
+  }
   if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
   if (Object.keys(changes).length === 0) {
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
@@ -51,7 +66,7 @@ export async function PUT(
   }
 }
 
-/** DELETE /api/plants/[id] — delete a plant (admin). */
+/** DELETE /api/plants/[id] — hard delete a plant (admin); 409 if referenced. */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

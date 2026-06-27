@@ -19,6 +19,8 @@ export async function GET() {
 interface CreateBody {
   code?: unknown;
   name?: unknown;
+  address?: unknown;
+  postal_code?: unknown;
 }
 
 /** POST /api/plants — create a plant (admin). */
@@ -34,9 +36,15 @@ export async function POST(request: NextRequest) {
   if (!code || !name) {
     return NextResponse.json({ error: "Código y nombre son obligatorios." }, { status: 422 });
   }
+  const address =
+    typeof body.address === "string" && body.address.trim() ? body.address.trim() : null;
+  const postal_code =
+    typeof body.postal_code === "string" && body.postal_code.trim()
+      ? body.postal_code.trim()
+      : null;
   try {
     await requireAnyRole(["admin"]);
-    const plant = await createPlant(code, name);
+    const plant = await createPlant({ code, name, address, postal_code });
     return NextResponse.json({ plant }, { status: 201 });
   } catch (err) {
     const res = authErrorResponse(err);

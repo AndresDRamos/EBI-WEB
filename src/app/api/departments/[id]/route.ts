@@ -5,6 +5,7 @@ import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 interface UpdateBody {
   name?: unknown;
+  description?: unknown;
   is_active?: unknown;
 }
 
@@ -22,8 +23,16 @@ export async function PUT(
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
-  const changes: { name?: string; is_active?: boolean } = {};
+  const changes: {
+    name?: string;
+    description?: string | null;
+    is_active?: boolean;
+  } = {};
   if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
+  if (body.description === null || (typeof body.description === "string" && body.description.trim())) {
+    changes.description =
+      typeof body.description === "string" ? body.description.trim() : null;
+  }
   if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
   if (Object.keys(changes).length === 0) {
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });

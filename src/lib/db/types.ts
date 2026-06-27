@@ -34,6 +34,7 @@ export interface DatabaseFirewallRules {
 export interface Department {
   created_at: Generated<Date>;
   department_id: Generated<number>;
+  description: string | null;
   is_active: Generated<boolean>;
   name: string;
   updated_at: Generated<Date>;
@@ -63,11 +64,13 @@ export interface Invitation {
 }
 
 export interface Plant {
+  address: string | null;
   code: string;
   created_at: Generated<Date>;
   is_active: Generated<boolean>;
   name: string;
   plant_id: Generated<number>;
+  postal_code: string | null;
   updated_at: Generated<Date>;
 }
 
@@ -93,6 +96,7 @@ export interface ReportCategory {
 
 export interface Role {
   description: string | null;
+  is_active: Generated<boolean>;
   name: string;
   role_id: Generated<number>;
 }

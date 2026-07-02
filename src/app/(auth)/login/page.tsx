@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Image from "next/image";
-import { LoginForm } from "@/components/auth/login-form";
+import { LoginForm } from "@/modules/org/components/login-form";
 
 /**
  * Portal login (username + password). Uses Auth.js v5 Credentials.

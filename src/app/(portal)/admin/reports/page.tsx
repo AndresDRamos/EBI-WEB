@@ -3,9 +3,9 @@ import { BarChart3 } from "lucide-react";
 import {
   adminListReports,
   listCategories,
-} from "@/lib/db/reports";
-import { ReportAdminTable } from "@/components/admin/report-admin-table";
-import { CategoryManager } from "@/components/admin/category-manager";
+} from "@/modules/reports/db";
+import { ReportAdminTable } from "@/modules/reports/components/report-admin-table";
+import { CategoryManager } from "@/modules/reports/components/category-manager";
 
 export const dynamic = "force-dynamic";
 

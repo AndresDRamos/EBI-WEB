@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateDepartment, deleteDepartment } from "@/lib/db/org";
+import { updateDepartment, deleteDepartment } from "@/modules/org/db/org";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 

@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
-import { findSectionById, updateSection, deleteSection } from "@/lib/db/nav";
+import { findSectionById, updateSection, deleteSection } from "@/modules/navigation/db";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-import { NAV_ICON_NAMES } from "@/lib/nav/icons";
+import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
 
 interface UpdateBody {
   label?: unknown;

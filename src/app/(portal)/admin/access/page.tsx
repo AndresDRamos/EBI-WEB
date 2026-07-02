@@ -1,9 +1,9 @@
 import { Lock } from "lucide-react";
-import { listSections, listItems } from "@/lib/db/nav";
-import { listRoles } from "@/lib/db/org";
-import { NavSectionsTablePage } from "@/components/admin/nav-sections-table-page";
-import { NavItemsPanel } from "@/components/admin/nav-items-panel";
-import { NavGrantsPanel } from "@/components/admin/nav-grants-panel";
+import { listSections, listItems } from "@/modules/navigation/db";
+import { listRoles } from "@/modules/org/db/org";
+import { NavSectionsTablePage } from "@/modules/navigation/components/nav-sections-table-page";
+import { NavItemsPanel } from "@/modules/navigation/components/nav-items-panel";
+import { NavGrantsPanel } from "@/modules/navigation/components/nav-grants-panel";
 
 export const dynamic = "force-dynamic";
 

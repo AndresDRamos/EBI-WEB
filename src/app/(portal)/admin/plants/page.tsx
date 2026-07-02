@@ -1,5 +1,5 @@
-import { listPlants } from "@/lib/db/org";
-import { PlantsTablePage, type PlantsTableRow } from "@/components/admin/plants-table-page";
+import { listPlants } from "@/modules/org/db/org";
+import { PlantsTablePage, type PlantsTableRow } from "@/modules/org/components/plants-table-page";
 
 export const dynamic = "force-dynamic";
 

@@ -1,10 +1,10 @@
-import { listAssets } from "@/lib/db/maint";
-import { listPlants } from "@/lib/db/org";
+import { listAssets } from "@/modules/maintenance/db";
+import { listPlants } from "@/modules/org/db/org";
 import { isAdmin } from "@/lib/auth/rbac";
 import {
   MachinesTablePage,
   type MachinesTableRow,
-} from "@/components/maintenance/machines-table-page";
+} from "@/modules/maintenance/components/machines-table-page";
 
 export const dynamic = "force-dynamic";
 

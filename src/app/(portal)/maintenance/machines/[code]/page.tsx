@@ -4,13 +4,13 @@ import {
   getAssetDetail,
   listAssets,
   listProcesses,
-} from "@/lib/db/maint";
-import { listPlants } from "@/lib/db/org";
+} from "@/modules/maintenance/db";
+import { listPlants } from "@/modules/org/db/org";
 import { isAdmin } from "@/lib/auth/rbac";
 import {
   MachineDetail,
   type MachineDetailAsset,
-} from "@/components/maintenance/machine-detail";
+} from "@/modules/maintenance/components/machine-detail";
 
 export const dynamic = "force-dynamic";
 

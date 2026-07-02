@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
-import { findSectionById, listSectionGrants, setSectionGrants } from "@/lib/db/nav";
+import { findSectionById, listSectionGrants, setSectionGrants } from "@/modules/navigation/db";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 

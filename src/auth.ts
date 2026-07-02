@@ -5,7 +5,7 @@ import {
   findAuthUserByUsername,
   findAuthUserById,
   getUserRolesById,
-} from "@/lib/db/users";
+} from "@/modules/org/db/users";
 import { verifyPassword } from "@/lib/auth/password";
 
 /**

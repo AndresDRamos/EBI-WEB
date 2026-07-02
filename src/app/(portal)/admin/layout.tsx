@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { assertAdminOrRedirect } from "@/lib/auth/rbac";
-import { AdminPanelSidebar } from "@/components/admin/admin-panel-sidebar";
+import { AdminPanelSidebar } from "@/components/layout/admin-panel-sidebar";
 
 export const dynamic = "force-dynamic";
 

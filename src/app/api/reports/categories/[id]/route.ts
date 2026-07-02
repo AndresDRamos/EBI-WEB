@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateCategory, deleteCategory } from "@/lib/db/reports";
+import { updateCategory, deleteCategory } from "@/modules/reports/db";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 

@@ -1,7 +1,7 @@
-import { listUsersWithNames } from "@/lib/db/users";
-import { listRoles, listPlants, listDepartments } from "@/lib/db/org";
-import { UsersTablePage, type UsersTableRow } from "@/components/admin/users-table-page";
-import type { CatalogItem } from "@/components/admin/user-form";
+import { listUsersWithNames } from "@/modules/org/db/users";
+import { listRoles, listPlants, listDepartments } from "@/modules/org/db/org";
+import { UsersTablePage, type UsersTableRow } from "@/modules/org/components/users-table-page";
+import type { CatalogItem } from "@/modules/org/components/user-form";
 
 export const dynamic = "force-dynamic";
 

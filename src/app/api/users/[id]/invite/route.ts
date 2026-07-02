@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createInvitation, findAuthUserById } from "@/lib/db/users";
+import { createInvitation, findAuthUserById } from "@/modules/org/db/users";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 

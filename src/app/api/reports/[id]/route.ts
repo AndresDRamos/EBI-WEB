@@ -5,7 +5,7 @@ import {
   updateReport,
   deleteReport,
   type ReportInput,
-} from "@/lib/db/reports";
+} from "@/modules/reports/db";
 import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 

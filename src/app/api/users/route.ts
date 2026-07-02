@@ -4,8 +4,8 @@ import {
   createUser,
   listPendingInvitations,
   createInvitation,
-} from "@/lib/db/users";
-import { listRoles, listPlants, listDepartments } from "@/lib/db/org";
+} from "@/modules/org/db/users";
+import { listRoles, listPlants, listDepartments } from "@/modules/org/db/org";
 import { requireAnyRole, requireUser } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 

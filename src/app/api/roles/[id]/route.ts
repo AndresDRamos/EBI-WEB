@@ -5,7 +5,7 @@ import {
   deleteRole,
   RoleProtectedError,
   PROTECTED_ROLE,
-} from "@/lib/db/org";
+} from "@/modules/org/db/org";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 

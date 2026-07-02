@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
-import { createItem, findSectionById, listItems } from "@/lib/db/nav";
+import { createItem, findSectionById, listItems } from "@/modules/navigation/db";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-import { NAV_ICON_NAMES } from "@/lib/nav/icons";
+import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
 
 /** GET /api/nav/items — list every sidebar item across sections (admin). */
 export async function GET() {

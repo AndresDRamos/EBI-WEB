@@ -1,5 +1,5 @@
-import { listRoles } from "@/lib/db/org";
-import { RolesTablePage, type RolesTableRow } from "@/components/admin/roles-table-page";
+import { listRoles } from "@/modules/org/db/org";
+import { RolesTablePage, type RolesTableRow } from "@/modules/org/components/roles-table-page";
 
 export const dynamic = "force-dynamic";
 

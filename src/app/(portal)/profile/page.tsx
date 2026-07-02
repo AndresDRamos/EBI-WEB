@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getUserDetail } from "@/lib/db/users";
-import { ProfileView } from "@/components/profile/profile-view";
+import { getUserDetail } from "@/modules/org/db/users";
+import { ProfileView } from "@/modules/org/components/profile-view";
 
 export const dynamic = "force-dynamic";
 

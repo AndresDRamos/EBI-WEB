@@ -1,9 +1,9 @@
-import { listProcesses } from "@/lib/db/maint";
+import { listProcesses } from "@/modules/maintenance/db";
 import { isAdmin } from "@/lib/auth/rbac";
 import {
   ProcessesTablePage,
   type ProcessesTableRow,
-} from "@/components/maintenance/processes-table-page";
+} from "@/modules/maintenance/components/processes-table-page";
 
 export const dynamic = "force-dynamic";
 

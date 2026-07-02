@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { findPendingInvitation, acceptInvitation } from "@/lib/db/users";
+import { findPendingInvitation, acceptInvitation } from "@/modules/org/db/users";
 import { hashPassword } from "@/lib/auth/password";
 import { parseJsonBody } from "@/lib/auth/api";
 

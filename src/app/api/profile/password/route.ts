@@ -5,7 +5,7 @@ import {
   findAuthUserById,
   setUserPassword,
   bumpTokenVersion,
-} from "@/lib/db/users";
+} from "@/modules/org/db/users";
 import {
   hashPassword,
   verifyPassword,

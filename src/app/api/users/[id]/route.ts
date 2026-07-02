@@ -3,7 +3,7 @@ import {
   getUserDetail,
   updateUserAssignments,
   bumpTokenVersion,
-} from "@/lib/db/users";
+} from "@/modules/org/db/users";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 

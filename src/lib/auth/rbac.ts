@@ -1,6 +1,6 @@
 import "server-only";
 import { auth } from "@/auth";
-import { getUserScope as dbGetUserScope } from "@/lib/db/users";
+import { getUserScope as dbGetUserScope } from "@/modules/org/db/users";
 
 /**
  * Server-side authorization helpers consumed by API route handlers and server

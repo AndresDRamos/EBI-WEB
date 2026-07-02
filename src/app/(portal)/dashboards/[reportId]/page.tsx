@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getReport } from "@/lib/db/reports";
+import { getReport } from "@/modules/reports/db";
 
 export const dynamic = "force-dynamic";
 

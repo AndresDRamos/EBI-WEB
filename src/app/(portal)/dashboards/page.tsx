@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { LayoutDashboard } from "lucide-react";
-import { listActiveReports } from "@/lib/db/reports";
-import type { ReportWithCategory } from "@/lib/db/reports";
+import { listActiveReports } from "@/modules/reports/db";
+import type { ReportWithCategory } from "@/modules/reports/db";
 import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";

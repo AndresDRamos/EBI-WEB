@@ -1,5 +1,5 @@
-import { listDepartments } from "@/lib/db/org";
-import { DepartmentsTablePage, type DepartmentsTableRow } from "@/components/admin/departments-table-page";
+import { listDepartments } from "@/modules/org/db/org";
+import { DepartmentsTablePage, type DepartmentsTableRow } from "@/modules/org/components/departments-table-page";
 
 export const dynamic = "force-dynamic";
 

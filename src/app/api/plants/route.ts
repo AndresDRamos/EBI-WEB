@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listPlants, createPlant } from "@/lib/db/org";
+import { listPlants, createPlant } from "@/modules/org/db/org";
 import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 

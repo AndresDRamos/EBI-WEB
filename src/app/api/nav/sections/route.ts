@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listSections } from "@/lib/db/nav";
+import { listSections } from "@/modules/navigation/db";
 import { requireAnyRole } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 

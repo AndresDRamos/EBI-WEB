@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
-import { findAssetByCode } from "@/lib/db/maint";
-import { listPlants } from "@/lib/db/org";
-import { MachineLabel } from "@/components/maintenance/machine-label";
+import { findAssetByCode } from "@/modules/maintenance/db";
+import { listPlants } from "@/modules/org/db/org";
+import { MachineLabel } from "@/modules/maintenance/components/machine-label";
 
 export const dynamic = "force-dynamic";
 

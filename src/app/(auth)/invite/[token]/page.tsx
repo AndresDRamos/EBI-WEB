@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { findPendingInvitation } from "@/lib/db/users";
-import { AcceptInviteForm } from "@/components/auth/accept-invite-form";
+import { findPendingInvitation } from "@/modules/org/db/users";
+import { AcceptInviteForm } from "@/modules/org/components/accept-invite-form";
 
 export const dynamic = "force-dynamic";
 

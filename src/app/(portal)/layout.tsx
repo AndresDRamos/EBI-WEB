@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { unstable_cache } from "next/cache";
 import { auth } from "@/auth";
-import { PortalShell } from "@/components/portal-shell";
-import { getNavForUser } from "@/lib/db/nav";
-import { SIDEBAR_PIN_COOKIE } from "@/lib/nav/pin-cookie";
+import { PortalShell } from "@/components/layout/portal-shell";
+import { getNavForUser } from "@/modules/navigation/db";
+import { SIDEBAR_PIN_COOKIE } from "@/modules/navigation/pin-cookie";
 import type { SessionUser } from "@/lib/auth/rbac";
 
 /**

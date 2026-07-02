@@ -32,6 +32,7 @@ an agent-driven workflow (plans → build → verify → commit).
 
 ```bash
 pnpm install
+git config core.hooksPath .githooks               # enables the no-direct-push-to-main guard
 cp .env.example .env                              # fill values (never commit them)
 flyway -configFiles=db/flyway.dev.conf migrate    # apply migrations to EBI_dev
 pnpm db:gen                                       # regenerate Kysely types
@@ -68,7 +69,9 @@ Dependency direction: `app → modules → kit/ui/lib` — never the reverse.
 ### Branches
 
 - `main` is protected: changes arrive **only by PR** with CI green. Trunk-based,
-  short-lived branches (days, not weeks).
+  short-lived branches (days, not weeks). Server-side branch protection needs GitHub
+  Pro/Team on private repos; until then the committed `.githooks/pre-push` guard
+  enforces it per clone (see *Getting started*).
 - Name: `<type>/<NNNN>-<slug>` where `type` ∈ `feat|fix|refactor|docs|chore` and
   `NNNN` is the plan number — e.g. `feat/0006-rbac-actions`. Small chores without a
   plan drop the number: `chore/ci-tweaks`.

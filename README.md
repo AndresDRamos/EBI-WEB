@@ -56,8 +56,10 @@ Dependency direction: `app → modules → kit/ui/lib` — never the reverse.
 
 ## Workflow (plan-driven)
 
-1. `/plan-module <name>` → plan in `docs/plans/NNNN-slug.md` (invokes the `dba`
-   sub-agent if the schema changes). Human approves.
+1. Drop the raw ask in `prompts/<slug>.md` (no number) and run
+   `/plan-module <slug>` → the skill claims the next plan number from the ledger
+   and produces `docs/plans/NNNN-slug.md` (invoking the `dba` sub-agent if the
+   schema changes). Human approves.
 2. `/plan-save` → persists plan + migration files + executor prompt (`prompts/NNNN-*`).
 3. Human: `flyway migrate` against `EBI_dev` + `pnpm db:gen`.
 4. `/build-plan` → code; `docs-sync` reconciles docs at the end.
@@ -75,10 +77,11 @@ Dependency direction: `app → modules → kit/ui/lib` — never the reverse.
 - Name: `<type>/<NNNN>-<slug>` where `type` ∈ `feat|fix|refactor|docs|chore` and
   `NNNN` is the plan number — e.g. `feat/0006-rbac-actions`. Small chores without a
   plan drop the number: `chore/ci-tweaks`.
-- **Claiming a plan number:** take `max + 1` from `docs/plans/README.md` **on
-  `origin/main`** at the moment you branch. If two in-flight plans collide anyway,
-  whichever PR merges second renumbers its plan (file rename + index row) — cheap
-  and explicit.
+- **Plan numbers are claimed by the tooling, not by people.** `/plan-module` takes
+  `max + 1` from the ledger (`docs/plans/README.md`) **on `origin/main`** and reports
+  it; humans never need to know the next number. If two in-flight plans collide
+  anyway, whichever PR merges second renumbers its plan (file rename + index row) —
+  cheap and explicit.
 
 ### Commits and PRs
 

@@ -1,6 +1,7 @@
 # ERD — esquema `auth`
 
-> Generado a partir de `docs/database/erd.md`. No editar a mano; regenerar con `/sync-docs`.
+> Generado desde el esquema vivo (`ebi-sql-dev`, read-only). No editar a mano; lo regenera
+> el sub-agente `docs-sync` al cierre de cada `/build-plan`.
 >
 > Última sincronización: 2026-07-02. Refleja V1 + V2 + V3 + V4 + V7 (V5/V6
 > pertenecen al esquema `maint`, ver `docs/database/erd/maint.md`).

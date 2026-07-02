@@ -15,9 +15,9 @@
 ## Routing by module type
 
 ### ETL / ingestion from EPS
-- **Read always:** `docs/database/erd.md` · `docs/database/data-dictionary.md` · `docs/modules/etl-eps-ebi.md`
-- **Read if:** `docs/database/migrations-log.md` (only if it touches schema) · ADR (only for rationale)
-- **Skip (known noise):** ADR 0001 (auth) · `docs/modules/powerbi-admin.md`
+- **Read always:** `docs/database/erd/_index.md` (then the target schema page, e.g. `erd/etl.md`) · `docs/database/data-dictionary.md`
+- **Read if:** `docs/database/migrations-log.md` (only if it touches schema) · ADR (only for rationale) · `docs/modules/etl-eps-ebi.md` *once it exists* (retired in the doc restructure; recreate when the ETL module is planned)
+- **Skip (known noise):** ADR 0001 (auth)
 - **Ask up front:** watermark column for incremental load? exact EPS source tables? `staging`→`core` ownership?
 - **Gotchas:** EPS is read-only — never write to it. Verify docs↔live-schema drift via `ebi-sql-dev` MCP before designing.
 
@@ -28,18 +28,18 @@
 - **Gotchas:** live truth = portal-owned credentials (Auth.js v5), **not** MSAL. Secrets only in `.env`/Key Vault.
 
 ### Power BI embedding / dashboards
-- **Read always:** `docs/modules/powerbi-admin.md`
-- **Read if:** ADR 0001 (for the deferral rationale) · `docs/architecture/overview.md` (embedding flow)
+- **Read always:** `src/lib/powerbi/` directly (no module doc today — `docs/modules/powerbi-admin.md` was retired in the doc restructure)
+- **Read if:** ADR 0001 (for the deferral rationale)
 - **Skip (known noise):** ETL/DB docs unless the module also persists data.
 - **Ask up front:** is embedding being reintroduced or still placeholder for this milestone?
 - **Gotchas:** embedding is **deferred in v1**. Keep `src/lib/powerbi/` mode-agnostic (`Aad` dev / `Embed` prod); fork token acquisition, not the embed component.
 
 ### Admin CRUD (users, catalogs, report metadata)
-- **Read always:** `docs/database/erd.md` · existing `src/lib/db/*.ts` + `src/app/api/**` for the entity (M2 already built users/plants/departments/reports CRUD — extend, don't rebuild)
+- **Read always:** `docs/database/erd/auth.md` (plus `erd/dbo.md` for reports) · the existing module slice `src/modules/<module>/db*.ts` + `src/app/api/**` for the entity (M2 already built users/plants/departments/reports CRUD — extend, don't rebuild)
 - **Read if:** `docs/database/data-dictionary.md` (when adding/altering columns) · relevant `docs/modules/*.md` (only if one exists for the entity)
-- **Skip (known noise):** ETL docs · ADR 0001 unless touching auth/roles · `docs/modules/powerbi-admin.md` (Reportes admin is dormant; don't refactor it for unrelated work).
+- **Skip (known noise):** ETL docs · ADR 0001 unless touching auth/roles · the dormant Reportes admin screens (don't refactor them for unrelated work).
 - **Ask up front:** which least-privilege DB user runs this (`ebi_app`)? soft vs hard delete (and what does the inactive-view "permanent delete" do for referenced rows)? are any roles code-coupled — which are protected (only `admin`; `viewer` is normal CRUD)?
-- **Gotchas:** all DB access through `src/lib/db/` (Kysely) — no raw queries elsewhere · the session JWT carries only `userId/username/display_name/roles/token_version` (NO email) — read profile fields server-side via `getUserDetail`, not from the session · catalog DELETEs 409 on FK by design (block referenced rows); user deletes cascade via the junction FKs.
+- **Gotchas:** all DB access through Kysely in `src/lib/db/` (infra) + `src/modules/*/db*.ts` — no raw queries elsewhere · the session JWT carries only `userId/username/display_name/roles/token_version` (NO email) — read profile fields server-side via `getUserDetail`, not from the session · catalog DELETEs 409 on FK by design (block referenced rows); user deletes cascade via the junction FKs.
 
 ### Layout / navigation
 - **Read always:** `docs/modules/navigation.md`
@@ -60,3 +60,13 @@
   roadmap/risk rationale, and remember it is stale on auth.
 - When a row's *Skip* or *Gotchas* keeps proving wrong, fix it here in the same session — this
   table is only worth its tokens if it stays honest.
+
+## Change log
+
+> Append-only. `/trace-map` logs proposed routing corrections here (measured route vs. the
+> table above); a human or a later planning session folds accepted proposals into the rows.
+
+- 2026-07-02 — manual repair: pointed rows at the per-schema ERD (`docs/database/erd/*.md`)
+  and removed references to files retired by the doc restructure (`docs/database/erd.md`,
+  `docs/modules/etl-eps-ebi.md`, `docs/modules/powerbi-admin.md`,
+  `docs/architecture/overview.md`).

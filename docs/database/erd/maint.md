@@ -1,7 +1,8 @@
 # ERD — esquema `maint`
 
 > Generado a partir de las migraciones aplicadas `V5__maint_asset_catalog.sql` y
-> `V6__maint_plans_workorders_spares.sql`. No editar a mano; regenerar con `/sync-docs`.
+> `V6__maint_plans_workorders_spares.sql`. No editar a mano; lo regenera el sub-agente
+> `docs-sync` al cierre de cada `/build-plan`.
 >
 > Última sincronización: 2026-07-01. Refleja V5 + V6.
 

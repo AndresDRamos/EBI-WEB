@@ -1,7 +1,7 @@
 # ERD — EBI database
 
-> Generated from the live schema by `/sync-docs` (read-only `ebi-sql-dev` MCP).
-> Do not edit by hand; rerun `/sync-docs` after applying migrations.
+> Generated from the live schema (read-only `ebi-sql-dev` MCP) by the `docs-sync`
+> sub-agent, which runs at the end of every `/build-plan`. Do not edit by hand.
 >
 > Last synced: 2026-07-02. Reflects V1–V7.
 

@@ -22,6 +22,54 @@ export interface AppUser {
   username: string;
 }
 
+export interface Asset {
+  acquisition_date: Date | null;
+  asset_id: Generated<number>;
+  brand: string | null;
+  code: string;
+  created_at: Generated<Date>;
+  criticality: Generated<string>;
+  is_active: Generated<boolean>;
+  location: string | null;
+  model: string | null;
+  name: string;
+  notes: string | null;
+  parent_asset_id: number | null;
+  plant_id: number;
+  serial_number: string | null;
+  status: Generated<string>;
+  updated_at: Generated<Date>;
+}
+
+export interface AssetDocument {
+  asset_id: number;
+  blob_path: string;
+  content_type: string | null;
+  doc_type: string;
+  document_id: Generated<number>;
+  file_size_bytes: number | null;
+  is_active: Generated<boolean>;
+  title: string;
+  uploaded_at: Generated<Date>;
+  uploaded_by: number;
+  version: Generated<number>;
+}
+
+export interface AssetProcess {
+  asset_id: number;
+  process_id: number;
+}
+
+export interface AssetRestriction {
+  asset_id: number;
+  created_at: Generated<Date>;
+  description: string;
+  is_active: Generated<boolean>;
+  restriction_id: Generated<number>;
+  restriction_type: string;
+  updated_at: Generated<Date>;
+}
+
 export interface DatabaseFirewallRules {
   create_date: Date;
   end_ip_address: string;
@@ -63,6 +111,54 @@ export interface Invitation {
   user_id: number;
 }
 
+export interface MaintenancePlan {
+  asset_id: number;
+  created_at: Generated<Date>;
+  description: string | null;
+  estimated_minutes: number | null;
+  frequency_unit: string;
+  frequency_value: number;
+  is_active: Generated<boolean>;
+  name: string;
+  next_due_date: Date | null;
+  plan_id: Generated<number>;
+  plan_type: string;
+  schedule_mode: Generated<string>;
+  updated_at: Generated<Date>;
+}
+
+export interface NavItem {
+  created_at: Generated<Date>;
+  href: string;
+  icon: string | null;
+  is_active: Generated<boolean>;
+  item_id: Generated<number>;
+  label: string;
+  parent_item_id: number | null;
+  section_id: number;
+  sort_order: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
+export interface NavSection {
+  base_path: string;
+  code: string;
+  created_at: Generated<Date>;
+  icon: string | null;
+  is_active: Generated<boolean>;
+  label: string;
+  section_id: Generated<number>;
+  sort_order: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
+export interface PlanMaterial {
+  plan_id: number;
+  plan_material_id: Generated<number>;
+  quantity: number;
+  spare_part_id: number;
+}
+
 export interface Plant {
   address: string | null;
   code: string;
@@ -71,6 +167,25 @@ export interface Plant {
   name: string;
   plant_id: Generated<number>;
   postal_code: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface PlanTask {
+  instructions: string | null;
+  plan_id: number;
+  plan_task_id: Generated<number>;
+  seq: number;
+  title: string;
+  visual_aid_document_id: number | null;
+}
+
+export interface Process {
+  code: string;
+  created_at: Generated<Date>;
+  description: string | null;
+  is_active: Generated<boolean>;
+  name: string;
+  process_id: Generated<number>;
   updated_at: Generated<Date>;
 }
 
@@ -101,6 +216,12 @@ export interface Role {
   role_id: Generated<number>;
 }
 
+export interface RoleNavSection {
+  priority: Generated<number>;
+  role_id: number;
+  section_id: number;
+}
+
 export interface RunLog {
   entity: string;
   finished_at: Date | null;
@@ -110,6 +231,30 @@ export interface RunLog {
   started_at: Generated<Date>;
   status: Generated<string>;
   watermark: string | null;
+}
+
+export interface SparePart {
+  code: string;
+  created_at: Generated<Date>;
+  description: string | null;
+  is_active: Generated<boolean>;
+  min_stock: number | null;
+  name: string;
+  spare_part_id: Generated<number>;
+  unit_cost: number | null;
+  uom: Generated<string>;
+  updated_at: Generated<Date>;
+}
+
+export interface StockMovement {
+  moved_at: Generated<Date>;
+  moved_by: number;
+  movement_type: string;
+  note: string | null;
+  quantity: number;
+  spare_part_id: number;
+  stock_movement_id: Generated<number>;
+  work_order_id: number | null;
 }
 
 export interface UserDepartment {
@@ -127,18 +272,71 @@ export interface UserRole {
   user_id: number;
 }
 
+export interface WorkOrder {
+  asset_id: number;
+  assigned_to: number | null;
+  code: Generated<string | null>;
+  completed_at: Date | null;
+  completed_by: number | null;
+  created_at: Generated<Date>;
+  downtime_minutes: number | null;
+  notes: string | null;
+  plan_id: number | null;
+  scheduled_date: Date;
+  started_at: Date | null;
+  status: Generated<string>;
+  updated_at: Generated<Date>;
+  wo_type: string;
+  work_order_id: Generated<number>;
+}
+
+export interface WorkOrderMaterial {
+  quantity: number;
+  spare_part_id: number;
+  work_order_id: number;
+  work_order_material_id: Generated<number>;
+}
+
+export interface WorkOrderTask {
+  comment: string | null;
+  done_at: Date | null;
+  done_by: number | null;
+  instructions: string | null;
+  is_done: Generated<boolean>;
+  seq: number;
+  title: string;
+  work_order_id: number;
+  work_order_task_id: Generated<number>;
+}
+
 export interface DB {
   app_user: AppUser;
+  asset: Asset;
+  asset_document: AssetDocument;
+  asset_process: AssetProcess;
+  asset_restriction: AssetRestriction;
   database_firewall_rules: DatabaseFirewallRules;
   department: Department;
   flyway_schema_history: FlywaySchemaHistory;
   invitation: Invitation;
+  maintenance_plan: MaintenancePlan;
+  nav_item: NavItem;
+  nav_section: NavSection;
+  plan_material: PlanMaterial;
+  plan_task: PlanTask;
   plant: Plant;
+  process: Process;
   report: Report;
   report_category: ReportCategory;
   role: Role;
+  role_nav_section: RoleNavSection;
   run_log: RunLog;
+  spare_part: SparePart;
+  stock_movement: StockMovement;
   user_department: UserDepartment;
   user_plant: UserPlant;
   user_role: UserRole;
+  work_order: WorkOrder;
+  work_order_material: WorkOrderMaterial;
+  work_order_task: WorkOrderTask;
 }

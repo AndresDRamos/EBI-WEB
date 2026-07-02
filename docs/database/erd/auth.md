@@ -1,0 +1,126 @@
+# ERD — esquema `auth`
+
+> Generado a partir de `docs/database/erd.md`. No editar a mano; regenerar con `/sync-docs`.
+>
+> Última sincronización: 2026-07-02. Refleja V1 + V2 + V3 + V4 + V7 (V5/V6
+> pertenecen al esquema `maint`, ver `docs/database/erd/maint.md`).
+
+```mermaid
+erDiagram
+
+    app_user {
+        int user_id PK
+        nvarchar_64 username
+        nvarchar_256 email
+        nvarchar_160 display_name
+        nvarchar_256 password_hash
+        bit all_plants
+        bit is_active
+        int token_version
+        datetime2 created_at
+        datetime2 updated_at
+    }
+
+    role {
+        int role_id PK
+        nvarchar_40 name
+        nvarchar_256 description
+        bit is_active
+    }
+
+    plant {
+        int plant_id PK
+        nvarchar_32 code
+        nvarchar_160 name
+        bit is_active
+        datetime2 created_at
+        datetime2 updated_at
+        nvarchar_256 address
+        nvarchar_16 postal_code
+    }
+
+    department {
+        int department_id PK
+        nvarchar_160 name
+        bit is_active
+        datetime2 created_at
+        datetime2 updated_at
+        nvarchar_256 description
+    }
+
+    user_role {
+        int user_id PK,FK
+        int role_id PK,FK
+    }
+
+    user_plant {
+        int user_id PK,FK
+        int plant_id PK,FK
+    }
+
+    user_department {
+        int user_id PK,FK
+        int department_id PK,FK
+    }
+
+    invitation {
+        int invitation_id PK
+        int user_id FK
+        nvarchar_128 token_hash
+        datetime2 expires_at
+        datetime2 accepted_at
+        int created_by FK
+        datetime2 created_at
+    }
+
+    nav_section {
+        int section_id PK
+        nvarchar_40 code
+        nvarchar_80 label
+        nvarchar_64 icon
+        nvarchar_120 base_path
+        int sort_order
+        bit is_active
+        datetime2 created_at
+        datetime2 updated_at
+    }
+
+    nav_item {
+        int item_id PK
+        int section_id FK
+        int parent_item_id FK
+        nvarchar_80 label
+        nvarchar_64 icon
+        nvarchar_200 href
+        int sort_order
+        bit is_active
+        datetime2 created_at
+        datetime2 updated_at
+    }
+
+    role_nav_section {
+        int role_id PK,FK
+        int section_id PK,FK
+        int priority
+    }
+
+    %% ── relaciones ──────────────────────────────────────────────────────────
+
+    app_user ||--o{ user_role : "assigned"
+    role      ||--o{ user_role : "assigned to"
+
+    app_user ||--o{ user_plant : "has access to"
+    plant    ||--o{ user_plant : "granted to"
+
+    app_user   ||--o{ user_department : "belongs to"
+    department ||--o{ user_department : "contains"
+
+    app_user ||--o{ invitation : "receives"
+    app_user ||--o{ invitation : "issues (created_by)"
+
+    nav_section ||--o{ nav_item : "contains"
+    nav_item    ||--o{ nav_item : "parent of (same section)"
+
+    role        ||--o{ role_nav_section : "granted"
+    nav_section ||--o{ role_nav_section : "visible via"
+```

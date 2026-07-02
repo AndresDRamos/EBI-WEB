@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Build-time placeholder only; real secrets live in .env / Key Vault.
+          # DB connections are lazy (first query), so no DB vars are needed here.
+          AUTH_SECRET: ci-placeholder-not-a-real-secret
+
+      - name: Flyway versions must be unique
+        run: |
+          dups=$(ls db/migrations | grep -oE '^V[0-9]+(\.[0-9]+)?' | sort | uniq -d)
+          if [ -n "$dups" ]; then
+            echo "::error::Duplicate Flyway version(s) after merge: $dups — renumber the newest migration (README: Migrations)."
+            exit 1
+          fi

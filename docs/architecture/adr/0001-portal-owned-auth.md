@@ -6,8 +6,9 @@
 > because there was no realized decision history to preserve.
 
 - **Status:** Accepted — 2026-06-26
-- **Context plan:** [0002 — Portal-owned auth](../../plans/0002-portal-owned-auth.md)
-  (revises the original decision from [0001 — Portal bootstrap](../../plans/0001-portal-bootstrap.md))
+- **Context plan:** 0002 — Portal-owned auth (revises the original decision from
+  plan 0001 — Portal bootstrap). Both plans are pruned: rows in the
+  [plans ledger](../../plans/README.md), full text in git history.
 
 ## Context
 

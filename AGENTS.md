@@ -8,7 +8,8 @@
 
 Internal **EBI** portal (EZI Business Intelligence): administers Power BI reports
 (embedding + drill-through) and grows toward data modules (Planning, EPS→EBI ETL,
-internal data control). Master plan: `docs/plans/0001-portal-bootstrap.md`.
+internal data control). Current truth: `docs/STATE.md`; module recipe:
+`docs/architecture/module-blueprint.md`; plan ledger: `docs/plans/README.md`.
 
 ## Agent roles
 

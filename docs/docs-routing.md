@@ -23,7 +23,7 @@
 
 ### Auth / security
 - **Read always:** `docs/architecture/adr/0001-portal-owned-auth.md`
-- **Skip (known noise):** `docs/plans/0001-portal-bootstrap.md` — **STALE on auth** (still says MSAL); do not trust it here.
+- **Skip (known noise):** anything pre-dating ADR 0001 that mentions MSAL (plan 0001 was pruned for exactly this staleness).
 - **Ask up front:** session strategy already fixed? new roles/permissions needed?
 - **Gotchas:** live truth = portal-owned credentials (Auth.js v5), **not** MSAL. Secrets only in `.env`/Key Vault.
 
@@ -56,8 +56,8 @@
 
 ## Cross-type notes
 
-- `STATE.md` covers most "current truth" — reach for the master plan `0001` only for
-  roadmap/risk rationale, and remember it is stale on auth.
+- `STATE.md` covers most "current truth". Pruned plans (see the ledger in
+  `docs/plans/README.md`) live only in git history — never treat them as live docs.
 - When a row's *Skip* or *Gotchas* keeps proving wrong, fix it here in the same session — this
   table is only worth its tokens if it stays honest.
 

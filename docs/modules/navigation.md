@@ -50,8 +50,9 @@ render picks up the change without a manual cache-bust.
 ## Related ADRs
 
 None yet — the design decisions (DB-seeded registry, role-priority ordering,
-cookie-persisted pin) are recorded in
-[docs/plans/0005-layout.md](../plans/0005-layout.md), not split into an ADR.
+cookie-persisted pin) were recorded in plan 0005 (pruned; row in the
+[plans ledger](../plans/README.md), full text in git history), not split
+into an ADR. This module doc carries the live truth.
 
 ## Do not touch without reading
 

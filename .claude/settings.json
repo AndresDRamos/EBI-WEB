@@ -21,22 +21,5 @@
       "Read(./.env)",
       "Read(./.env.*)"
     ]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Read|Grep|Glob",
-        "hooks": [
-          { "type": "command", "command": "node .claude/hooks/trace-doc-access.mjs" }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "node .claude/hooks/trace-doc-access.mjs --subagent-stop" }
-        ]
-      }
-    ]
   }
 }

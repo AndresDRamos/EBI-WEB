@@ -61,13 +61,13 @@ Goal of the split: diversify token consumption per session.
 
 ## Standard workflow
 
-1. `/plan-module <name>` (Claude) → plan in `docs/plans/NNNN-*.md`.
+1. `/plan-module <name>` → plan in `docs/plans/NNNN-*.md`.
 2. `dba` sub-agent → ERD (`docs/database/erd.md`) + migrations (`db/migrations/`).
 3. Human: `flyway -configFiles=db/flyway.dev.conf migrate` → validate schema.
-4. OpenCode → executes the plan (code in `src/`).
+4. Agent executes the plan (code in `src/`).
 5. `/sync-docs` → regenerates ERD/dictionary from the live schema (does not document
    fallback logic unless strictly necessary).
-6. `/commit-plan` (OpenCode) → atomic commits → push.
+6. `/commit-plan` → atomic commits → push.
 
 ## Verify before calling something done
 

@@ -41,6 +41,13 @@
 - **Ask up front:** which least-privilege DB user runs this (`ebi_app`)? soft vs hard delete (and what does the inactive-view "permanent delete" do for referenced rows)? are any roles code-coupled — which are protected (only `admin`; `viewer` is normal CRUD)?
 - **Gotchas:** all DB access through `src/lib/db/` (Kysely) — no raw queries elsewhere · the session JWT carries only `userId/username/display_name/roles/token_version` (NO email) — read profile fields server-side via `getUserDetail`, not from the session · catalog DELETEs 409 on FK by design (block referenced rows); user deletes cascade via the junction FKs.
 
+### Layout / navigation
+- **Read always:** `docs/modules/navigation.md`
+- **Read if:** `docs/database/erd/auth.md` (only if touching the `nav_*` tables) · the relevant module's doc if seeding a new section
+- **Skip (known noise):** ETL docs · ADR 0001 unless touching auth
+- **Ask up front:** does the new section belong under `auth` role-priority visibility, or does it need public/no-role default?
+- **Gotchas:** sections are seeded by the migration of the module that owns the route — never let the admin panel create a section from scratch. The `admin` role needs no grant rows (sees everything).
+
 ### Pure UI / no data
 - **Read always:** relevant `docs/modules/*.md`
 - **Skip (known noise):** all `docs/database/*` · ADR 0001 · ETL docs.

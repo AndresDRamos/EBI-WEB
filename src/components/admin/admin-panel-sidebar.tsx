@@ -32,14 +32,14 @@ const usuarioChildren: SectionLink[] = [
  * `/admin/*` (PortalShell hides the global one when the path starts with
  * `/admin`). Three sections:
  *   1. Usuarios — expands Usuarios/Roles/Plantas/Departamentos (always shown).
- *   2. Configuración de accesos a módulos (placeholder).
+ *   2. Configuración de accesos a módulos — nav registry (sections/items/grants).
  *   3. Catálogo de reportes Power BI (placeholder, reuses ReportAdminTable).
  */
 export function AdminPanelSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="sticky top-4 hidden h-[calc(100vh-5.5rem)] w-60 shrink-0 self-start overflow-y-auto border bg-white md:flex md:flex-col">
+    <aside className="sticky top-4 hidden h-[calc(100vh-5.5rem)] w-60 shrink-0 border bg-white md:flex md:flex-col">
       <div className="flex items-center gap-2 border-b px-4 py-3">
         <Tags className="h-4 w-4 text-ezi-orange" />
         <span className="text-sm font-semibold uppercase tracking-wide text-ezi-gray">
@@ -76,7 +76,6 @@ export function AdminPanelSidebar() {
           <SidebarLink
             item={{ href: "/admin/access", label: "Accesos a módulos", icon: Lock }}
             active={pathname === "/admin/access"}
-            muted
           />
         </section>
 

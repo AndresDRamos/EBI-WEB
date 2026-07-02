@@ -168,10 +168,8 @@ the app pages under `src/app/` are thin and compose from here):
 
 ## Where the history lives (read on demand, not every session)
 
-- **Master plan + roadmap + risks:**
-  [docs/plans/0001-portal-bootstrap.md](plans/0001-portal-bootstrap.md).
-- **Admin Panel restructure (DataTable + V4):**
-  [docs/plans/0003-admin-panel-restructure.md](plans/0003-admin-panel-restructure.md).
+- **Past plans:** the ledger in [docs/plans/README.md](plans/README.md) — pruned
+  plan files live in git history (`git log --follow`), never read them as live docs.
 - **Portal-owned auth (rationale):**
   [ADR 0001](architecture/adr/0001-portal-owned-auth.md).
 - **Configurability strategy (composition vs. metadata) + module recipe:**

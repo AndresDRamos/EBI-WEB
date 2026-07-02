@@ -12,17 +12,17 @@
 ## Active focus
 
 - **Milestone 1 — Report admin portal** (auth + admin + dashboards),
-  extended with plan 0003 (Admin Panel restructure, V4) and plan 0005
-  (DB-driven nav registry, V7, **verified** 2026-07-02) — both live in
-  `EBI_dev`.
+  extended with plan 0003 (Admin Panel restructure, V4), plan 0004
+  (Mantenimiento Fase A, V5/V6, **committed** 2026-07-02) and plan 0005
+  (DB-driven nav registry, V7, **committed** 2026-07-02) — all live in
+  `EBI_dev` and pushed to `origin/main`.
+- Nav section `maintenance` still `is_active=0` (dark launch) — activate in
+  `/admin/access` to expose the Mantenimiento module in the topbar.
 - Branch convention: `feat/m{n}-<slug>`.
 
 ## In-flight plans
 
-| Plan | Status | Touches | Owner |
-|---|---|---|---|
-| [0004-mantenimiento](plans/0004-mantenimiento.md) (Fase A) | **verified** (2026-07-02) — `pnpm lint && pnpm build` clean, QR runtime smoke-tested; ready for `/commit-plan`. Nav section `maintenance` still `is_active=0` (dark launch) — activate in `/admin/access` to expose | `maint` schema; `src/lib/db/maint.ts`; `src/lib/storage/blob.ts`; `src/lib/maintenance/enums.ts`; `/api/{assets,processes}/**`; `(portal)/maintenance/*`; `docs/modules/maintenance.md` | ARamos |
-| [0005-layout](plans/0005-layout.md) | **verified** (2026-07-02) — `pnpm lint && pnpm build` clean, visual pass done; V7 applied in `EBI_dev` | `auth.nav_section/nav_item/role_nav_section`; `src/lib/db/nav.ts`; `src/lib/nav/{icons.tsx,pin-action.ts,pin-cookie.ts}`; `components/nav/*`; `(portal)/admin/access/*`; replaces `portal-shell.tsx` rail; `docs/modules/navigation.md` | ARamos |
+None currently — 0004 and 0005 were committed on 2026-07-02.
 
 ## Live decisions (current truth — supersedes the master plan where they differ)
 

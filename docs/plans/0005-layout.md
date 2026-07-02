@@ -1,6 +1,6 @@
 ---
 id: 0005-layout
-status: verified          # draft -> approved -> built -> verified -> committed -> superseded
+status: committed         # draft -> approved -> built -> verified -> committed -> superseded
 created: 2026-07-01
 touches: [docs/modules/navigation.md]
 migrations: [V7__nav_registry.sql]

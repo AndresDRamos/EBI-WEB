@@ -1,6 +1,6 @@
 ---
 id: 0004-mantenimiento
-status: verified          # draft -> approved -> built -> verified -> committed -> superseded
+status: committed         # draft -> approved -> built -> verified -> committed -> superseded
 created: 2026-07-01
 touches: [docs/modules/mantenimiento.md]
 migrations: [V5__maint_asset_catalog.sql, V6__maint_plans_workorders_spares.sql]

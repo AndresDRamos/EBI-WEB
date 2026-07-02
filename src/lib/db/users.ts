@@ -356,8 +356,10 @@ export async function createUser(input: CreateUserInput): Promise<number> {
         all_plants: input.all_plants ?? false,
         is_active: false,
       })
+      .output("inserted.user_id")
       .executeTakeFirst();
-    const userId = Number(inserted.insertId);
+    if (!inserted) throw new Error("User insert returned no identity");
+    const userId = Number(inserted.user_id);
 
     await assignRoles(trx, userId, input.role_ids);
     await assignPlants(trx, userId, input.plant_ids);

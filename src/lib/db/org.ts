@@ -38,12 +38,13 @@ export async function createRole(input: CreateRoleInput): Promise<RoleRow> {
       name,
       description: input.description ? input.description.trim() : null,
     })
+    .output("inserted.role_id")
     .executeTakeFirst();
-  const id = Number(result.insertId);
+  if (!result) throw new Error("Role insert returned no identity");
   const row = await db
     .selectFrom("role")
     .selectAll()
-    .where("role_id", "=", id)
+    .where("role_id", "=", result.role_id)
     .executeTakeFirst();
   if (!row) throw new Error("Role not found after insert");
   return row;
@@ -181,12 +182,13 @@ export async function createPlant(input: CreatePlantInput): Promise<PlantRow> {
           ? input.postal_code.trim()
           : null,
     })
+    .output("inserted.plant_id")
     .executeTakeFirst();
-  const id = Number(result.insertId);
+  if (!result) throw new Error("Plant insert returned no identity");
   const row = await db
     .selectFrom("plant")
     .selectAll()
-    .where("plant_id", "=", id)
+    .where("plant_id", "=", result.plant_id)
     .executeTakeFirst();
   if (!row) throw new Error("Plant not found after insert");
   return row;
@@ -260,12 +262,13 @@ export async function createDepartment(
           ? input.description.trim()
           : null,
     })
+    .output("inserted.department_id")
     .executeTakeFirst();
-  const id = Number(result.insertId);
+  if (!result) throw new Error("Department insert returned no identity");
   const row = await db
     .selectFrom("department")
     .selectAll()
-    .where("department_id", "=", id)
+    .where("department_id", "=", result.department_id)
     .executeTakeFirst();
   if (!row) throw new Error("Department not found after insert");
   return row;

@@ -159,12 +159,15 @@ export async function createReport(input: ReportInput): Promise<ReportRow> {
       sort_order: input.sort_order,
       is_active: Boolean(input.is_active),
     })
+    .output("inserted.report_id")
     .executeTakeFirst();
-  const id = Number(result.insertId);
+  if (!result) {
+    throw new Error("Report insert returned no identity");
+  }
   const created = await db
     .selectFrom("report")
     .selectAll()
-    .where("report_id", "=", id)
+    .where("report_id", "=", result.report_id)
     .executeTakeFirst();
   if (!created) {
     throw new Error("Report not found after insert");
@@ -216,11 +219,15 @@ export async function createCategory(
   const result = await db
     .insertInto("report_category")
     .values({ name, sort_order: sortOrder })
+    .output("inserted.category_id")
     .executeTakeFirst();
+  if (!result) {
+    throw new Error("Category insert returned no identity");
+  }
   const category = await db
     .selectFrom("report_category")
     .select(["category_id", "name", "sort_order"])
-    .where("category_id", "=", Number(result.insertId))
+    .where("category_id", "=", result.category_id)
     .executeTakeFirst();
   if (!category) {
     throw new Error("Category not found after insert");

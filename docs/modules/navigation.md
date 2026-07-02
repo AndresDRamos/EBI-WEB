@@ -13,17 +13,18 @@ migration of the module that introduces them.
 
 ## Responsibilities
 
-- Owns: nav data access (`src/lib/db/nav.ts`), nav resolution + ordering
-  (`getNavForUser`), the shell components (`src/components/nav/*`,
-  `src/components/portal-shell.tsx`), the sidebar pin cookie
-  (`src/lib/nav/pin-action.ts`), the curated icon map
-  (`src/lib/nav/icons.ts`), and the admin screen at `/admin/access`.
+- Owns the module slice `src/modules/navigation/`: nav data access (`db.ts`),
+  nav resolution + ordering (`getNavForUser`), the topbar/sidebar components
+  and the `/admin/access` panels (`components/`), the sidebar pin cookie
+  (`pin-action.ts` / `pin-cookie.ts`) and the curated icon map (`icons.tsx`).
+  `src/components/layout/portal-shell.tsx` (global chrome) composes these
+  pieces — the layer allowed to import from this module.
 - Does **not** own: route protection (that's `src/middleware.ts` +
   `assertAdminOrRedirect`/`requireAnyRole` — the nav registry only decides
   what's *shown*, not what's *reachable*; a user can still hit an unlisted
   URL directly if RBAC allows it) or the admin panel's own nested sidebar
-  (`components/admin/admin-panel-sidebar.tsx`, unrelated — `/admin/*` hides
-  the global rail entirely).
+  (`src/components/layout/admin-panel-sidebar.tsx`, unrelated — `/admin/*`
+  hides the global rail entirely).
 
 ## Dependency flow
 
@@ -34,7 +35,7 @@ module migration (Vn) → seeds auth.nav_section (+ auth.nav_item)
 auth.role_nav_section  (admin panel: label/icon/order/active + grants)
       │
       ▼
-getNavForUser(roleNames, isAdmin)  — src/lib/db/nav.ts
+getNavForUser(roleNames, isAdmin)  — src/modules/navigation/db.ts
       │  ordered by MIN(priority) across the user's roles, then sort_order
       ▼
 (portal)/layout.tsx — unstable_cache(tags:["nav"]), reads the pin cookie
@@ -65,7 +66,8 @@ cookie-persisted pin) are recorded in
   `nav_section.sort_order` as the tiebreaker.
 - **The `admin` role never gets grant rows.** It sees every active section by
   an app-layer rule in `getNavForUser` (same pattern as the protected-role
-  guard in `org.ts`). Adding an explicit grant row for `admin` is a no-op —
+  guard in `modules/org/db/org.ts`). Adding an explicit grant row for `admin`
+  is a no-op —
   don't "fix" a missing admin grant, it's intentional.
 - **Hard-deleting a `nav_section` cascades its items and grants** (V7 FK). If
   a module's section disappears from the admin screen unexpectedly, check for

@@ -24,6 +24,13 @@
 
 None currently — 0004 and 0005 were committed on 2026-07-02.
 
+Next up (direction fixed 2026-07-02, plans not yet drafted — see
+[ADR 0003](architecture/adr/0003-composition-over-metadata.md) and the
+[module blueprint](architecture/module-blueprint.md)): **RBAC actions**
+(`auth.permission` + role grants + `requirePermission`/`can()`) and **UI kit
+extraction** (generic kit in `src/components/kit/` + typed resource
+definitions). Both precede the next business module.
+
 ## Live decisions (current truth — supersedes the master plan where they differ)
 
 | Topic | Current decision |
@@ -34,7 +41,8 @@ None currently — 0004 and 0005 were committed on 2026-07-02.
 | Migrations | **Flyway** pure SQL in `db/migrations/` (`V{n}__` / `R__`). Written by the `dba` sub-agent; a human runs `flyway migrate`. |
 | Schemas | Medallion: `staging` (ETL landing) → `core` / `planeacion` (consumption). |
 | ETL | EPS is **read-only**. Never write to EPS. |
-| Admin UI | **Generic DataTable** (`src/components/admin/data-table.tsx`); per-entity modals; nested sidebar under `(portal)/admin` (PortalShell hides the global rail under `/admin`). |
+| Admin UI | **Generic DataTable** (`src/components/kit/data-table.tsx`); per-entity modals; nested sidebar under `(portal)/admin` (PortalShell hides the global rail under `/admin`). |
+| Repo layout | **Modules-first** (2026-07-02): `app/` = thin routing only; `modules/<m>/` owns each domain (db + components); `components/kit|ui|layout` shared UI; `lib/` domain-blind infra. Business-module APIs namespaced (`/api/maintenance/...`). |
 
 ## Code conventions (non-trivial — violating them breaks things)
 
@@ -43,110 +51,120 @@ None currently — 0004 and 0005 were committed on 2026-07-02.
   and adds the Credentials provider + DB-touching callbacks. Mixing imports
   breaks the edge bundling.
 - **Schema `auth` is bound manually.** `kysely-codegen` flattens schemas out
-  of the `DB` keys (`app_user`, not `auth.app_user`). Every module under
-  `src/lib/db/` that touches `auth` must do `rootDb.withSchema("auth")` at
-  the top (see `users.ts:12`, `org.ts:9`). Without it, SQL Server resolves
-  under `dbo` and throws 208. `reports.ts` accesses `dbo` and does **not**
-  apply `.withSchema()`.
+  of the `DB` keys (`app_user`, not `auth.app_user`). Every module `db` file
+  that touches `auth` must do `rootDb.withSchema("auth")` at the top (see
+  `modules/org/db/users.ts`, `modules/org/db/org.ts`,
+  `modules/navigation/db.ts`). Without it, SQL Server resolves under `dbo`
+  and throws 208. `modules/reports/db.ts` accesses `dbo` and does **not**
+  apply `.withSchema()`; `modules/maintenance/db.ts` binds `maint`.
 - **MSSQL inserts use `.output("inserted.<pk>")`.** Kysely MSSQL does **not**
   populate `.insertId`; use `.output("inserted.id").executeTakeFirst()` and
   then `select` the row. Uniform pattern across `users.ts`, `org.ts`,
   `reports.ts`.
 - **Transactions inherit the schema.** A `trx` created inside
   `withSchema("auth")` stays in `auth`; do not re-bind.
-- **`src/lib/admin/` ≠ `src/lib/db/`.** `table-utils.ts` (pure utilities:
-  NFD normalization, comparators, catalog intersection) lives in `admin/`
-  precisely so it never imports from `db/`. If you need I/O, it goes in
-  `db/`.
+- **Dependency direction (modules-first).** `app/` imports from
+  `modules`/`components`/`lib`, never the reverse. `modules/*` import `kit`,
+  `ui`, `lib` — not `app/` nor (without justification) other modules.
+  `components/kit` and `ui` never import from modules or `lib/db` — if a kit
+  component needs a domain, it isn't kit (`kit/table-utils.ts` stays pure:
+  NFD normalization, comparators, catalog intersection). `components/layout`
+  is the one exception: it composes `modules/navigation` pieces.
+- **SQL/Kysely lives only in `src/lib/db/` (infra: `client.ts` + generated
+  `types.ts`) and `src/modules/*/db{.ts,/*.ts}`.** No queries anywhere else.
 - **Global sidebar vs. panel sidebar.** `PortalShell` hides its rail when
   `pathname.startsWith("/admin")`; the panel sidebar is mounted by
   `(portal)/admin/layout.tsx`. No prop-drilling, no double rail.
 - **Protected `admin` role is enforced at the app layer.** `RoleProtectedError`
-  in `org.ts:146`; the guard receives the `current` role loaded by the API
-  before mutation. No CHECK constraint — the app is the only barrier.
+  in `modules/org/db/org.ts`; the guard receives the `current` role loaded by
+  the API before mutation. No CHECK constraint — the app is the only barrier.
 
 ## File-by-file map (what the code *is* today)
 
-**Data layer** (`src/lib/db/`, the only place with SQL):
+**Modules** (`src/modules/<m>/` — each domain owns its db + components;
+the app pages under `src/app/` are thin and compose from here):
 
-- `client.ts` — Kysely singleton + Azure SQL pool (Tarn, 1–10 conns).
-- `types.ts` — **generated** by `kysely-codegen`; do not edit by hand.
-- `users.ts` — `auth.app_user` + junctions + `invitation` + admin CRUD.
-  Reads: `findAuthUserByUsername/ById`, `getUserRolesById`, `getUserScope`,
-  `listUsers/WithNames`, `getUserDetail`. Writes: `createUser`,
-  `updateUserAssignments`, `bumpTokenVersion`, `setUserPassword`,
-  `createInvitation / accept / revoke`.
-- `org.ts` — `auth.role | plant | department` + CRUD with the `admin`
-  guard. Roles: `listRoles / createRole / updateRole / softDeleteRole /
-  deleteRole / findRoleById`. Plants and departments: list / create /
-  update / delete + `is_active`. Exports `RoleProtectedError` and
-  `PROTECTED_ROLE = "admin"`.
-- `reports.ts` — `dbo.report` + `dbo.report_category` (the only `dbo`
-  layer). Full CRUD + `adminListReports` joining category.
-- `nav.ts` — `auth.nav_section/nav_item/role_nav_section`.
-  `getNavForUser(roleNames, isAdmin)` resolves the topbar + nested sidebar
-  (admin sees all active sections, no grant rows needed). Admin reads/writes:
-  `listSections/Items`, `listSectionGrants`, `updateSection` (no
-  `createSection` — sections are seeded by module migrations), `create/update/
-  deleteItem`, `setSectionGrants`. `src/lib/nav/icons.ts` (curated
-  `lucide-react` map) and `src/lib/nav/pin-action.ts` (sidebar pin cookie)
-  round out the nav layer.
+- `org/` — identity & organization (`auth` schema).
+  - `db/users.ts` — `auth.app_user` + junctions + `invitation` + admin CRUD.
+    Reads: `findAuthUserByUsername/ById`, `getUserRolesById`, `getUserScope`,
+    `listUsers/WithNames`, `getUserDetail`. Writes: `createUser`,
+    `updateUserAssignments`, `bumpTokenVersion`, `setUserPassword`,
+    `createInvitation / accept / revoke`.
+  - `db/org.ts` — `auth.role | plant | department` + CRUD with the `admin`
+    guard. Exports `RoleProtectedError` and `PROTECTED_ROLE = "admin"`.
+  - `components/` — `{users,roles,plants,departments}-table-page.tsx` (one
+    client page per entity: column defs + modal state + delete handlers),
+    `user-form.tsx`, `login-form.tsx`, `accept-invite-form.tsx`,
+    `profile-view.tsx`, `change-password-form.tsx`.
+- `reports/` — Power BI catalog (`dbo` schema, the only `dbo` layer).
+  - `db.ts` — `dbo.report` + `dbo.report_category`; full CRUD +
+    `adminListReports` joining category.
+  - `components/` — `report-admin-table.tsx`, `report-form.tsx`,
+    `category-manager.tsx` (Reportes admin is dormant pending embedding).
+- `navigation/` — DB-driven nav registry (`auth.nav_*`).
+  - `db.ts` — `getNavForUser(roleNames, isAdmin)` resolves topbar + nested
+    sidebar (admin sees all active sections, no grant rows). Admin
+    reads/writes: `listSections/Items`, `listSectionGrants`, `updateSection`
+    (no `createSection` — sections are seeded by module migrations),
+    `create/update/deleteItem`, `setSectionGrants`.
+  - `icons.tsx` (curated `lucide-react` map), `pin-action.ts` /
+    `pin-cookie.ts` (sidebar pin cookie).
+  - `components/` — `portal-topbar.tsx`, `portal-sidebar.tsx`, and the
+    `/admin/access` panels: `nav-{sections-table-page,items-panel,
+    grants-panel}.tsx`.
+- `maintenance/` — CMMS (`maint` schema). `db.ts` (assets, processes,
+  restrictions, documents), `enums.ts` (mirrors the V5/V6 CHECKs — pure
+  module, no I/O), `components/` — `machines-table-page`, `machine-detail`
+  (Datos/Procesos/Restricciones/Documentos), `machine-form-dialog`,
+  `machine-label` (printable QR), `processes-table-page`.
 
-**Auth layer** (`src/auth*`, `src/lib/auth/`, `src/middleware.ts`):
+**Shared UI** (`src/components/`):
 
-- `src/auth.config.ts` — edge-safe; no DB.
-- `src/auth.ts` — Credentials provider, argon2id, JWT callbacks (includes
-  the `token_version` re-check for revocation).
-- `src/middleware.ts` — gates `(portal)` and `/api/**`; redirects UI to
-  `/login`, returns `401` for API.
-- `src/lib/auth/password.ts` — argon2id (`@node-rs/argon2`), Node only.
-- `src/lib/auth/rbac.ts` — `requireUser / requireAnyRole / isAdmin /
+- `kit/` — the stampable generics (ADR 0003): `data-table.tsx`
+  (`DataTable<T>`: text/catalog filter, asc/desc/none sort, 50/page,
+  internal scroll, soft/hard delete), `entity-form-dialog.tsx` (shared modal
+  chrome), `table-utils.ts` (pure: NFD normalization, comparators, catalog
+  intersection). Future: `ResourceTable/Form`, `Calendar`, `KpiCard`.
+- `layout/` — global chrome: `portal-shell.tsx` (composes
+  `modules/navigation` topbar + sidebar, conditional under `/admin`, +
+  `UserMenu`), `admin-panel-sidebar.tsx` (3 sections; "Usuarios" expands to
+  users/roles/plants/departments).
+- `ui/` — shadcn / Radix primitives: button, card, input, label, textarea,
+  select, checkbox, table, badge, separator, dialog, alert-dialog,
+  dropdown-menu, popover, tooltip.
+- `providers/` — `auth-session-provider.tsx`.
+
+**Infra** (`src/lib/`, domain-blind):
+
+- `db/client.ts` — Kysely singleton + Azure SQL pool (Tarn, 1–10 conns).
+- `db/types.ts` — **generated** by `kysely-codegen`; do not edit by hand.
+- `auth/password.ts` — argon2id (`@node-rs/argon2`), Node only.
+- `auth/rbac.ts` — `requireUser / requireAnyRole / isAdmin /
   assertAdminOrRedirect / getUserScope`. Errors: `UnauthenticatedError`,
   `ForbiddenError`.
-- `src/lib/auth/api.ts` — `authErrorResponse` (maps to 401 / 403),
-  `parseJsonBody`.
+- `auth/api.ts` — `authErrorResponse` (401/403), `parseJsonBody`.
+- `storage/blob.ts` — Azure Blob (SAS downloads, server-side uploads).
 
-**Admin UI layer** (`src/components/admin/`, `src/app/(portal)/admin/`,
-`src/app/api/{users,roles,plants,departments,reports,profile,invite}/`):
+**Auth entry points** (`src/auth*`, `src/middleware.ts`):
 
-- `components/admin/data-table.tsx` — generic `DataTable<T>`; text /
-  catalog filter, asc / desc / none sort, 50/page, internal scroll,
-  soft / hard delete.
-- `components/admin/entity-form-dialog.tsx` — shared modal chrome
-  (title, body slot, footer, error / busy).
-- `components/admin/admin-panel-sidebar.tsx` — 3 sections; "Usuarios"
-  expands to users / roles / plants / departments.
-- `components/admin/{users,roles,plants,departments}-table-page.tsx` —
-  one client page per entity: column defs + modal state + delete handlers.
-- `components/admin/nav-{sections-table-page,items-panel,grants-panel}.tsx` —
-  `/admin/access` screen: edit section label/icon/order/active, manage items,
-  edit role grants + priority (no section creation — see `nav.ts` above).
-- `components/portal-shell.tsx` — composes `components/nav/{portal-topbar,
-  portal-sidebar}.tsx`: DB-driven topbar + per-section sidebar from
-  `getNavForUser` (replaces the old static `navItems` array), conditional
-  sidebar (hidden under `/admin`) + `UserMenu` on shadcn `DropdownMenu`
-  (Mi perfil, Panel admin [admin-only], Cerrar sesión).
-- `app/(portal)/admin/layout.tsx` — `assertAdminOrRedirect` +
-  `AdminPanelSidebar`.
-- `app/(portal)/admin/page.tsx` — redirect → `/admin/users`.
-- `app/(portal)/admin/access/page.tsx` — nav registry management (real
-  screen, not a placeholder — see `nav-*-panel.tsx` above).
-- `app/api/profile/password/route.ts` — self-service password change
-  (verify → set → `bumpTokenVersion`).
+- `auth.config.ts` — edge-safe; no DB. `auth.ts` — Credentials provider,
+  argon2id, JWT callbacks (`token_version` re-check for revocation).
+- `middleware.ts` — gates `(portal)` and `/api/**`; redirects UI to
+  `/login`, returns `401` for API.
 
-**Landing / login / invitation** (`src/app/(auth)/`,
-`src/app/api/auth/`, `src/app/api/invite/`):
+**Routes** (`src/app/` — thin by rule):
 
-- `app/page.tsx` — redirect to `/dashboards`.
-- `app/(auth)/login/page.tsx` + `components/auth/login-form.tsx` —
-  `signIn("credentials")` against `auth.ts`.
-- `app/(auth)/invite/[token]/page.tsx` +
-  `components/auth/accept-invite-form.tsx` — sets the password and
-  activates the user via `acceptInvitation`.
-
-**UI primitives** (`src/components/ui/`) — all shadcn / Radix: button,
-card, input, label, textarea, select, checkbox, table, badge, separator,
-dialog, alert-dialog, dropdown-menu, popover, tooltip.
+- `page.tsx` → redirect `/dashboards`. `(auth)/login` + `(auth)/invite/
+  [token]` compose `modules/org` forms.
+- `(portal)/admin/*` — `layout.tsx` (`assertAdminOrRedirect` +
+  `AdminPanelSidebar`), `page.tsx` → `/admin/users`; entity pages compose
+  `modules/org`; `access/` composes `modules/navigation`; `reports/`,
+  `reports/new`, `reports/[reportId]/edit` compose `modules/reports`.
+- `(portal)/maintenance/*` — machines list/detail/label + process catalog.
+- `api/` — core portal routes stay flat (`users`, `roles`, `plants`,
+  `departments`, `reports`, `nav`, `profile`, `invite`, `auth`);
+  business-module routes are namespaced: `api/maintenance/{assets,
+  processes}/**`.
 
 ## Where the history lives (read on demand, not every session)
 
@@ -156,8 +174,9 @@ dialog, alert-dialog, dropdown-menu, popover, tooltip.
   [docs/plans/0003-admin-panel-restructure.md](plans/0003-admin-panel-restructure.md).
 - **Portal-owned auth (rationale):**
   [ADR 0001](architecture/adr/0001-portal-owned-auth.md).
-- **Architecture diagram + env matrix:**
-  [docs/architecture/overview.md](architecture/overview.md).
-- **DB current shape:** `docs/database/{erd, data-dictionary,
-  migrations-log}.md`.
+- **Configurability strategy (composition vs. metadata) + module recipe:**
+  [ADR 0003](architecture/adr/0003-composition-over-metadata.md) +
+  [module blueprint](architecture/module-blueprint.md).
+- **DB current shape:** `docs/database/erd/_index.md` (per-schema pages) +
+  `docs/database/{data-dictionary, migrations-log}.md`.
 - **Rules of engagement:** [AGENTS.md](../AGENTS.md).

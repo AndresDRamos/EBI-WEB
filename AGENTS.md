@@ -12,9 +12,11 @@ internal data control). Master plan: `docs/plans/0001-portal-bootstrap.md`.
 
 ## Agent roles
 
-- **Claude Code = planner.** Designs architecture, modules, ERD and migrations (in plan
+- **Planner** (Claude Code). Designs architecture, modules, ERD and migrations (in plan
   mode). Produces plans in `docs/plans/` and ADRs in `docs/architecture/adr/`.
-- **OpenCode = executor.** Builds the code of the approved plan and assembles the commits.
+- **Executor** — whichever agent runs `/build-plan` on the approved plan (OpenCode or a
+  fresh Claude session). Builds the code and assembles the commits; the ready-to-run
+  prompt for the executor lives in `prompts/NNNN-*.md`.
 
 Goal of the split: diversify token consumption per session.
 
@@ -29,8 +31,14 @@ Goal of the split: diversify token consumption per session.
 - **Power BI:** `powerbi-client-react`. The `src/lib/powerbi/` layer is **mode-agnostic**
   (`tokenType: Aad` in dev/PPU; `tokenType: Embed` in prod/capacity). Do not fork the embed
   component: fork only the token acquisition.
-- **Data:** Azure SQL. Typed access with **Kysely** (`src/lib/db/`). Types generated with
-  `kysely-codegen`. No raw untyped queries outside `src/lib/db/`.
+- **Data:** Azure SQL. Typed access with **Kysely**. Types generated with
+  `kysely-codegen` into `src/lib/db/types.ts`. SQL lives **only** in `src/lib/db/`
+  (infra: client + types) and `src/modules/*/db{.ts,/}` (each module's queries).
+- **Repo layout (modules-first):** `src/app/` = thin routing only; `src/modules/<m>/`
+  owns each domain (db + components); `src/components/{kit,ui,layout}` = shared UI;
+  `src/lib/` = domain-blind infra. Dependency direction: `app → modules → kit/ui/lib`;
+  never the reverse. Business-module APIs are namespaced (`/api/maintenance/...`).
+  Recipe: `docs/architecture/module-blueprint.md`.
 - **Migrations:** **Flyway**, pure versioned SQL in `db/migrations/`
   (`V{n}__{desc}.sql` incremental, `R__{desc}.sql` repeatable). They are **written by the
   DBA sub-agent**; a human runs `flyway migrate` and validates.
@@ -61,22 +69,28 @@ Goal of the split: diversify token consumption per session.
 
 ## Standard workflow
 
-1. `/plan-module <name>` → plan in `docs/plans/NNNN-*.md`.
-2. `dba` sub-agent → ERD (`docs/database/erd.md`) + migrations (`db/migrations/`).
+1. `/plan-module <name>` → plan in `docs/plans/NNNN-*.md` (invokes the `dba` sub-agent
+   when the plan touches the schema).
+2. `/plan-save` (after human approval) → persists the plan, creates the migration files in
+   `db/migrations/` and registers them in `docs/database/migrations-log.md`.
 3. Human: `flyway -configFiles=db/flyway.dev.conf migrate` → validate schema.
-4. Agent executes the plan (code in `src/`).
-5. `/sync-docs` → regenerates ERD/dictionary from the live schema (does not document
-   fallback logic unless strictly necessary).
+4. `/build-plan` → executes the plan (code in `src/`); the `docs-sync` sub-agent runs at
+   the end and reconciles `docs/database/` + `docs/modules/` (ERD per schema in
+   `docs/database/erd/`).
+5. `/verify-plan` → tests + visual/logic check against the plan's objective; gaps are
+   logged as amendments.
 6. `/commit-plan` → atomic commits → push.
 
 ## Verify before calling something done
 
 - `pnpm lint && pnpm build` must pass.
-- Schema changes: clean `flyway info` and `/sync-docs` executed.
+- Schema changes: clean `flyway info` and `docs-sync` executed.
 - Report faithfully: if something fails or was skipped, say so with the real output.
 
 ## Documentation
 
-- Plans: `docs/plans/` (`_template.md` template). Permanent decisions: ADRs in
+- Plans: `docs/plans/` (`_plan-template.md` template). Permanent decisions: ADRs in
   `docs/architecture/adr/`. A plan may produce one or more ADRs.
-- Modules: `docs/modules/`. Operational runbooks: `docs/runbooks/`.
+- Modules: `docs/modules/` (`_module-template.md` template).
+- Doc routing: `docs/docs-routing.md` maps module type → which docs to read/skip; the
+  doc-access telemetry hook + `/trace-map` audit and refine it.

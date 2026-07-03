@@ -103,18 +103,29 @@ function SectionTab({
 }) {
   const active = pathname === section.base_path || pathname.startsWith(section.base_path + "/");
   const href = section.items[0]?.href ?? section.base_path;
+  // Inactive sections only ever reach admins (see getNavForUser): rendered
+  // dimmed + "oculta" so the admin keeps the full portal map and can still
+  // navigate in to review before reactivating from /admin/access.
+  const hidden = !section.is_active;
   return (
     <Link
       href={href}
+      title={hidden ? "Sección oculta para los usuarios (reactívala en Accesos a módulos)" : undefined}
       className={cn(
         "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-4 text-sm transition-colors",
         active
           ? "border-ezi-orange font-semibold text-white"
           : "border-transparent text-white/70 hover:text-white",
+        hidden && "text-white/35 hover:text-white/60",
       )}
     >
       <NavIcon name={section.icon} className="h-4 w-4" />
       {section.label}
+      {hidden ? (
+        <span className="rounded-sm border border-white/25 px-1 py-px text-[10px] uppercase tracking-wide text-white/50">
+          oculta
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -142,7 +153,13 @@ function MobileSectionMenu({
       <DropdownMenuContent align="start">
         {sections.map((s) => (
           <DropdownMenuItem key={s.section_id} asChild>
-            <Link href={s.items[0]?.href ?? s.base_path}>{s.label}</Link>
+            <Link
+              href={s.items[0]?.href ?? s.base_path}
+              className={cn(!s.is_active && "text-muted-foreground")}
+            >
+              {s.label}
+              {!s.is_active ? " (oculta)" : ""}
+            </Link>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

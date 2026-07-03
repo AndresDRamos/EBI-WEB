@@ -145,6 +145,20 @@ export function NavItemsPanel({
     return { ok: true };
   }
 
+  async function onRestore(row: NavItemRow): Promise<{ ok?: boolean; error?: string }> {
+    const res = await fetch(`/api/nav/items/${row.item_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: d.error ?? "No se pudo reactivar el ítem." };
+    }
+    router.refresh();
+    return { ok: true };
+  }
+
   const columns: ColumnDef<NavItemRow>[] = React.useMemo(
     () => [
       {
@@ -201,6 +215,7 @@ export function NavItemsPanel({
         onEdit={openEdit}
         onSoftDelete={onSoftDelete}
         onHardDelete={onHardDelete}
+        onRestore={onRestore}
         addLabel="Nuevo ítem"
         onAfterChange={() => router.refresh()}
       />

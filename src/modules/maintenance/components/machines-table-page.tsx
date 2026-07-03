@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Wrench } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/kit/data-table";
 import { Badge } from "@/components/ui/badge";
+import { useCan } from "@/components/providers/permissions-provider";
 import {
   MachineFormDialog,
   type MachineFormAsset,
@@ -36,15 +37,15 @@ export interface MachinesTableRow {
 export interface MachinesTablePageProps {
   machines: MachinesTableRow[];
   plants: PlantOption[];
-  canManage: boolean;
 }
 
-/** Equipos list — the maintenance asset catalog. */
+/** Equipos list — the maintenance asset catalog. Actions gate per-permission
+ * via `useCan` (plan 0006); the API re-checks server-side. */
 export function MachinesTablePage({
   machines,
   plants,
-  canManage,
 }: MachinesTablePageProps) {
+  const can = useCan();
   const router = useRouter();
   const [modal, setModal] = React.useState<{
     open: boolean;
@@ -64,6 +65,22 @@ export function MachinesTablePage({
     if (!res.ok) {
       const d = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: d.error ?? "No se pudo desactivar el equipo." };
+    }
+    router.refresh();
+    return { ok: true };
+  }
+
+  async function onRestore(
+    row: MachinesTableRow,
+  ): Promise<{ ok?: boolean; error?: string }> {
+    const res = await fetch(`/api/maintenance/assets/${row.asset_id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: d.error ?? "No se pudo reactivar el equipo." };
     }
     router.refresh();
     return { ok: true };
@@ -167,11 +184,18 @@ export function MachinesTablePage({
         getRowId={(r) => r.asset_id}
         columns={columns}
         isActive={(r) => r.is_active}
-        onAdd={canManage ? () => setModal({ open: true, edit: null }) : undefined}
-        onEdit={
-          canManage ? (row) => setModal({ open: true, edit: row }) : undefined
+        onAdd={
+          can("maintenance.asset:create")
+            ? () => setModal({ open: true, edit: null })
+            : undefined
         }
-        onSoftDelete={canManage ? onSoftDelete : undefined}
+        onEdit={
+          can("maintenance.asset:update")
+            ? (row) => setModal({ open: true, edit: row })
+            : undefined
+        }
+        onSoftDelete={can("maintenance.asset:delete") ? onSoftDelete : undefined}
+        onRestore={can("maintenance.asset:update") ? onRestore : undefined}
         addLabel="Nuevo equipo"
         onAfterChange={() => router.refresh()}
       />

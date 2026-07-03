@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { useCan } from "@/components/providers/permissions-provider";
 import {
   MachineFormDialog,
   type MachineFormAsset,
@@ -78,7 +79,6 @@ export interface MachineDetailProps {
   allProcesses: ProcessOption[];
   plants: PlantOption[];
   parents: ParentOption[];
-  canManage: boolean;
 }
 
 type TabId = "datos" | "procesos" | "restricciones" | "documentos";
@@ -90,7 +90,8 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "documentos", label: "Documentos" },
 ];
 
-/** Asset detail page: header + Datos / Procesos / Restricciones / Documentos. */
+/** Asset detail page: header + Datos / Procesos / Restricciones / Documentos.
+ * Actions gate per-permission via `useCan` (plan 0006); the API re-checks. */
 export function MachineDetail({
   asset,
   assetProcessIds,
@@ -99,8 +100,8 @@ export function MachineDetail({
   allProcesses,
   plants,
   parents,
-  canManage,
 }: MachineDetailProps) {
+  const can = useCan();
   const router = useRouter();
   const [tab, setTab] = React.useState<TabId>("datos");
   const [editOpen, setEditOpen] = React.useState(false);
@@ -138,7 +139,7 @@ export function MachineDetail({
             <QrCode className="h-4 w-4" />
             Etiqueta QR
           </Link>
-          {canManage ? (
+          {can("maintenance.asset:update") ? (
             <Button onClick={() => setEditOpen(true)}>
               <Pencil className="h-4 w-4" />
               Editar
@@ -173,7 +174,6 @@ export function MachineDetail({
           assetId={asset.asset_id}
           assetProcessIds={assetProcessIds}
           allProcesses={allProcesses}
-          canManage={canManage}
           onChanged={() => router.refresh()}
         />
       ) : null}
@@ -181,7 +181,6 @@ export function MachineDetail({
         <RestriccionesTab
           assetId={asset.asset_id}
           restrictions={restrictions}
-          canManage={canManage}
           onChanged={() => router.refresh()}
         />
       ) : null}
@@ -189,7 +188,6 @@ export function MachineDetail({
         <DocumentosTab
           assetId={asset.asset_id}
           documents={documents}
-          canManage={canManage}
           onChanged={() => router.refresh()}
         />
       ) : null}
@@ -276,15 +274,14 @@ function ProcesosTab({
   assetId,
   assetProcessIds,
   allProcesses,
-  canManage,
   onChanged,
 }: {
   assetId: number;
   assetProcessIds: number[];
   allProcesses: ProcessOption[];
-  canManage: boolean;
   onChanged: () => void;
 }) {
+  const can = useCan();
   const [selected, setSelected] = React.useState<number[]>(assetProcessIds);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -313,7 +310,8 @@ function ProcesosTab({
     }
   }
 
-  if (!canManage) {
+  // Saving the process set PATCHes the asset — same permission as editing it.
+  if (!can("maintenance.asset:update")) {
     const names = allProcesses
       .filter((p) => assetProcessIds.includes(p.process_id))
       .map((p) => p.name);
@@ -399,14 +397,13 @@ function ProcesosTab({
 function RestriccionesTab({
   assetId,
   restrictions,
-  canManage,
   onChanged,
 }: {
   assetId: number;
   restrictions: RestrictionItem[];
-  canManage: boolean;
   onChanged: () => void;
 }) {
+  const can = useCan();
   const [modal, setModal] = React.useState<{
     open: boolean;
     edit: RestrictionItem | null;
@@ -479,7 +476,7 @@ function RestriccionesTab({
         <p className="text-sm text-muted-foreground">
           Restricciones y limitaciones operativas o de seguridad del equipo.
         </p>
-        {canManage ? (
+        {can("maintenance.restriction:create") ? (
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4" />
             Nueva restricción
@@ -496,24 +493,29 @@ function RestriccionesTab({
                 {restrictionTypeLabel(r.restriction_type)}
               </Badge>
               <p className="flex-1 whitespace-pre-wrap text-sm">{r.description}</p>
-              {canManage ? (
+              {can("maintenance.restriction:update") ||
+              can("maintenance.restriction:delete") ? (
                 <span className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => openEdit(r)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-gray-100"
-                    aria-label="Editar restricción"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void onDeactivate(r)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
-                    aria-label="Desactivar restricción"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {can("maintenance.restriction:update") ? (
+                    <button
+                      type="button"
+                      onClick={() => openEdit(r)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-gray-100"
+                      aria-label="Editar restricción"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                  {can("maintenance.restriction:delete") ? (
+                    <button
+                      type="button"
+                      onClick={() => void onDeactivate(r)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
+                      aria-label="Desactivar restricción"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
                 </span>
               ) : null}
             </li>
@@ -573,14 +575,13 @@ function RestriccionesTab({
 function DocumentosTab({
   assetId,
   documents,
-  canManage,
   onChanged,
 }: {
   assetId: number;
   documents: DocumentItem[];
-  canManage: boolean;
   onChanged: () => void;
 }) {
+  const can = useCan();
   const [modalOpen, setModalOpen] = React.useState(false);
   const [file, setFile] = React.useState<File | null>(null);
   const [docType, setDocType] = React.useState<string>("manual");
@@ -643,7 +644,7 @@ function DocumentosTab({
           Manuales, diagramas, DXF y fotografías del equipo. Los archivos viven
           en Azure Blob Storage.
         </p>
-        {canManage ? (
+        {can("maintenance.document:create") ? (
           <Button size="sm" onClick={openUpload}>
             <Plus className="h-4 w-4" />
             Subir documento
@@ -677,7 +678,7 @@ function DocumentosTab({
               >
                 <Download className="h-3.5 w-3.5" />
               </a>
-              {canManage ? (
+              {can("maintenance.document:delete") ? (
                 <button
                   type="button"
                   onClick={() => void onDelete(d)}

@@ -6,7 +6,6 @@ import {
   listProcesses,
 } from "@/modules/maintenance/db";
 import { listPlants } from "@/modules/org/db/org";
-import { isAdmin } from "@/lib/auth/rbac";
 import {
   MachineDetail,
   type MachineDetailAsset,
@@ -24,14 +23,12 @@ export default async function MachineDetailPage({
   const asset = await findAssetByCode(code);
   if (!asset) notFound();
 
-  const [detail, allProcesses, plants, allAssets, canManage] =
-    await Promise.all([
-      getAssetDetail(asset.asset_id),
-      listProcesses(true).catch(() => []),
-      listPlants(true).catch(() => []),
-      listAssets({ activeOnly: true }).catch(() => []),
-      isAdmin(),
-    ]);
+  const [detail, allProcesses, plants, allAssets] = await Promise.all([
+    getAssetDetail(asset.asset_id),
+    listProcesses(true).catch(() => []),
+    listPlants(true).catch(() => []),
+    listAssets({ activeOnly: true }).catch(() => []),
+  ]);
   if (!detail) notFound();
 
   const a = detail.asset;
@@ -89,7 +86,6 @@ export default async function MachineDetailPage({
         code: m.code,
         name: m.name,
       }))}
-      canManage={canManage}
     />
   );
 }

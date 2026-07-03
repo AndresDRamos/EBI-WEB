@@ -1,6 +1,5 @@
 import { listAssets } from "@/modules/maintenance/db";
 import { listPlants } from "@/modules/org/db/org";
-import { isAdmin } from "@/lib/auth/rbac";
 import {
   MachinesTablePage,
   type MachinesTableRow,
@@ -8,12 +7,12 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** Equipos — maintenance asset catalog list. */
+/** Equipos — maintenance asset catalog list. Action visibility is resolved
+ * client-side by `useCan` (PermissionsProvider in the portal layout). */
 export default async function MachinesPage() {
-  const [assets, plants, canManage] = await Promise.all([
+  const [assets, plants] = await Promise.all([
     listAssets().catch(() => []),
     listPlants(true).catch(() => []),
-    isAdmin(),
   ]);
 
   const rows: MachinesTableRow[] = assets.map((a) => ({
@@ -41,7 +40,6 @@ export default async function MachinesPage() {
     <MachinesTablePage
       machines={rows}
       plants={plants.map((p) => ({ plant_id: p.plant_id, name: p.name }))}
-      canManage={canManage}
     />
   );
 }

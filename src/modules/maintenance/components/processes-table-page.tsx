@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Cog } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/kit/data-table";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { useCan } from "@/components/providers/permissions-provider";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,14 +20,14 @@ export interface ProcessesTableRow {
 
 export interface ProcessesTablePageProps {
   processes: ProcessesTableRow[];
-  canManage: boolean;
 }
 
-/** Procesos catalog — manufacturing processes assets can execute. */
+/** Procesos catalog — manufacturing processes assets can execute. Actions
+ * gate per-permission via `useCan` (plan 0006); the API re-checks. */
 export function ProcessesTablePage({
   processes,
-  canManage,
 }: ProcessesTablePageProps) {
+  const can = useCan();
   const router = useRouter();
   const [modalState, setModalState] = React.useState<{
     open: boolean;
@@ -127,6 +128,22 @@ export function ProcessesTablePage({
     return { ok: true };
   }
 
+  async function onRestore(
+    row: ProcessesTableRow,
+  ): Promise<{ ok?: boolean; error?: string }> {
+    const res = await fetch(`/api/maintenance/processes/${row.process_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: d.error ?? "No se pudo reactivar el proceso." };
+    }
+    router.refresh();
+    return { ok: true };
+  }
+
   const columns: ColumnDef<ProcessesTableRow>[] = React.useMemo(
     () => [
       {
@@ -171,10 +188,11 @@ export function ProcessesTablePage({
         getRowId={(r) => r.process_id}
         columns={columns}
         isActive={(r) => r.is_active}
-        onAdd={canManage ? openCreate : undefined}
-        onEdit={canManage ? openEdit : undefined}
-        onSoftDelete={canManage ? onSoftDelete : undefined}
-        onHardDelete={canManage ? onHardDelete : undefined}
+        onAdd={can("maintenance.process:create") ? openCreate : undefined}
+        onEdit={can("maintenance.process:update") ? openEdit : undefined}
+        onSoftDelete={can("maintenance.process:update") ? onSoftDelete : undefined}
+        onHardDelete={can("maintenance.process:delete") ? onHardDelete : undefined}
+        onRestore={can("maintenance.process:update") ? onRestore : undefined}
         addLabel="Nuevo proceso"
         onAfterChange={() => router.refresh()}
       />

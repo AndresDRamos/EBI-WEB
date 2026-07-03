@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateProcess, deleteProcess } from "@/modules/maintenance/db";
+import {
+  findProcessById,
+  updateProcess,
+  deleteProcess,
+} from "@/modules/maintenance/db";
 import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -46,6 +50,9 @@ export async function PUT(
   }
   try {
     await requirePermission("maintenance.process:update");
+    if (!(await findProcessById(id))) {
+      return NextResponse.json({ error: "Proceso no encontrado." }, { status: 404 });
+    }
     await updateProcess(id, changes);
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -74,6 +81,9 @@ export async function DELETE(
   }
   try {
     await requirePermission("maintenance.process:delete");
+    if (!(await findProcessById(id))) {
+      return NextResponse.json({ error: "Proceso no encontrado." }, { status: 404 });
+    }
     await deleteProcess(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

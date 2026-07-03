@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  findRestrictionById,
   updateRestriction,
   softDeleteRestriction,
   RESTRICTION_TYPES,
@@ -23,8 +24,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; restrictionId: string }> },
 ) {
-  const restrictionId = parseId((await params).restrictionId);
-  if (!restrictionId) {
+  const resolved = await params;
+  const assetId = parseId(resolved.id);
+  const restrictionId = parseId(resolved.restrictionId);
+  if (!assetId || !restrictionId) {
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   let body: UpdateBody;
@@ -59,6 +62,13 @@ export async function PUT(
   }
   try {
     await requirePermission("maintenance.restriction:update");
+    const current = await findRestrictionById(restrictionId);
+    if (!current || current.asset_id !== assetId) {
+      return NextResponse.json(
+        { error: "Restricción no encontrada." },
+        { status: 404 },
+      );
+    }
     await updateRestriction(restrictionId, changes);
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -77,12 +87,21 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string; restrictionId: string }> },
 ) {
-  const restrictionId = parseId((await params).restrictionId);
-  if (!restrictionId) {
+  const resolved = await params;
+  const assetId = parseId(resolved.id);
+  const restrictionId = parseId(resolved.restrictionId);
+  if (!assetId || !restrictionId) {
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
     await requirePermission("maintenance.restriction:delete");
+    const current = await findRestrictionById(restrictionId);
+    if (!current || current.asset_id !== assetId) {
+      return NextResponse.json(
+        { error: "Restricción no encontrada." },
+        { status: 404 },
+      );
+    }
     await softDeleteRestriction(restrictionId);
     return NextResponse.json({ ok: true });
   } catch (err) {

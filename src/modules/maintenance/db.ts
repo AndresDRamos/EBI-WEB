@@ -283,6 +283,17 @@ export async function listProcesses(activeOnly = false): Promise<ProcessRow[]> {
   return q.orderBy("name", "asc").execute();
 }
 
+export async function findProcessById(
+  id: number,
+): Promise<ProcessRow | undefined> {
+  const row = await db
+    .selectFrom("process")
+    .selectAll()
+    .where("process_id", "=", id)
+    .executeTakeFirst();
+  return row ?? undefined;
+}
+
 export interface CreateProcessInput {
   code: string;
   name: string;
@@ -361,6 +372,17 @@ export async function listRestrictionsByAsset(
     .where("asset_id", "=", assetId)
     .orderBy("restriction_id", "asc")
     .execute();
+}
+
+export async function findRestrictionById(
+  id: number,
+): Promise<RestrictionRow | undefined> {
+  const row = await db
+    .selectFrom("asset_restriction")
+    .selectAll()
+    .where("restriction_id", "=", id)
+    .executeTakeFirst();
+  return row ?? undefined;
 }
 
 export interface CreateRestrictionInput {

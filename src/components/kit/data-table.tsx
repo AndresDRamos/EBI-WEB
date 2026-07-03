@@ -9,6 +9,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronUp,
+  Eye,
+  EyeOff,
   Filter,
   Pencil,
   Plus,
@@ -221,10 +223,14 @@ export function DataTable<T>({
             inactiveCount={inactiveCount}
           />
           {onAdd ? (
-            <Button onClick={onAdd}>
-              <Plus className="h-4 w-4" />
-              {addLabel}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" onClick={onAdd} aria-label={addLabel}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{addLabel}</TooltipContent>
+            </Tooltip>
           ) : null}
         </div>
       </div>
@@ -478,7 +484,9 @@ function FilterButton<T>({
   );
 }
 
-function ActionsCell<T>({
+/** Row actions (edit / soft-hard delete / restore) + confirm dialogs. Exported
+ * for kit tables that share the row-action contract (GroupedDataTable). */
+export function ActionsCell<T>({
   row,
   isActive,
   onEdit,
@@ -773,7 +781,11 @@ function Paginator({
   );
 }
 
-function ActiveInactiveToggle({
+/** Activos/Inactivos mode switch — icon-only (Eye = activos, EyeOff =
+ * inactivos) with the count beside each icon and the label in a tooltip.
+ * Exported for kit tables that share the soft-delete browsing pattern
+ * (GroupedDataTable). */
+export function ActiveInactiveToggle({
   showInactive,
   onChange,
   activeCount,
@@ -789,34 +801,48 @@ function ActiveInactiveToggle({
       role="tablist"
       className="inline-flex items-center rounded-md border bg-card p-0.5 text-xs"
     >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={!showInactive}
-        onClick={() => onChange(false)}
-        className={cn(
-          "rounded-[4px] px-3 py-1 transition-colors",
-          !showInactive
-            ? "bg-ezi-gray text-white"
-            : "text-muted-foreground hover:bg-gray-100",
-        )}
-      >
-        Activos ({activeCount})
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={showInactive}
-        onClick={() => onChange(true)}
-        className={cn(
-          "rounded-[4px] px-3 py-1 transition-colors",
-          showInactive
-            ? "bg-ezi-gray text-white"
-            : "text-muted-foreground hover:bg-gray-100",
-        )}
-      >
-        Inactivos ({inactiveCount})
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!showInactive}
+            aria-label={`Activos (${activeCount})`}
+            onClick={() => onChange(false)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-[4px] px-2.5 py-1 transition-colors",
+              !showInactive
+                ? "bg-ezi-gray text-white"
+                : "text-muted-foreground hover:bg-gray-100",
+            )}
+          >
+            <Eye className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{activeCount}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Activos</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={showInactive}
+            aria-label={`Inactivos (${inactiveCount})`}
+            onClick={() => onChange(true)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-[4px] px-2.5 py-1 transition-colors",
+              showInactive
+                ? "bg-ezi-gray text-white"
+                : "text-muted-foreground hover:bg-gray-100",
+            )}
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+            <span className="tabular-nums">{inactiveCount}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Inactivos</TooltipContent>
+      </Tooltip>
     </div>
   );
 }

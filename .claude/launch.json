@@ -5,7 +5,8 @@
       "name": "ebi-web-dev",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3001
+      "port": 3001,
+      "autoPort": true
     }
   ]
 }

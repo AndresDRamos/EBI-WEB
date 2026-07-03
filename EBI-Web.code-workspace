@@ -4,15 +4,15 @@
 // (rutas → dominios → UI compartida → infra). La última raíz es el repo completo.
 {
   "folders": [
-    { "name": "1 · Documentación (STATE, planes, ADRs, DB)", "path": "docs" },
-    { "name": "2 · Agente — configuración y sub-agentes", "path": ".claude" },
-    { "name": "3 · Agente — prompts de ejecución", "path": "prompts" },
-    { "name": "4 · Base de datos — migraciones Flyway", "path": "db" },
-    { "name": "5 · src/app — rutas (entrada de cada request)", "path": "src/app" },
-    { "name": "6 · src/modules — dominios (db + componentes)", "path": "src/modules" },
-    { "name": "7 · src/components — kit · layout · ui", "path": "src/components" },
-    { "name": "8 · src/lib — infraestructura transversal", "path": "src/lib" },
-    { "name": "EBI-Web (repo completo)", "path": "." }
+    { "name": "1 · Documentación", "path": "docs" },
+    { "name": "2 · Agente", "path": ".claude" },
+    { "name": "3 · Prompts", "path": "prompts" },
+    { "name": "4 · Base de datos", "path": "db" },
+    { "name": "5 · src/app", "path": "src/app" },
+    { "name": "6 · src/modules", "path": "src/modules" },
+    { "name": "7 · src/components", "path": "src/components" },
+    { "name": "8 · src/lib ", "path": "src/lib" },
+    { "name": "EBI-Web", "path": "." }
   ],
   "settings": {
     // Las rutas de App Router anidan carpetas de un solo hijo; compactarlas confunde.

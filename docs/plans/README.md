@@ -18,3 +18,4 @@ tree — its row stays, and the full text lives in git history:
 | 0003 | Admin panel restructure | Committed · pruned | Dedicated admin panel: panel sidebar, generic DataTable, modal CRUD, Mi perfil; V4 catalog columns |
 | 0004 | [Mantenimiento — CMMS Fase A](0004-mantenimiento.md) | Committed · Fases B–E open | `maint` schema (V5/V6), asset catalog UI, Azure Blob documents (ADR 0002), QR label |
 | 0005 | Portal layout & navigation | Committed · pruned | DB-driven topbar/sidebar (V7 nav registry), role-priority visibility, pinnable rail → docs/modules/navigation.md |
+| 0006 | [RBAC actions](0006-rbac-actions.md) | Verified | `auth.permission` + `role_permission` (V8); `auth.role` = access profile (`department_id` NULL = transversal); `requirePermission` server-side + `can()` UI; grants panel in /admin/permissions; amendments: nav reactivation (`onRestore`), always-invite UX |

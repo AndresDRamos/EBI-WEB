@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { findDocumentById, softDeleteDocument } from "@/modules/maintenance/db";
 import { getDocumentSasUrl } from "@/lib/storage/blob";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 
 function parseIds(
@@ -57,7 +57,7 @@ export async function DELETE(
   const ids = parseIds(await params);
   if (!ids) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("maintenance.document:delete");
     const doc = await findDocumentById(ids.docId);
     if (!doc || doc.asset_id !== ids.assetId) {
       return NextResponse.json(

@@ -12,6 +12,7 @@ import {
   Filter,
   Pencil,
   Plus,
+  RotateCcw,
   Trash2,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -82,6 +83,9 @@ export interface DataTableProps<T> {
   onEdit?: (row: T) => void;
   onSoftDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
   onHardDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
+  /** Reactivate an inactive row. Runs on direct click (reversible action, no
+   * confirm); shown next to "Eliminar permanentemente" in inactive mode. */
+  onRestore?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
   canEdit?: (row: T) => boolean;
   canDelete?: (row: T) => boolean;
   onAfterChange?: () => void;
@@ -114,6 +118,7 @@ export function DataTable<T>({
   onEdit,
   onSoftDelete,
   onHardDelete,
+  onRestore,
   canEdit,
   canDelete,
   onAfterChange,
@@ -276,6 +281,7 @@ export function DataTable<T>({
                       onEdit={onEdit}
                       onSoftDelete={onSoftDelete}
                       onHardDelete={onHardDelete}
+                      onRestore={onRestore}
                       canEdit={canEdit}
                       canDelete={canDelete}
                       onAfterChange={onAfterChange}
@@ -478,6 +484,7 @@ function ActionsCell<T>({
   onEdit,
   onSoftDelete,
   onHardDelete,
+  onRestore,
   canEdit,
   canDelete,
   onAfterChange,
@@ -487,6 +494,7 @@ function ActionsCell<T>({
   onEdit?: (row: T) => void;
   onSoftDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
   onHardDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
+  onRestore?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
   canEdit?: (row: T) => boolean;
   canDelete?: (row: T) => boolean;
   onAfterChange?: () => void;
@@ -502,6 +510,27 @@ function ActionsCell<T>({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // Restore runs on direct click (reversible — no confirm); the dialog below
+  // is only used to surface a failure.
+  const [restoreBusy, setRestoreBusy] = React.useState(false);
+  const [restoreError, setRestoreError] = React.useState<string | null>(null);
+
+  async function doRestore() {
+    if (!onRestore) return;
+    setRestoreBusy(true);
+    let res: { ok?: boolean; error?: string };
+    try {
+      res = await onRestore(row);
+    } catch {
+      res = { error: "No se pudo completar la acción." };
+    }
+    setRestoreBusy(false);
+    if (res && res.error) {
+      setRestoreError(res.error);
+      return;
+    }
+    onAfterChange?.();
+  }
 
   async function confirmDelete() {
     setError(null);
@@ -544,6 +573,22 @@ function ActionsCell<T>({
           </TooltipTrigger>
           <TooltipContent side="top">Editar</TooltipContent>
         </Tooltip>
+        {!active && onRestore ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={restoreBusy}
+                onClick={() => void doRestore()}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-green-50 hover:text-green-700 disabled:pointer-events-none disabled:opacity-40"
+                aria-label="Reactivar"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Reactivar</TooltipContent>
+          </Tooltip>
+        ) : null}
         {!deleteDisabled ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -575,6 +620,23 @@ function ActionsCell<T>({
           </Tooltip>
         )}
       </div>
+
+      <AlertDialog
+        open={restoreError !== null}
+        onOpenChange={(o) => {
+          if (!o) setRestoreError(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>No se pudo reactivar</AlertDialogTitle>
+            <AlertDialogDescription>{restoreError}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cerrar</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={dialogOpen}

@@ -3,7 +3,7 @@
 > Generado desde el esquema vivo (`ebi-sql-dev`, read-only). No editar a mano; lo regenera
 > el sub-agente `docs-sync` al cierre de cada `/build-plan`.
 >
-> Última sincronización: 2026-07-02. Refleja V1 + V2 + V3 + V4 + V7 (V5/V6
+> Última sincronización: 2026-07-02. Refleja V1 + V2 + V3 + V4 + V7 + V8 (V5/V6
 > pertenecen al esquema `maint`, ver `docs/database/erd/maint.md`).
 
 ```mermaid
@@ -27,6 +27,20 @@ erDiagram
         nvarchar_40 name
         nvarchar_256 description
         bit is_active
+        int department_id FK
+    }
+
+    permission {
+        int permission_id PK
+        nvarchar_80 code
+        nvarchar_256 description
+        datetime2 created_at
+        datetime2 updated_at
+    }
+
+    role_permission {
+        int role_id PK,FK
+        int permission_id PK,FK
     }
 
     plant {
@@ -124,4 +138,8 @@ erDiagram
 
     role        ||--o{ role_nav_section : "granted"
     nav_section ||--o{ role_nav_section : "visible via"
+
+    department ||--o{ role : "scopes (NULL = transversal)"
+    role       ||--o{ role_permission : "granted"
+    permission ||--o{ role_permission : "granted via"
 ```

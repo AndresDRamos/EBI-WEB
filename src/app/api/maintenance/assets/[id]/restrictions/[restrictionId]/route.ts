@@ -4,7 +4,7 @@ import {
   softDeleteRestriction,
   RESTRICTION_TYPES,
 } from "@/modules/maintenance/db";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 function parseId(raw: string): number | null {
@@ -58,7 +58,7 @@ export async function PUT(
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("maintenance.restriction:update");
     await updateRestriction(restrictionId, changes);
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -82,7 +82,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("maintenance.restriction:delete");
     await softDeleteRestriction(restrictionId);
     return NextResponse.json({ ok: true });
   } catch (err) {

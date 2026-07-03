@@ -1,6 +1,6 @@
 # Navigation (portal layout & DB-driven nav registry)
 
-**Last synced:** 2026-07-02 · **Synced from:** plan 0005-layout
+**Last synced:** 2026-07-02 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation)
 
 ## Purpose
 
@@ -65,11 +65,18 @@ into an ADR. This module doc carries the live truth.
   role→section grant field, not a global setting — a section's final position
   is `MIN(priority)` across all the user's granted roles, then
   `nav_section.sort_order` as the tiebreaker.
-- **The `admin` role never gets grant rows.** It sees every active section by
-  an app-layer rule in `getNavForUser` (same pattern as the protected-role
-  guard in `modules/org/db/org.ts`). Adding an explicit grant row for `admin`
-  is a no-op —
-  don't "fix" a missing admin grant, it's intentional.
+- **The `admin` role never gets grant rows.** It sees EVERY section —
+  including inactive ones, rendered dimmed with an "oculta" badge in the
+  topbar (0006 amendment: the admin never loses the portal map and can
+  reactivate from `/admin/access`) — by an app-layer rule in `getNavForUser`
+  (same pattern as the protected-role guard in `modules/org/db/org.ts`).
+  Non-admins never receive inactive sections; plan 0007 will reuse that rule
+  for page authorization — keep it intact. Adding an explicit grant row for
+  `admin` is a no-op — don't "fix" a missing admin grant, it's intentional.
+- **Reactivation goes through the kit's `onRestore`** (`DataTable` prop,
+  0006 amendment): sections and items PUT `{ is_active: true }` from
+  `/admin/access`. Don't re-add an `is_active` field to the edit dialogs —
+  the active flag is a row action, not form state.
 - **Hard-deleting a `nav_section` cascades its items and grants** (V7 FK). If
   a module's section disappears from the admin screen unexpectedly, check for
   a hard delete before assuming a migration didn't run.

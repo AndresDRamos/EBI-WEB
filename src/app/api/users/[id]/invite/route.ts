@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createInvitation, findAuthUserById } from "@/modules/org/db/users";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 
 /** POST /api/users/[id]/invite — issue a fresh one-time invitation for an
@@ -14,7 +14,7 @@ export async function POST(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    const admin = await requireAnyRole(["admin"]);
+    const admin = await requirePermission("org.user:invite");
     const user = await findAuthUserById(id);
     if (!user) {
       return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });

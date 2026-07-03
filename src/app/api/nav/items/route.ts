@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { createItem, findSectionById, listItems } from "@/modules/navigation/db";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requireAnyRole, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
 
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       ? body.sort_order
       : 0;
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("navigation.item:create");
     const section = await findSectionById(sectionId);
     if (!section) {
       return NextResponse.json({ error: "Sección no encontrada." }, { status: 404 });

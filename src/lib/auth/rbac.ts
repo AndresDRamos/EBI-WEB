@@ -1,6 +1,7 @@
 import "server-only";
 import { auth } from "@/auth";
 import { getUserScope as dbGetUserScope } from "@/modules/org/db/users";
+import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";
 
 /**
  * Server-side authorization helpers consumed by API route handlers and server
@@ -41,6 +42,24 @@ export async function requireAnyRole(roles: string[]): Promise<SessionUser> {
   const user = await requireUser();
   const has = roles.some((r) => user.roles.includes(r));
   if (!has) {
+    throw new ForbiddenError();
+  }
+  return user;
+}
+
+/**
+ * Throws 403 unless the user holds the given permission code
+ * (`<module>.<resource>:<action>`, e.g. `maintenance.asset:create`).
+ * The protected `admin` profile bypasses without touching the DB — same
+ * app-layer rule as `getNavForUser` (no grant rows for admin, ever).
+ * Resolution is a per-request query by design: grants revoke immediately,
+ * and the JWT stays small (plan 0006).
+ */
+export async function requirePermission(code: string): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.roles.includes("admin")) return user;
+  const codes = await getPermissionCodesForRoles(user.roles);
+  if (!codes.includes(code)) {
     throw new ForbiddenError();
   }
   return user;

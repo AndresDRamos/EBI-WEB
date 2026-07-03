@@ -152,6 +152,14 @@ export interface NavSection {
   updated_at: Generated<Date>;
 }
 
+export interface Permission {
+  code: string;
+  created_at: Generated<Date>;
+  description: string | null;
+  permission_id: Generated<number>;
+  updated_at: Generated<Date>;
+}
+
 export interface PlanMaterial {
   plan_id: number;
   plan_material_id: Generated<number>;
@@ -210,6 +218,7 @@ export interface ReportCategory {
 }
 
 export interface Role {
+  department_id: number | null;
   description: string | null;
   is_active: Generated<boolean>;
   name: string;
@@ -220,6 +229,11 @@ export interface RoleNavSection {
   priority: Generated<number>;
   role_id: number;
   section_id: number;
+}
+
+export interface RolePermission {
+  permission_id: number;
+  role_id: number;
 }
 
 export interface RunLog {
@@ -322,6 +336,7 @@ export interface DB {
   maintenance_plan: MaintenancePlan;
   nav_item: NavItem;
   nav_section: NavSection;
+  permission: Permission;
   plan_material: PlanMaterial;
   plan_task: PlanTask;
   plant: Plant;
@@ -330,6 +345,7 @@ export interface DB {
   report_category: ReportCategory;
   role: Role;
   role_nav_section: RoleNavSection;
+  role_permission: RolePermission;
   run_log: RunLog;
   spare_part: SparePart;
   stock_movement: StockMovement;

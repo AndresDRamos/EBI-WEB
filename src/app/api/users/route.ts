@@ -6,7 +6,7 @@ import {
   createInvitation,
 } from "@/modules/org/db/users";
 import { listRoles, listPlants, listDepartments } from "@/modules/org/db/org";
-import { requireAnyRole, requireUser } from "@/lib/auth/rbac";
+import { requireAnyRole, requirePermission, requireUser } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 /** GET /api/users — list users + pending invitations (admin). */
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   const invite = body.invite !== false;
 
   try {
-    const admin = await requireAnyRole(["admin"]);
+    const admin = await requirePermission("org.user:create");
     const userId = await createUser({
       username,
       email,

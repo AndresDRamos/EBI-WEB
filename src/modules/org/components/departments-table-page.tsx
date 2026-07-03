@@ -125,6 +125,22 @@ export function DepartmentsTablePage({
     return { ok: true };
   }
 
+  async function onRestore(
+    row: DepartmentsTableRow,
+  ): Promise<{ ok?: boolean; error?: string }> {
+    const res = await fetch(`/api/departments/${row.department_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: d.error ?? "No se pudo reactivar el departamento." };
+    }
+    router.refresh();
+    return { ok: true };
+  }
+
   const columns: ColumnDef<DepartmentsTableRow>[] = React.useMemo(
     () => [
       {
@@ -164,6 +180,7 @@ export function DepartmentsTablePage({
         onEdit={openEdit}
         onSoftDelete={onSoftDelete}
         onHardDelete={onHardDelete}
+        onRestore={onRestore}
         canDelete={() => true}
         addLabel="Nuevo departamento"
         onAfterChange={() => router.refresh()}

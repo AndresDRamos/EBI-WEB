@@ -1,6 +1,6 @@
 # maintenance
 
-**Last synced:** 2026-07-01 · **Synced from:** plan 0004 (Fase A build)
+**Last synced:** 2026-07-02 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot)
 
 ## Purpose
 
@@ -21,8 +21,10 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   container; downloads are 302 redirects to 15-minute SAS URLs.
 - Owns `/api/maintenance/assets/**` and `/api/maintenance/processes/**`
   (business-module APIs are namespaced by module). Reads require any
-  authenticated user; mutations require `admin` (dedicated maintenance roles
-  arrive with the mobile QR phase — "Plan 0004 Fase C").
+  authenticated user; each mutation is gated by
+  `requirePermission("maintenance.<resource>:<action>")` (plan 0006 — this
+  module was the pilot; the `admin` profile bypasses at the app layer). The
+  permission codes are seeded in V8; see `docs/modules/rbac.md`.
 - Owns the `(portal)/maintenance/*` UI: machines list (generic `DataTable`
   from `src/components/kit/`), machine detail (Datos / Procesos /
   Restricciones / Documentos tabs), process catalog, printable QR label.
@@ -36,8 +38,10 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
 ## Dependency flow
 
 - `(portal)/maintenance/*` pages → `src/modules/maintenance/db.ts` +
-  `src/modules/org/db/org.ts` (plant options) + `src/lib/auth/rbac.ts`
-  (`isAdmin` → `canManage` prop).
+  `src/modules/org/db/org.ts` (plant options). Pages no longer compute a
+  `canManage`/`isAdmin` prop: action visibility is gated client-side by
+  `useCan()` from `PermissionsProvider` (seeded in `(portal)/layout.tsx`);
+  the API re-checks with `requirePermission` per request.
 - `/api/maintenance/{assets,processes}/**` → `modules/maintenance/db.ts`;
   document routes also → `src/lib/storage/blob.ts` (Azure Blob).
 - QR label page → `qrcode` (server-side data URL) → encodes

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { findSectionById, updateSection, deleteSection } from "@/modules/navigation/db";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
 
@@ -32,7 +32,7 @@ export async function PUT(
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("navigation.section:update");
     const current = await findSectionById(id);
     if (!current) {
       return NextResponse.json({ error: "Sección no encontrada." }, { status: 404 });
@@ -79,7 +79,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("navigation.section:delete");
     const current = await findSectionById(id);
     if (!current) {
       return NextResponse.json({ error: "Sección no encontrada." }, { status: 404 });

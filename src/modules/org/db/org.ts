@@ -19,15 +19,27 @@ export const PROTECTED_ROLE = "admin";
 // Roles
 // ---------------------------------------------------------------------------
 
-export async function listRoles(activeOnly = false): Promise<RoleRow[]> {
-  let q = db.selectFrom("role").selectAll();
-  if (activeOnly) q = q.where("is_active", "=", true);
-  return q.orderBy("name", "asc").execute();
+export type RoleWithDepartment = RoleRow & { department_name: string | null };
+
+/**
+ * Roles are ACCESS PROFILES since V8: `department_id` scopes a profile to a
+ * department (NULL = cross-department, like `admin`). Same table name — the
+ * semantic shift is documented in ADR 0004.
+ */
+export async function listRoles(activeOnly = false): Promise<RoleWithDepartment[]> {
+  let q = db
+    .selectFrom("role")
+    .leftJoin("department", "department.department_id", "role.department_id")
+    .selectAll("role")
+    .select("department.name as department_name");
+  if (activeOnly) q = q.where("role.is_active", "=", true);
+  return q.orderBy("role.name", "asc").execute();
 }
 
 export interface CreateRoleInput {
   name: string;
   description?: string | null;
+  department_id?: number | null;
 }
 
 export async function createRole(input: CreateRoleInput): Promise<RoleRow> {
@@ -37,6 +49,7 @@ export async function createRole(input: CreateRoleInput): Promise<RoleRow> {
     .values({
       name,
       description: input.description ? input.description.trim() : null,
+      department_id: input.department_id ?? null,
     })
     .output("inserted.role_id")
     .executeTakeFirst();
@@ -54,6 +67,7 @@ export interface UpdateRoleInput {
   name?: string;
   description?: string | null;
   is_active?: boolean;
+  department_id?: number | null;
 }
 
 /**
@@ -97,6 +111,18 @@ export async function updateRole(
     }
     changes.is_active = input.is_active;
   }
+  if (input.department_id !== undefined) {
+    if (
+      input.department_id !== null &&
+      current &&
+      current.name === PROTECTED_ROLE
+    ) {
+      throw new RoleProtectedError(
+        `El rol '${PROTECTED_ROLE}' es transversal: no admite departamento.`,
+      );
+    }
+    changes.department_id = input.department_id;
+  }
   if (Object.keys(changes).length === 0) return;
   await db.updateTable("role").set(changes).where("role_id", "=", id).execute();
 }
@@ -124,10 +150,16 @@ export async function softDeleteRole(
 /**
  * Hard delete: removes the role row. Caller is responsible for the
  * protected-role check at the API layer too, so a delete can never cross the
- * FK silently.
+ * FK silently. Grant rows (`role_permission`, `role_nav_section`) are config
+ * OF the profile, so they are cleared in the same transaction; the remaining
+ * NO ACTION FK (`user_role`) still 409s when users are assigned — by design.
  */
 export async function deleteRole(id: number): Promise<void> {
-  await db.deleteFrom("role").where("role_id", "=", id).execute();
+  await db.transaction().execute(async (trx) => {
+    await trx.deleteFrom("role_permission").where("role_id", "=", id).execute();
+    await trx.deleteFrom("role_nav_section").where("role_id", "=", id).execute();
+    await trx.deleteFrom("role").where("role_id", "=", id).execute();
+  });
 }
 
 /** Fetch the role by id (used for the protected-role guard). */

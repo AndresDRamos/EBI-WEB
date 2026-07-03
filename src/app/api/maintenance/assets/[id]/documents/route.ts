@@ -6,7 +6,7 @@ import {
   DOC_TYPES,
 } from "@/modules/maintenance/db";
 import { buildBlobKey, uploadDocumentBlob } from "@/lib/storage/blob";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 
 /** Uploads are buffered in memory; keep files reasonable (manuals, CAD, photos). */
@@ -49,7 +49,7 @@ export async function POST(
   const id = parseId((await params).id);
   if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   try {
-    const user = await requireAnyRole(["admin"]);
+    const user = await requirePermission("maintenance.document:create");
     const asset = await findAssetById(id);
     if (!asset) {
       return NextResponse.json({ error: "Equipo no encontrado." }, { status: 404 });

@@ -1,5 +1,4 @@
 import { listProcesses } from "@/modules/maintenance/db";
-import { isAdmin } from "@/lib/auth/rbac";
 import {
   ProcessesTablePage,
   type ProcessesTableRow,
@@ -7,12 +6,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** Procesos — manufacturing process catalog. */
+/** Procesos — manufacturing process catalog. Action visibility is resolved
+ * client-side by `useCan` (PermissionsProvider in the portal layout). */
 export default async function ProcessesPage() {
-  const [processes, canManage] = await Promise.all([
-    listProcesses().catch(() => []),
-    isAdmin(),
-  ]);
+  const processes = await listProcesses().catch(() => []);
 
   const rows: ProcessesTableRow[] = processes.map((p) => ({
     process_id: p.process_id,
@@ -22,5 +19,5 @@ export default async function ProcessesPage() {
     is_active: p.is_active,
   }));
 
-  return <ProcessesTablePage processes={rows} canManage={canManage} />;
+  return <ProcessesTablePage processes={rows} />;
 }

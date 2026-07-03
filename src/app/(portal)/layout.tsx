@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 import { unstable_cache } from "next/cache";
 import { auth } from "@/auth";
 import { PortalShell } from "@/components/layout/portal-shell";
+import { PermissionsProvider } from "@/components/providers/permissions-provider";
 import { getNavForUser } from "@/modules/navigation/db";
+import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";
 import { SIDEBAR_PIN_COOKIE } from "@/modules/navigation/pin-cookie";
 import type { SessionUser } from "@/lib/auth/rbac";
 
@@ -25,6 +27,16 @@ const getCachedNav = unstable_cache(
   { tags: ["nav"] },
 );
 
+// Same treatment for the permission code set consumed by `useCan` (plan
+// 0006): cached per role-set, invalidated by `revalidateTag("permissions")`
+// from the grants mutation. Admin never queries — app-layer bypass.
+const getCachedPermissions = unstable_cache(
+  async (roleKey: string) =>
+    getPermissionCodesForRoles(roleKey ? roleKey.split(",") : []),
+  ["portal-permissions"],
+  { tags: ["permissions"] },
+);
+
 export default async function PortalLayout({
   children,
 }: {
@@ -43,19 +55,23 @@ export default async function PortalLayout({
   };
   const isAdmin = user.roles.includes("admin");
 
-  const [sections, cookieStore] = await Promise.all([
-    getCachedNav([...user.roles].sort().join(","), isAdmin),
+  const roleKey = [...user.roles].sort().join(",");
+  const [sections, permissionCodes, cookieStore] = await Promise.all([
+    getCachedNav(roleKey, isAdmin),
+    isAdmin ? Promise.resolve([]) : getCachedPermissions(roleKey),
     cookies(),
   ]);
   const initialSidebarPinned = cookieStore.get(SIDEBAR_PIN_COOKIE)?.value === "1";
 
   return (
-    <PortalShell
-      user={user}
-      sections={sections}
-      initialSidebarPinned={initialSidebarPinned}
-    >
-      {children}
-    </PortalShell>
+    <PermissionsProvider isAdmin={isAdmin} codes={permissionCodes}>
+      <PortalShell
+        user={user}
+        sections={sections}
+        initialSidebarPinned={initialSidebarPinned}
+      >
+        {children}
+      </PortalShell>
+    </PermissionsProvider>
   );
 }

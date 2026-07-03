@@ -110,6 +110,20 @@ export function NavSectionsTablePage({ sections }: { sections: NavSectionRow[] }
     return { ok: true };
   }
 
+  async function onRestore(row: NavSectionRow): Promise<{ ok?: boolean; error?: string }> {
+    const res = await fetch(`/api/nav/sections/${row.section_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: d.error ?? "No se pudo reactivar la sección." };
+    }
+    router.refresh();
+    return { ok: true };
+  }
+
   const columns: ColumnDef<NavSectionRow>[] = React.useMemo(
     () => [
       {
@@ -152,6 +166,7 @@ export function NavSectionsTablePage({ sections }: { sections: NavSectionRow[] }
         onEdit={openEdit}
         onSoftDelete={onSoftDelete}
         onHardDelete={onHardDelete}
+        onRestore={onRestore}
         onAfterChange={() => router.refresh()}
       />
       <EntityFormDialog

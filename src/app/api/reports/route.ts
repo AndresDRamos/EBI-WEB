@@ -5,7 +5,7 @@ import {
   listCategories,
   listActiveReports,
 } from "@/modules/reports/db";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 
 interface CreateReportBody {
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 /** POST /api/reports — create a report. */
 export async function POST(request: NextRequest) {
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("reports.report:create");
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;

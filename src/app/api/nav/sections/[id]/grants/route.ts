@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { findSectionById, listSectionGrants, setSectionGrants } from "@/modules/navigation/db";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requireAnyRole, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 /** GET /api/nav/sections/[id]/grants — current role grants for a section (admin). */
@@ -66,7 +66,7 @@ export async function PUT(
     grants.push({ role_id, priority });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("navigation.grants:update");
     const current = await findSectionById(id);
     if (!current) {
       return NextResponse.json({ error: "Sección no encontrada." }, { status: 404 });

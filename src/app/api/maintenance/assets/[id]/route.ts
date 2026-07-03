@@ -7,7 +7,7 @@ import {
   ASSET_STATUSES,
   ASSET_CRITICALITIES,
 } from "@/modules/maintenance/db";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 function parseId(raw: string): number | null {
@@ -145,7 +145,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("maintenance.asset:update");
     if (Object.keys(changes).length > 0) await updateAsset(id, changes);
     if (processIds !== undefined) await setAssetProcesses(id, processIds);
     return NextResponse.json({ ok: true });
@@ -172,7 +172,7 @@ export async function DELETE(
   const id = parseId((await params).id);
   if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("maintenance.asset:delete");
     await softDeleteAsset(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

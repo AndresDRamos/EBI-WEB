@@ -25,15 +25,20 @@ export interface ResolvedNavSection {
   label: string;
   icon: string | null;
   base_path: string;
+  /** `false` only ever reaches admins: inactive sections stay invisible for
+   * everyone else (grant resolution keeps its `is_active` filter). */
+  is_active: boolean;
   items: ResolvedNavItem[];
 }
 
 /**
- * Resolve the topbar + sidebar nav for a user. Admins see every active
- * section with no grant rows needed (app-layer "sees all" rule — matches the
- * protected-role pattern in org.ts). Everyone else sees sections granted to
- * any of their roles, ordered by the best (lowest) priority across those
- * roles, then by `nav_section.sort_order`.
+ * Resolve the topbar + sidebar nav for a user. Admins see EVERY section —
+ * including inactive ones (rendered dimmed/"oculta" by the topbar), so the
+ * portal map is never lost and dark-launched sections can be found and
+ * reactivated. No grant rows needed (app-layer "sees all" rule — matches the
+ * protected-role pattern in org.ts). Everyone else sees active sections
+ * granted to any of their roles, ordered by the best (lowest) priority across
+ * those roles, then by `nav_section.sort_order`.
  */
 export async function getNavForUser(
   roleNames: string[],
@@ -43,7 +48,6 @@ export async function getNavForUser(
     ? (await db
         .selectFrom("nav_section")
         .selectAll()
-        .where("is_active", "=", true)
         .execute()).map((s) => ({ ...s, priority: 0 }))
     : await getGrantedSections(roleNames);
 
@@ -75,6 +79,7 @@ export async function getNavForUser(
     label: s.label,
     icon: s.icon,
     base_path: s.base_path,
+    is_active: s.is_active,
     items: nestItems(itemsBySection.get(s.section_id) ?? []),
   }));
 }

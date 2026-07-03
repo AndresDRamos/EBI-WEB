@@ -24,8 +24,9 @@
 
 ## In-flight plans
 
-None currently — portal-home-nav-authz (section grants authorize pages, home
-at `/`, Power BI purge) was committed on 2026-07-03 (PR to `main`).
+None currently — admin-panel-regroup (2 tabbed groups, kit `PageTabs` +
+`GroupedDataTable`, roles grouped inside departments, permission matrix) was
+committed on 2026-07-03 (PR to `main`).
 
 Next up (direction fixed 2026-07-02 — see
 [ADR 0003](architecture/adr/0003-composition-over-metadata.md) and the
@@ -43,7 +44,7 @@ RBAC actions precede the next business module.
 | Migrations | **Flyway** pure SQL in `db/migrations/` (`V{n}__` / `R__`). Written by the `dba` sub-agent; a human runs `flyway migrate`. |
 | Schemas | Medallion: `staging` (ETL landing) → `core` / `planeacion` (consumption). |
 | ETL | EPS is **read-only**. Never write to EPS. |
-| Admin UI | **Generic DataTable** (`src/components/kit/data-table.tsx`); per-entity modals; the `/admin` panel reuses the shared `PortalSidebar` fed the code-built `ADMIN_NAV_SECTION` (no bespoke rail). |
+| Admin UI | **Generic kit tables** (`src/components/kit/`: `data-table.tsx`, `grouped-data-table.tsx`, `page-tabs.tsx`); per-entity modals; the `/admin` panel = 2 tabbed groups (Organización / Portal, tabs as real routes) behind the shared `PortalSidebar` fed the code-built `ADMIN_NAV_SECTION` (no bespoke rail). |
 | Repo layout | **Modules-first** (2026-07-02): `app/` = thin routing only; `modules/<m>/` owns each domain (db + components); `components/kit|ui|layout` shared UI; `lib/` domain-blind infra. Business-module APIs namespaced (`/api/maintenance/...`). |
 
 ## Code conventions (non-trivial — violating them breaks things)
@@ -86,6 +87,8 @@ RBAC actions precede the next business module.
 - **Protected `admin` role is enforced at the app layer.** `RoleProtectedError`
   in `modules/org/db/org.ts`; the guard receives the `current` role loaded by
   the API before mutation. No CHECK constraint — the app is the only barrier.
+  Protection covers name/state/deletion only: `admin`'s `department_id` IS
+  assignable (the permission/nav bypass keys on the role NAME).
 - **Mutations gate with `requirePermission("<module>.<resource>:<action>")`**
   (V8/ADR 0004; GETs stay on `requireUser`/admin). `auth.role` = **access
   profile** (`department_id` NULL = cross-department); `admin` bypasses with
@@ -112,12 +115,13 @@ the app pages under `src/app/` are thin and compose from here):
   - `db/permissions.ts` — `auth.permission | role_permission`:
     `getPermissionCodesForRoles` (hot path for `requirePermission`), catalog
     list + replace-set grants for the panel.
-  - `components/` — `{users,roles,plants,departments}-table-page.tsx` (one
-    client page per entity: column defs + modal state + delete handlers;
-    roles = "Perfiles de acceso" with department scope),
-    `permission-grants-panel.tsx` (profile ↔ permission replace-set),
-    `user-form.tsx`, `login-form.tsx`, `accept-invite-form.tsx`,
-    `profile-view.tsx`, `change-password-form.tsx`.
+  - `components/` — `users-table-page.tsx` + `plants-table-page.tsx` (flat
+    DataTable pages), `departments-roles-page.tsx` (GroupedDataTable:
+    departments as groups, roles — UI label "Roles" — as child rows;
+    synthetic "Sin departamento" group only while orphan roles exist),
+    `permission-matrix-panel.tsx` (matrix `module.resource` × action per
+    role, "copiar de otro rol"), `user-form.tsx`, `login-form.tsx`,
+    `accept-invite-form.tsx`, `profile-view.tsx`, `change-password-form.tsx`.
 - `navigation/` — DB-driven nav registry (`auth.nav_*`) + portal page authz.
   - `db.ts` — `getNavForUser(roleNames, isAdmin)` resolves topbar + nested
     sidebar (admin sees ALL sections including inactive ones — rendered
@@ -135,8 +139,8 @@ the app pages under `src/app/` are thin and compose from here):
   - `icons.tsx` (curated `lucide-react` map, incl. `Lock`/`KeyRound`),
     `pin-action.ts` / `pin-cookie.ts` (sidebar pin cookie).
   - `components/` — `portal-topbar.tsx`, `portal-sidebar.tsx`, and the
-    `/admin/access` panels: `nav-{sections-table-page,items-panel,
-    grants-panel}.tsx`.
+    Módulos tab panels (`/admin/portal/modules`):
+    `nav-{sections-table-page,items-panel,grants-panel}.tsx`.
 - `maintenance/` — CMMS (`maint` schema). `db.ts` (assets, processes,
   restrictions, documents), `enums.ts` (mirrors the V5/V6 CHECKs — pure
   module, no I/O), `components/` — `machines-table-page`, `machine-detail`
@@ -147,8 +151,12 @@ the app pages under `src/app/` are thin and compose from here):
 
 - `kit/` — the stampable generics (ADR 0003): `data-table.tsx`
   (`DataTable<T>`: text/catalog filter, asc/desc/none sort, 50/page,
-  internal scroll, soft/hard delete), `entity-form-dialog.tsx` (shared modal
-  chrome), `table-utils.ts` (pure: NFD normalization, comparators, catalog
+  internal scroll, soft/hard delete; exports `ActionsCell` +
+  `ActiveInactiveToggle` for reuse), `grouped-data-table.tsx`
+  (`GroupedDataTable<G,C>`: collapsible parent groups + child rows, CRUD on
+  both levels, per-group add-child; no pagination), `page-tabs.tsx`
+  (route-aware tab bar), `entity-form-dialog.tsx` (shared modal chrome),
+  `table-utils.ts` (pure: NFD normalization, comparators, catalog
   intersection). Future: `ResourceTable/Form`, `Calendar`, `KpiCard`.
 - `layout/` — global chrome: `portal-shell.tsx` (composes
   `modules/navigation` topbar + sidebar, rendering `PortalSidebar` for the
@@ -192,10 +200,13 @@ the app pages under `src/app/` are thin and compose from here):
 - `(portal)/layout.tsx` — shell; consumes `getCachedNav`/`navRoleKey` from
   `modules/navigation/cache.ts` + loads permission codes.
 - `(portal)/admin/*` — `layout.tsx` (only `assertAdminOrRedirect`, non-admin →
-  `/`; the sidebar is rendered by `PortalShell` via `ADMIN_NAV_SECTION`, not
-  mounted here), `page.tsx` → `/admin/users`; entity pages compose
-  `modules/org`; `access/` composes `modules/navigation`; `permissions/`
-  composes the org grants panel.
+  `/`; the sidebar is rendered by `PortalShell` via `ADMIN_NAV_SECTION` — 2
+  items: Organización, Portal), `page.tsx` → `/admin/organization/users`.
+  Two tabbed groups (layout = header + kit `PageTabs`):
+  `organization/{users,departments,plants}` and
+  `portal/{modules,permissions}` compose `modules/org` /
+  `modules/navigation`; the old flat routes
+  (`users|roles|departments|plants|access|permissions`) are `redirect()`-only.
 - `(portal)/maintenance/*` — `layout.tsx` guard
   (`requireSectionOrRedirect("maintenance")`) + machines list/detail/label +
   process catalog.

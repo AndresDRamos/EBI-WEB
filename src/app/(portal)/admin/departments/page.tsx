@@ -1,18 +1,8 @@
-import { listDepartments } from "@/modules/org/db/org";
-import { DepartmentsTablePage, type DepartmentsTableRow } from "@/modules/org/components/departments-table-page";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-/** Departamentos admin sub-page — CRUD with description. */
-export default async function AdminDepartmentsPage() {
-  const departments = await listDepartments().catch(() => []);
-
-  const rows: DepartmentsTableRow[] = departments.map((d) => ({
-    department_id: d.department_id,
-    name: d.name,
-    description: d.description,
-    is_active: d.is_active,
-  }));
-
-  return <DepartmentsTablePage departments={rows} />;
+/** Legacy route (admin-panel-regroup): Departamentos lives under Organización. */
+export default function LegacyAdminDepartmentsPage() {
+  redirect("/admin/organization/departments");
 }

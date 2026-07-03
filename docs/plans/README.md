@@ -5,7 +5,8 @@ the slug is the plan's identity). Plans describe **how** we build something (exe
 time-bound); permanent decisions (the **why**) live as ADRs in
 [`../architecture/adr/`](../architecture/adr/).
 
-Use `/plan-save` to promote an approved plan into this folder and add its row below.
+Approved plans land here automatically — `/ship-module` or `/plan-module` persists the
+plan and adds its row below right after the human approves it.
 **Never reuse a ledger slug**: if a new plan would take a name already in the table,
 pick a more specific slug — `git log --follow` must never conflate two plans under one
 filename.
@@ -25,7 +26,7 @@ were numbered `0001–0007` (filenames in history keep the prefix).
 | 2026-06-24 | Portal bootstrap | Committed · pruned | Foundations + Power BI admin + roadmap. Live truth moved to STATE (was stale on auth: still said MSAL) |
 | 2026-06-26 | Portal-owned auth | Committed · pruned | Replace MSAL with username/password (Auth.js v5); roles/plants/departments; defer Power BI → ADR 0001 |
 | 2026-06-27 | Admin panel restructure | Committed · pruned | Dedicated admin panel: panel sidebar, generic DataTable, modal CRUD, Mi perfil; V4 catalog columns |
-| 2026-07-02 | [Mantenimiento — CMMS Fase A](0004-mantenimiento.md) | Committed · Fases B–E open | `maint` schema (V5/V6), asset catalog UI, Azure Blob documents (ADR 0002), QR label |
+| 2026-07-02 | Mantenimiento — CMMS Fase A | Committed · pruned (Fases B–E roadmap lives in git history) | `maint` schema (V5/V6), asset catalog UI, Azure Blob documents (ADR 0002), QR label |
 | 2026-07-02 | Portal layout & navigation | Committed · pruned | DB-driven topbar/sidebar (V7 nav registry), role-priority visibility, pinnable rail → docs/modules/navigation.md |
-| 2026-07-03 | [RBAC actions](0006-rbac-actions.md) | Verified | `auth.permission` + `role_permission` (V8); `auth.role` = access profile (`department_id` NULL = transversal); `requirePermission` server-side + `can()` UI; grants panel in /admin/permissions; amendments: nav reactivation (`onRestore`), always-invite UX |
+| 2026-07-03 | RBAC actions | Committed · pruned | `auth.permission` + `role_permission` (V8); `auth.role` = access profile (`department_id` NULL = transversal); `requirePermission` server-side + `can()` UI; grants panel in /admin/permissions; amendments: nav reactivation (`onRestore`), always-invite UX |
 | 2026-07-03 | [Portal home & nav authz](portal-home-nav-authz.md) | Approved | Section grants authorize pages (segment-layout guard `requireSectionOrRedirect`, ADR 0005); home at `/` replaces `/dashboards`; Power BI code purged; `PortalSidebar` for portal + admin; V9 seeds maintenance nav items |

@@ -1,6 +1,6 @@
 # Navigation (portal layout & DB-driven nav registry)
 
-**Last synced:** 2026-07-03 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005)
+**Last synced:** 2026-07-03 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005) + plan admin-panel-regroup (admin routes regrouped)
 
 ## Purpose
 
@@ -8,8 +8,9 @@ Resolves and renders the authenticated portal's topbar sections and per-section
 sidebar from a DB-backed registry (`auth.nav_section`, `auth.nav_item`,
 `auth.role_nav_section`), instead of a hardcoded nav list. Admins control
 label, icon, order, active flag, and role-based visibility/priority from
-`/admin/access`; they cannot invent routes — sections are seeded by the
-migration of the module that introduces them.
+`/admin/portal/modules` (the *Módulos* tab; legacy `/admin/access` redirects
+there); they cannot invent routes — sections are seeded by the migration of
+the module that introduces them.
 
 ## Responsibilities
 
@@ -17,8 +18,10 @@ migration of the module that introduces them.
   nav resolution + ordering (`getNavForUser`), the cached resolver (`cache.ts`:
   `getCachedNav` / `navRoleKey`, shared by the shell, the home page and the
   guard), the per-section page guard (`guard.ts`:
-  `requireSectionOrRedirect`), the topbar/sidebar components and the
-  `/admin/access` panels (`components/`), the sidebar pin cookie
+  `requireSectionOrRedirect`), the topbar/sidebar components and the nav
+  registry admin panels (`components/`: `nav-sections-table-page`,
+  `nav-items-panel`, `nav-grants-panel`, composed by the *Módulos* tab at
+  `/admin/portal/modules`), the sidebar pin cookie
   (`pin-action.ts` / `pin-cookie.ts`) and the curated icon map (`icons.tsx`).
   `src/components/layout/portal-shell.tsx` (global chrome) composes these
   pieces — the layer allowed to import from this module.
@@ -33,6 +36,12 @@ migration of the module that introduces them.
 - The admin panel reuses this module's `PortalSidebar`, fed the code-built
   `ADMIN_NAV_SECTION` (`src/components/layout/admin-nav.ts`) — no bespoke admin
   rail. `PortalShell` renders `PortalSidebar` for both the portal and `/admin/*`.
+  Since plan admin-panel-regroup the section has **two grouped entries** —
+  Organización (`/admin/organization`: Usuarios · Departamentos y roles ·
+  Plantas) and Portal (`/admin/portal`: Módulos · Permisos); each group's tabs
+  are real routes rendered by the kit `PageTabs` in its layout, and the old
+  flat `/admin/*` routes are `redirect()`-only legacy pages
+  (`/admin` → `/admin/organization/users`).
 
 ## Dependency flow
 
@@ -80,14 +89,14 @@ into an ADR. This module doc carries the live truth.
 - **The `admin` role never gets grant rows.** It sees EVERY section —
   including inactive ones, rendered dimmed with an "oculta" badge in the
   topbar (0006 amendment: the admin never loses the portal map and can
-  reactivate from `/admin/access`) — by an app-layer rule in `getNavForUser`
+  reactivate from `/admin/portal/modules`) — by an app-layer rule in `getNavForUser`
   (same pattern as the protected-role guard in `modules/org/db/org.ts`).
   Non-admins never receive inactive sections; `requireSectionOrRedirect`
   (plan portal-home-nav-authz) reuses that rule for page authorization — keep it intact. Adding an explicit grant row for
   `admin` is a no-op — don't "fix" a missing admin grant, it's intentional.
 - **Reactivation goes through the kit's `onRestore`** (`DataTable` prop,
   0006 amendment): sections and items PUT `{ is_active: true }` from
-  `/admin/access`. Don't re-add an `is_active` field to the edit dialogs —
+  `/admin/portal/modules`. Don't re-add an `is_active` field to the edit dialogs —
   the active flag is a row action, not form state.
 - **Hard-deleting a `nav_section` cascades its items and grants** (V7 FK). If
   a module's section disappears from the admin screen unexpectedly, check for

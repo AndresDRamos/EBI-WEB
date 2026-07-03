@@ -33,7 +33,7 @@
   `requireUser`/admin in v1). Client: `useCan()` hook (PermissionsProvider, seeded
   server-side in the portal layout) to show/hide actions. The protected `admin`
   role bypasses grants (same app-layer rule as nav). Grants panel:
-  `/admin/permissions`. Live doc: `docs/modules/rbac.md`.
+  `/admin/portal/permissions`. Live doc: `docs/modules/rbac.md`.
 
 ## 4. Resource definitions + UI kit (🔜 plan: resource definitions · ✅ kit relocated 2026-07-02)
 
@@ -49,7 +49,7 @@
 ## 5. Navigation + page authorization (✅ nav in plan 0005 · page authz in plan portal-home-nav-authz — ADR 0005)
 
 - Section **and its items** seeded by the module migration (V9 backfilled `maintenance`);
-  admin edits label/icon/order/active/grants in `/admin/access`, never creates routes.
+  admin edits label/icon/order/active/grants in `/admin/portal/modules`, never creates routes.
 - **Every module adds a segment guard** `src/app/(portal)/<module>/layout.tsx` calling
   `requireSectionOrRedirect("<section-code>")` (`src/modules/navigation/guard.ts`). This
   makes the section grant *authorize the page*, not just paint the rail (ADR 0005): a
@@ -74,4 +74,4 @@
    `src/modules/<module>/` (db → resources → components) + thin routes in `src/app/` +
    namespaced API (`/api/<module>/...`) → custom screens. Ends with the verification
    phase (tests + amendments).
-3. `/commit-plan`. Activate the section in `/admin/access` when ready.
+3. `/commit-plan`. Activate the section in `/admin/portal/modules` when ready.

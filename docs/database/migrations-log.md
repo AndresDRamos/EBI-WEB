@@ -1,7 +1,8 @@
 # Migrations log
 
-Chronological record of applied Flyway migrations. `/plan-save` registers each plan's
-migrations here; the `docs-sync` sub-agent reconciles after a successful `flyway migrate`.
+Chronological record of applied Flyway migrations. `/ship-module` or `/plan-module`
+registers each plan's migrations here on approval and applies them to `EBI_dev`; the
+`docs-sync` sub-agent reconciles after a successful `flyway migrate`.
 
 | Version | File | Description | Applied (env / date) |
 |---|---|---|---|

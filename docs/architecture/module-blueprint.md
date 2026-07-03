@@ -61,13 +61,17 @@
 
 - `docs/modules/<module>.md` from `_module-template.md`.
 - A routing row in `docs/docs-routing.md` (read-always / read-if / skip / gotchas).
-- ERD pages regenerate via the `docs-sync` sub-agent at the end of `/build-plan`.
+- ERD pages regenerate via the `docs-sync` sub-agent at the end of the build phase
+  (`/ship-module` or `/build-plan`).
 
 ## Stamping order for a new module
 
-1. `/plan-module` (consults this blueprint + routing row of the closest module type).
-2. `/plan-save` → migrations (schema + nav/permission seeds).
-3. Human: `flyway migrate` + `pnpm db:gen`.
-4. `/build-plan`: one new folder `src/modules/<module>/` (db → resources → components) +
-   thin routes in `src/app/` + namespaced API (`/api/<module>/...`) → custom screens.
-5. `/verify-plan` → `/commit-plan`. Activate the section in `/admin/access` when ready.
+1. Plan (`/ship-module` fast lane, or `/plan-module` full lane; both consult this
+   blueprint + routing row of the closest module type). On approval the skill persists
+   the plan, creates the migrations (schema + nav/permission seeds) and applies them to
+   `EBI_dev` (`flyway migrate` + `pnpm db:gen`).
+2. Build (`/ship-module` continues; full lane runs `/build-plan`): one new folder
+   `src/modules/<module>/` (db → resources → components) + thin routes in `src/app/` +
+   namespaced API (`/api/<module>/...`) → custom screens. Ends with the verification
+   phase (tests + amendments).
+3. `/commit-plan`. Activate the section in `/admin/access` when ready.

@@ -50,21 +50,31 @@ pnpm dev                                          # http://localhost:3001
 | `src/lib/` | Domain-blind infra: db client + generated types, auth helpers, storage |
 | `db/migrations/` | Flyway versioned SQL (`V{n}__desc.sql`) |
 | `docs/` | STATE, plans, ADRs, module docs, ERD per schema, doc routing |
-| `prompts/` | Ephemeral executor prompts per plan (deleted when the plan's branch closes) |
+| `prompts/` | Ephemeral executor prompts per plan, full lane only (deleted when the plan's branch closes) |
 
 Dependency direction: `app → modules → kit/ui/lib` — never the reverse.
 
 ## Workflow (plan-driven)
 
-1. Drop the raw ask in `prompts/<slug>.md` and run `/plan-module <slug>` → the
-   skill validates the slug against the ledger (never reused) and produces
-   `docs/plans/<slug>.md` (invoking the `dba` sub-agent if the schema changes).
-   Human approves.
-2. `/plan-save` → persists plan + migration files + executor prompt (`prompts/<slug>.md`).
-3. Human: `flyway migrate` against `EBI_dev` + `pnpm db:gen`.
-4. `/build-plan` → code; `docs-sync` reconciles docs at the end.
-5. `/verify-plan` → tests + check against the plan's objective.
-6. `/commit-plan` → atomic Conventional Commits (in Spanish) → push → **Pull Request**.
+**Fast lane — `/ship-module <ask>`** (default for small-to-medium changes):
+
+1. The skill plans in-session (slug validated against the ledger, `dba` sub-agent if
+   the schema changes). Human approves.
+2. One continuous pass: persist plan + migrations, `flyway migrate` against `EBI_dev`
+   (+ `pnpm db:gen`), build, `docs-sync`, verify (tests + amendments) →
+   `status: verified`.
+3. Human reviews; adjustments continue in-session as amendments.
+4. `/commit-plan` → atomic Conventional Commits (in Spanish) → push → **Pull Request**.
+
+**Full lane** (large plans, destructive migrations, or handoff to another session):
+
+1. Drop the raw ask in `prompts/<slug>.md` and run `/plan-module <slug>` → plan in
+   `docs/plans/<slug>.md` (invoking the `dba` sub-agent if the schema changes). Human
+   approves → the same session persists plan + migration files and applies them to
+   `EBI_dev` (+ `pnpm db:gen`).
+2. `/build-plan` → code; `docs-sync`; then verifies (tests + check against the plan's
+   objective) → `status: verified`.
+3. `/commit-plan` → atomic Conventional Commits (in Spanish) → push → **Pull Request**.
 
 ## Git conventions
 
@@ -106,17 +116,18 @@ Plans are **working artifacts, not permanent history** — git history is the ar
 
 ### Migrations (Flyway numbering)
 
-- Version numbers are **sequential integers claimed against `main`**: before
-  `/plan-save`, check the highest `V{n}` on `origin/main` (and
-  `docs/database/migrations-log.md`).
+- Version numbers are **sequential integers claimed against `main`**: before creating
+  migration files (post-approval in `/ship-module` or `/plan-module`), check the
+  highest `V{n}` on `origin/main` (and `docs/database/migrations-log.md`).
 - If `main` gained your number while your PR was open: rename your migration to the
   next free version **before merging** (CI fails on duplicates as a safety net). Never
   renumber a migration that was already applied to a shared database — repair forward
   with a new version instead.
 - Prefer **one migration-bearing plan in flight at a time**: `EBI_dev` is shared, so
   parallel schema work needs explicit coordination.
-- Never edit an applied migration; always add a new `V{n}`. A human runs
-  `flyway migrate` (dev first, prod only after validation — `EBI_dev` → `EBI`).
+- Never edit an applied migration; always add a new `V{n}`. The agent applies
+  migrations to `EBI_dev` after plan approval (clean `flyway info` + `pnpm db:gen` as
+  evidence); **prod (`EBI`) stays human-run**, only after dev validation.
 
 ## Security
 

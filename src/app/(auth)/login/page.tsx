@@ -5,7 +5,7 @@ import { LoginForm } from "@/modules/org/components/login-form";
 /**
  * Portal login (username + password). Uses Auth.js v5 Credentials.
  * Unauthenticated by design; middleware redirects already-authenticated
- * visitors away to /dashboards.
+ * visitors away to the home landing (`/`).
  */
 export default function LoginPage() {
   return (

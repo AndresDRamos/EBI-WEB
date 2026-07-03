@@ -4,7 +4,7 @@ import { unstable_cache } from "next/cache";
 import { auth } from "@/auth";
 import { PortalShell } from "@/components/layout/portal-shell";
 import { PermissionsProvider } from "@/components/providers/permissions-provider";
-import { getNavForUser } from "@/modules/navigation/db";
+import { getCachedNav, navRoleKey } from "@/modules/navigation/cache";
 import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";
 import { SIDEBAR_PIN_COOKIE } from "@/modules/navigation/pin-cookie";
 import type { SessionUser } from "@/lib/auth/rbac";
@@ -16,18 +16,9 @@ import type { SessionUser } from "@/lib/auth/rbac";
  */
 export const dynamic = "force-dynamic";
 
-// Nav tables are tiny (<10 sections, <100 items, <200 grants — see the V7
-// dba review) but resolving them on every shell render is still one query
-// too many. Cache per role-set, invalidated by `revalidateTag("nav")` from
-// every /api/nav/* mutation.
-const getCachedNav = unstable_cache(
-  async (roleKey: string, isAdmin: boolean) =>
-    getNavForUser(roleKey ? roleKey.split(",") : [], isAdmin),
-  ["portal-nav"],
-  { tags: ["nav"] },
-);
-
-// Same treatment for the permission code set consumed by `useCan` (plan
+// Nav resolution is cached in `@/modules/navigation/cache` (shared with the
+// home page and the per-section route guard). Same treatment for the
+// permission code set consumed by `useCan` (plan
 // 0006): cached per role-set, invalidated by `revalidateTag("permissions")`
 // from the grants mutation. Admin never queries — app-layer bypass.
 const getCachedPermissions = unstable_cache(
@@ -55,7 +46,7 @@ export default async function PortalLayout({
   };
   const isAdmin = user.roles.includes("admin");
 
-  const roleKey = [...user.roles].sort().join(",");
+  const roleKey = navRoleKey(user.roles);
   const [sections, permissionCodes, cookieStore] = await Promise.all([
     getCachedNav(roleKey, isAdmin),
     isAdmin ? Promise.resolve([]) : getCachedPermissions(roleKey),

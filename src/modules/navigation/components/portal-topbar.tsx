@@ -51,7 +51,7 @@ export function PortalTopbar({
             <Menu className="h-4 w-4" />
           </button>
         ) : null}
-        <Link href="/dashboards" className="flex shrink-0 items-center">
+        <Link href="/" className="flex shrink-0 items-center">
           <Image
             src="/EZI-LOGO-POSITIVO.png"
             alt="EZI Metales"

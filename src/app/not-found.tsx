@@ -8,10 +8,10 @@ export default function NotFound() {
         El recurso solicitado no existe.
       </p>
       <Link
-        href="/dashboards"
+        href="/"
         className="mt-4 rounded-md bg-ezi-orange px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
       >
-        Ir a Dashboards
+        Ir al inicio
       </Link>
     </div>
   );

@@ -1,15 +1,14 @@
 import { redirect } from "next/navigation";
 import { assertAdminOrRedirect } from "@/lib/auth/rbac";
-import { AdminPanelSidebar } from "@/components/layout/admin-panel-sidebar";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Nested layout for the Administración panel. Runs one admin check for all sub
- * routes (non-admins land here and bounce to /dashboards). PortalShell keeps
- * the global header (logo + avatar menu) and hides the global left sidebar when
- * the path starts with `/admin`, so this layout supplies its own panel sidebar
- * beside the page content (no double rail).
+ * routes (non-admins bounce to the home landing). The panel sidebar is
+ * rendered by `PortalShell` (the code-built `ADMIN_NAV_SECTION` via the shared
+ * `PortalSidebar` under `/admin/*`), so this layout only guards and wraps the
+ * page content — no bespoke rail.
  */
 export default async function AdminLayout({
   children,
@@ -17,12 +16,7 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const ok = await assertAdminOrRedirect();
-  if (!ok) redirect("/dashboards");
+  if (!ok) redirect("/");
 
-  return (
-    <div className="flex gap-4">
-      <AdminPanelSidebar />
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
+  return children;
 }

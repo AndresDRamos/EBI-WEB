@@ -21,6 +21,9 @@ export interface UserFormInitial {
   display_name: string | null;
   all_plants: boolean;
   is_active: boolean;
+  /** false = invitation not accepted yet (no password) → the account cannot
+   * log in; the active toggle is locked and a fresh invite can be issued. */
+  has_password: boolean;
   role_ids: number[];
   plant_ids: number[];
   department_ids: number[];
@@ -116,12 +119,38 @@ export function UserFormDialog({
   const [departmentIds, setDepartmentIds] = React.useState<number[]>(
     initial?.department_ids ?? [],
   );
-  const [invite, setInvite] = React.useState(true);
   const [invalidate, setInvalidate] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [inviteLink, setInviteLink] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
+  // Accounts without an accepted invitation cannot log in (no password) —
+  // toggling them active is a no-op that only confuses; lock the toggle and
+  // offer regenerating the invite instead.
+  const hasPassword = initial?.has_password ?? false;
+
+  async function onRegenerateInvite() {
+    if (!initial) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/users/${initial.user_id}/invite`, {
+        method: "POST",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        invite_token?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.invite_token) {
+        throw new Error(data.error ?? "No se pudo generar la invitación.");
+      }
+      setInviteLink(`${window.location.origin}/invite/${data.invite_token}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onSubmit() {
     setBusy(true);
@@ -153,7 +182,7 @@ export function UserFormDialog({
             is_active: isActive,
             invalidate_sessions: invalidate,
           }
-        : { invite }),
+        : { invite: true }),
     };
 
     try {
@@ -293,26 +322,30 @@ export function UserFormDialog({
           />
         </div>
 
-        <div className="flex flex-wrap gap-6">
+        <div className="flex flex-wrap items-center gap-6">
           {!isEdit ? (
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={invite}
-                onCheckedChange={setInvite}
-                disabled={busy}
-              />
-              Generar invitación (enlace de un solo uso)
-            </label>
+            <p className="text-xs text-muted-foreground">
+              Al crear se genera siempre una invitación de un solo uso; la
+              cuenta se activa cuando el usuario la acepta y define su
+              contraseña.
+            </p>
           ) : (
             <>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={isActive}
-                  onCheckedChange={setIsActive}
-                  disabled={busy}
-                />
-                Cuenta activa
-              </label>
+              <div className="space-y-1">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={isActive}
+                    onCheckedChange={setIsActive}
+                    disabled={busy || !hasPassword}
+                  />
+                  Cuenta activa
+                </label>
+                {!hasPassword ? (
+                  <p className="text-xs text-muted-foreground">
+                    Se activará cuando el usuario acepte su invitación.
+                  </p>
+                ) : null}
+              </div>
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
                   checked={invalidate}
@@ -321,6 +354,15 @@ export function UserFormDialog({
                 />
                 Invalidar sesiones activas (token_version)
               </label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void onRegenerateInvite()}
+                disabled={busy}
+              >
+                Generar enlace de invitación
+              </Button>
             </>
           )}
         </div>

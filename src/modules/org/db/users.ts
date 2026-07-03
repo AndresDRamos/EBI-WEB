@@ -52,6 +52,9 @@ export interface UserDetail {
   display_name: string | null;
   all_plants: boolean;
   is_active: boolean;
+  /** Derived flag (the hash never leaves this module): false = the user has
+   * not accepted an invitation yet, so the account cannot log in. */
+  has_password: boolean;
   token_version: number;
   roles: { role_id: number; name: string }[];
   plants: { plant_id: number; code: string; name: string }[];
@@ -301,6 +304,7 @@ export async function getUserDetail(userId: number): Promise<UserDetail | undefi
       "all_plants",
       "is_active",
       "token_version",
+      "password_hash",
     ])
     .where("user_id", "=", userId)
     .executeTakeFirst();
@@ -330,8 +334,10 @@ export async function getUserDetail(userId: number): Promise<UserDetail | undefi
       .execute(),
   ]);
 
+  const { password_hash, ...rest } = user;
   return {
-    ...user,
+    ...rest,
+    has_password: password_hash != null,
     roles,
     plants,
     departments,

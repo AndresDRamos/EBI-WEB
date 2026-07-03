@@ -155,6 +155,7 @@ export function UsersTablePage({
         display_name: string | null;
         all_plants: boolean;
         is_active: boolean;
+        has_password: boolean;
         roles: { role_id: number; name: string }[];
         plants: { plant_id: number; code: string; name: string }[];
         departments: { department_id: number; name: string }[];
@@ -168,6 +169,7 @@ export function UsersTablePage({
       display_name: data.user.display_name,
       all_plants: data.user.all_plants,
       is_active: data.user.is_active,
+      has_password: data.user.has_password,
       role_ids: data.user.roles.map((r) => r.role_id),
       plant_ids: data.user.plants.map((p) => p.plant_id),
       department_ids: data.user.departments.map((d) => d.department_id),
@@ -191,10 +193,24 @@ export function UsersTablePage({
     return { ok: true };
   }
 
-  // Reactivation: in inactive mode, trash isn't shown because we only pass
-  // onSoftDelete. Reactivation is done via the edit modal (toggle "Cuenta
-  // activa"). Hard delete isn't exposed per the plan (catalogs hard-delete;
-  // users stay soft-deleted to preserve audit/joins).
+  // Hard delete isn't exposed on purpose (catalogs hard-delete; users stay
+  // soft-deleted to preserve audit/joins). Reactivation: one click below, or
+  // the edit modal's "Cuenta activa" toggle.
+  async function onRestore(
+    row: UsersTableRow,
+  ): Promise<{ ok?: boolean; error?: string }> {
+    const res = await fetch(`/api/users/${row.user_id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: d.error ?? "No se pudo reactivar el usuario." };
+    }
+    router.refresh();
+    return { ok: true };
+  }
 
   return (
     <>
@@ -209,6 +225,7 @@ export function UsersTablePage({
         onAdd={openCreate}
         onEdit={openEdit}
         onSoftDelete={onSoftDelete}
+        onRestore={onRestore}
         addLabel="Nuevo usuario"
         onAfterChange={() => router.refresh()}
         canDelete={() => true}

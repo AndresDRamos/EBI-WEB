@@ -17,7 +17,7 @@ internal data control). Current truth: `docs/STATE.md`; module recipe:
   mode). Produces plans in `docs/plans/` and ADRs in `docs/architecture/adr/`.
 - **Executor** — whichever agent runs `/build-plan` on the approved plan (OpenCode or a
   fresh Claude session). Builds the code and assembles the commits; the ready-to-run
-  prompt for the executor lives in `prompts/NNNN-*.md`.
+  prompt for the executor lives in `prompts/<slug>.md`.
 
 Goal of the split: diversify token consumption per session.
 
@@ -70,7 +70,7 @@ Goal of the split: diversify token consumption per session.
 
 ## Standard workflow
 
-1. `/plan-module <name>` → plan in `docs/plans/NNNN-*.md` (invokes the `dba` sub-agent
+1. `/plan-module <name>` → plan in `docs/plans/<slug>.md` (invokes the `dba` sub-agent
    when the plan touches the schema).
 2. `/plan-save` (after human approval) → persists the plan, creates the migration files in
    `db/migrations/` and registers them in `docs/database/migrations-log.md`.

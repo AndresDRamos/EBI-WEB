@@ -44,7 +44,7 @@ Core design decisions (agreed with the user on 2026-07-01):
 ### Open phases (this plan = Fase A)
 
 Later phases stay **open**, deliberately unnumbered — other plans run in
-parallel and will take the next NNNN when they materialize. Refer to them as
+parallel and each will get its own slug when it materializes. Refer to them as
 "Plan 0004 Fase B", etc.
 
 | Fase | Scope | Status |
@@ -154,7 +154,7 @@ Reviewed by the `dba` sub-agent (2026-07-01). Full SQL in
 
 - 2026-07-01 — Phases B–E left as open, unnumbered phases of this plan (user
   works plans in parallel; future plans will reference "Plan 0004 Fase B",
-  etc. and take whatever NNNN is next when created).
+  etc. and get their own slug when created).
 - 2026-07-01 — Plan 0005 (portal layout & navigation) replaces the static
   `PortalShell` rail with a DB-driven nav registry and lands **before** this
   plan's UI step. Step 6 no longer edits the global rail: V7

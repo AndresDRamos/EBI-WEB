@@ -1,5 +1,5 @@
 ---
-id: NNNN-plan-name
+id: plan-slug              # kebab-case, no number; must be unique in the ledger (README)
 status: draft            # draft -> approved -> built -> verified -> committed -> superseded
 created: YYYY-MM-DD
 touches: []               # docs/modules/* this plan reads or intends to change

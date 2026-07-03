@@ -201,7 +201,7 @@ reales en EBI_dev son no contiguos: role_id 1,2,3,9; department_id 1,3,5):
   `is_active: true`, cero cambios de API; en maintenance el botón se gatea
   con `can("…:update")`; (3) `getNavForUser` ya no filtra `is_active` para
   admin y `ResolvedNavSection` expone `is_active` (no-admin sigue recibiendo
-  solo activas — regla que el plan 0007 reutilizará); el topbar pinta las
+  solo activas — regla que el plan portal-home-nav-authz reutilizará); el topbar pinta las
   secciones inactivas atenuadas con badge "oculta" (solo admins las reciben).
   Criterios añadidos: admin ve/reactiva secciones ocultas con un click;
   usuarios no-admin sin cambio; el confirm de desactivar ya no promete un

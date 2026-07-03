@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { listProcesses, createProcess } from "@/modules/maintenance/db";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 /** GET /api/maintenance/processes — list manufacturing processes (any authenticated user). */
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       ? body.description.trim()
       : null;
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("maintenance.process:create");
     const process = await createProcess({ code, name, description });
     return NextResponse.json({ process }, { status: 201 });
   } catch (err) {

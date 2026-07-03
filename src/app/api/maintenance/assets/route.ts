@@ -5,7 +5,7 @@ import {
   ASSET_STATUSES,
   ASSET_CRITICALITIES,
 } from "@/modules/maintenance/db";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 /** GET /api/maintenance/assets — list assets (any authenticated user). */
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     );
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("maintenance.asset:create");
     const asset = await createAsset({
       code,
       name,

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateDepartment, deleteDepartment } from "@/modules/org/db/org";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 interface UpdateBody {
@@ -38,7 +38,7 @@ export async function PUT(
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("org.department:update");
     await updateDepartment(id, changes);
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -58,7 +58,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("org.department:delete");
     await deleteDepartment(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

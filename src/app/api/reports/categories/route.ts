@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createCategory, listCategories } from "@/modules/reports/db";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 
 /** GET /api/reports/categories */
@@ -22,7 +22,7 @@ export async function GET() {
 /** POST /api/reports/categories */
 export async function POST(request: NextRequest) {
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("reports.category:create");
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;

@@ -6,7 +6,7 @@ import {
   deleteReport,
   type ReportInput,
 } from "@/modules/reports/db";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 
 interface UpdateReportBody {
@@ -54,7 +54,7 @@ export async function PUT(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("reports.report:update");
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
@@ -119,7 +119,7 @@ export async function PATCH(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("reports.report:update");
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
@@ -159,7 +159,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("reports.report:delete");
     await deleteReport(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

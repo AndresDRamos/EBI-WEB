@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { deleteItem, findItemById, findSectionById, updateItem } from "@/modules/navigation/db";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
 
@@ -33,7 +33,7 @@ export async function PUT(
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("navigation.item:update");
     const current = await findItemById(id);
     if (!current) {
       return NextResponse.json({ error: "Ítem no encontrado." }, { status: 404 });
@@ -99,7 +99,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("navigation.item:delete");
     const current = await findItemById(id);
     if (!current) {
       return NextResponse.json({ error: "Ítem no encontrado." }, { status: 404 });

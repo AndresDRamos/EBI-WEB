@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { listPlants, createPlant } from "@/modules/org/db/org";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 /** GET /api/plants — list plants (any authenticated user). */
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       ? body.postal_code.trim()
       : null;
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("org.plant:create");
     const plant = await createPlant({ code, name, address, postal_code });
     return NextResponse.json({ plant }, { status: 201 });
   } catch (err) {

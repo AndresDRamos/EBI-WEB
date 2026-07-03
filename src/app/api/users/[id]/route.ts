@@ -4,7 +4,7 @@ import {
   updateUserAssignments,
   bumpTokenVersion,
 } from "@/modules/org/db/users";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requireAnyRole, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 function parseId(idStr: string | undefined): number | null {
@@ -58,7 +58,7 @@ export async function PATCH(
   }
 
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("org.user:update");
     await updateUserAssignments(id, {
       role_ids: Array.isArray(body.role_ids) ? asIdArray(body.role_ids) : undefined,
       plant_ids: Array.isArray(body.plant_ids) ? asIdArray(body.plant_ids) : undefined,

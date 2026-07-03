@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { listDepartments, createDepartment } from "@/modules/org/db/org";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 /** GET /api/departments — list departments (any authenticated user). */
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       ? body.description.trim()
       : null;
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("org.department:create");
     const department = await createDepartment({ name, description });
     return NextResponse.json({ department }, { status: 201 });
   } catch (err) {

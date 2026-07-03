@@ -5,7 +5,7 @@ import {
   createRestriction,
   RESTRICTION_TYPES,
 } from "@/modules/maintenance/db";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 function parseId(raw: string): number | null {
@@ -59,7 +59,7 @@ export async function POST(
     return NextResponse.json({ error: "Descripción requerida." }, { status: 422 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("maintenance.restriction:create");
     const asset = await findAssetById(id);
     if (!asset) {
       return NextResponse.json({ error: "Equipo no encontrado." }, { status: 404 });

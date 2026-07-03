@@ -1,7 +1,8 @@
 # ADR 0004 — `auth.role` is an access profile; permissions are resource+action grants
 
 - **Status:** Accepted — 2026-07-02
-- **Context plan:** [0006 — RBAC actions](../../plans/0006-rbac-actions.md)
+- **Context plan:** 0006 — RBAC actions (pruned: row in the
+  [plans ledger](../../plans/README.md), full text in git history)
 
 ## Context
 

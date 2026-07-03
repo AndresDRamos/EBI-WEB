@@ -1,7 +1,8 @@
 # ADR 0002 — Azure Blob Storage for maintenance asset documents
 
 - **Status:** accepted (2026-07-01)
-- **Plan:** [0004-mantenimiento](../../plans/0004-mantenimiento.md)
+- **Plan:** 0004-mantenimiento (pruned: row in the [plans ledger](../../plans/README.md),
+  full text in git history)
 
 ## Context
 

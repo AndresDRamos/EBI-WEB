@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-/** `/admin` lands on the first tab of the first group. */
-export default function AdminIndexPage() {
+/** `/admin/organization` lands on its first tab. */
+export default function AdminOrganizationIndexPage() {
   redirect("/admin/organization/users");
 }

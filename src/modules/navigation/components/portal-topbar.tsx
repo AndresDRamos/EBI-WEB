@@ -105,12 +105,12 @@ function SectionTab({
   const href = section.items[0]?.href ?? section.base_path;
   // Inactive sections only ever reach admins (see getNavForUser): rendered
   // dimmed + "oculta" so the admin keeps the full portal map and can still
-  // navigate in to review before reactivating from /admin/access.
+  // navigate in to review before reactivating from /admin/portal/modules.
   const hidden = !section.is_active;
   return (
     <Link
       href={href}
-      title={hidden ? "Sección oculta para los usuarios (reactívala en Accesos a módulos)" : undefined}
+      title={hidden ? "Sección oculta para los usuarios (reactívala en Portal → Módulos)" : undefined}
       className={cn(
         "flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-4 text-sm transition-colors",
         active

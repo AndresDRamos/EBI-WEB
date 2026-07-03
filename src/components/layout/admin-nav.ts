@@ -19,11 +19,7 @@ export const ADMIN_NAV_SECTION: ResolvedNavSection = {
   base_path: "/admin",
   is_active: true,
   items: [
-    { item_id: -1, label: "Usuarios", icon: "Users", href: "/admin/users", children: [] },
-    { item_id: -2, label: "Perfiles de acceso", icon: "ShieldCheck", href: "/admin/roles", children: [] },
-    { item_id: -3, label: "Plantas", icon: "Factory", href: "/admin/plants", children: [] },
-    { item_id: -4, label: "Departamentos", icon: "Building2", href: "/admin/departments", children: [] },
-    { item_id: -5, label: "Accesos a módulos", icon: "Lock", href: "/admin/access", children: [] },
-    { item_id: -6, label: "Permisos por acción", icon: "KeyRound", href: "/admin/permissions", children: [] },
+    { item_id: -1, label: "Organización", icon: "Building2", href: "/admin/organization", children: [] },
+    { item_id: -2, label: "Portal", icon: "Lock", href: "/admin/portal", children: [] },
   ],
 };

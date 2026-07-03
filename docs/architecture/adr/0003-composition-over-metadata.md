@@ -19,8 +19,8 @@ relational model. The hard 20% of manufacturing control (state machines, folios,
 stock ledgers) cannot be expressed by a generic builder anyway.
 
 The speed the builder promises is obtained instead at **design time**: the agent
-pipeline (`/plan-module` → `/plan-save` → `/build-plan` → `/verify-plan` →
-`/commit-plan`) stamps a well-defined module pattern, and each stamped module sharpens
+pipeline (`/ship-module`, or `/plan-module` → `/build-plan` → `/commit-plan` in the
+full lane) stamps a well-defined module pattern, and each stamped module sharpens
 the pattern for the next one.
 
 ## Decision

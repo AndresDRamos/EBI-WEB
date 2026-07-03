@@ -13,13 +13,21 @@ internal data control). Current truth: `docs/STATE.md`; module recipe:
 
 ## Agent roles
 
-- **Planner** (Claude Code). Designs architecture, modules, ERD and migrations (in plan
-  mode). Produces plans in `docs/plans/` and ADRs in `docs/architecture/adr/`.
-- **Executor** — whichever agent runs `/build-plan` on the approved plan (OpenCode or a
-  fresh Claude session). Builds the code and assembles the commits; the ready-to-run
-  prompt for the executor lives in `prompts/<slug>.md`.
+Two lanes:
 
-Goal of the split: diversify token consumption per session.
+- **Fast lane (`/ship-module`)** — one session plans, and on approval builds and
+  verifies in a single continuous pass. Default for small-to-medium changes; no
+  `prompts/` file needed (the chat ask is the input).
+- **Full lane (planner/executor split)** — for large plans, destructive migrations, or
+  session handoff:
+  - **Planner** (Claude Code). Designs architecture, modules, ERD and migrations (in
+    plan mode); on approval persists the plan and applies its dev migrations. Produces
+    plans in `docs/plans/` and ADRs in `docs/architecture/adr/`.
+  - **Executor** — whichever agent runs `/build-plan` on the approved plan (OpenCode or
+    a fresh Claude session). Builds and verifies the code; the ready-to-run prompt for
+    the executor lives in `prompts/<slug>.md`.
+
+  Goal of the split: diversify token consumption per session.
 
 ## Stack and conventions
 
@@ -42,7 +50,10 @@ Goal of the split: diversify token consumption per session.
   Recipe: `docs/architecture/module-blueprint.md`.
 - **Migrations:** **Flyway**, pure versioned SQL in `db/migrations/`
   (`V{n}__{desc}.sql` incremental, `R__{desc}.sql` repeatable). They are **written by the
-  DBA sub-agent**; a human runs `flyway migrate` and validates.
+  DBA sub-agent**; after plan approval the agent applies them to `EBI_dev`
+  (`flyway -configFiles=db/flyway.dev.conf migrate` + clean `flyway info` + `pnpm db:gen`
+  as evidence). **Production (`EBI`) migrations remain human-run**, only after dev
+  validation.
 
 ## Hard rules (non-negotiable)
 
@@ -70,17 +81,27 @@ Goal of the split: diversify token consumption per session.
 
 ## Standard workflow
 
-1. `/plan-module <name>` → plan in `docs/plans/<slug>.md` (invokes the `dba` sub-agent
-   when the plan touches the schema).
-2. `/plan-save` (after human approval) → persists the plan, creates the migration files in
-   `db/migrations/` and registers them in `docs/database/migrations-log.md`.
-3. Human: `flyway -configFiles=db/flyway.dev.conf migrate` → validate schema.
-4. `/build-plan` → executes the plan (code in `src/`); the `docs-sync` sub-agent runs at
-   the end and reconciles `docs/database/` + `docs/modules/` (ERD per schema in
-   `docs/database/erd/`).
-5. `/verify-plan` → tests + visual/logic check against the plan's objective; gaps are
-   logged as amendments.
-6. `/commit-plan` → atomic commits → push.
+**Fast lane — `/ship-module <ask>`** (default for small-to-medium changes):
+
+1. Plan in-session (invokes the `dba` sub-agent when the schema changes) → human
+   approves.
+2. One continuous pass: persist plan + migrations, apply migrations to `EBI_dev`,
+   build (code in `src/`), `docs-sync` reconciles `docs/database/` + `docs/modules/`
+   (ERD per schema in `docs/database/erd/`), verify (tests + visual/logic check; gaps
+   logged as amendments) → `status: verified`.
+3. Human reviews; adjustments continue in-session as amendments.
+4. `/commit-plan` → atomic commits → push → PR.
+
+**Full lane** (large plans, destructive migrations, or handoff to another session):
+
+1. `/plan-module <name>` → plan in `docs/plans/<slug>.md` (invokes the `dba`
+   sub-agent when the plan touches the schema) → human approves → same session
+   persists the plan, creates the migration files in `db/migrations/`, registers them
+   in `docs/database/migrations-log.md` and applies them to `EBI_dev`.
+2. `/build-plan` → executes the plan, runs `docs-sync`, then verifies (tests +
+   visual/logic check against the plan's objective; gaps logged as amendments) →
+   `status: verified`.
+3. `/commit-plan` → atomic commits → push → PR.
 
 ## Verify before calling something done
 

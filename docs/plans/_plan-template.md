@@ -17,9 +17,10 @@ could understand without reading the prompt file that spawned it. -->
 
 ## Steps
 
-<!-- Specific, ordered, sized so /build-plan can execute without re-deriving
-intent. If a step depends on a sub-agent decision (e.g. the DBA agent's
-migration proposal), reference it, don't restate it. -->
+<!-- Specific, ordered, sized so the build phase (/ship-module or /build-plan)
+can execute without re-deriving intent. If a step depends on a sub-agent
+decision (e.g. the DBA agent's migration proposal), reference it, don't
+restate it. -->
 
 1.
 2.
@@ -29,11 +30,13 @@ migration proposal), reference it, don't restate it. -->
 
 <!-- "None" is a valid answer. If not none: migrations proposed, indexes,
 irreversible operations, and the ERD delta. Filled in by the `dba` sub-agent
-during /plan-module if the plan touches the schema. -->
+during planning (/ship-module or /plan-module) if the plan touches the
+schema. -->
 
 ## Amendments
 
-<!-- Appended during /verify-plan, never edited into the sections above.
+<!-- Appended during the verification phase (/ship-module or /build-plan),
+never edited into the sections above.
 Each entry: what changed vs. the original plan, why, and whether it means
 the plan's Objective is still accurate or the plan should be marked
 superseded by a follow-up plan instead. -->

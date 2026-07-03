@@ -197,26 +197,6 @@ export interface Process {
   updated_at: Generated<Date>;
 }
 
-export interface Report {
-  category_id: number | null;
-  created_at: Generated<Date>;
-  dataset_guid: string | null;
-  description: string | null;
-  is_active: Generated<boolean>;
-  name: string;
-  report_guid: string;
-  report_id: Generated<number>;
-  sort_order: Generated<number>;
-  updated_at: Generated<Date>;
-  workspace_guid: string;
-}
-
-export interface ReportCategory {
-  category_id: Generated<number>;
-  name: string;
-  sort_order: Generated<number>;
-}
-
 export interface Role {
   department_id: number | null;
   description: string | null;
@@ -341,8 +321,6 @@ export interface DB {
   plan_task: PlanTask;
   plant: Plant;
   process: Process;
-  report: Report;
-  report_category: ReportCategory;
   role: Role;
   role_nav_section: RoleNavSection;
   role_permission: RolePermission;

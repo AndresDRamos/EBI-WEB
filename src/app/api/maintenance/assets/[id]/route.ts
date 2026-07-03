@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   getAssetDetail,
+  findAssetById,
   updateAsset,
   softDeleteAsset,
   setAssetProcesses,
@@ -146,6 +147,9 @@ export async function PATCH(
   }
   try {
     await requirePermission("maintenance.asset:update");
+    if (!(await findAssetById(id))) {
+      return NextResponse.json({ error: "Equipo no encontrado." }, { status: 404 });
+    }
     if (Object.keys(changes).length > 0) await updateAsset(id, changes);
     if (processIds !== undefined) await setAssetProcesses(id, processIds);
     return NextResponse.json({ ok: true });
@@ -173,6 +177,9 @@ export async function DELETE(
   if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   try {
     await requirePermission("maintenance.asset:delete");
+    if (!(await findAssetById(id))) {
+      return NextResponse.json({ error: "Equipo no encontrado." }, { status: 404 });
+    }
     await softDeleteAsset(id);
     return NextResponse.json({ ok: true });
   } catch (err) {

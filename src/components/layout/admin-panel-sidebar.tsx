@@ -6,6 +6,7 @@ import {
   BarChart3,
   Building2,
   Factory,
+  KeyRound,
   ShieldCheck,
   UserSquare2,
   UserCog,
@@ -22,7 +23,7 @@ interface SectionLink {
 
 const usuarioChildren: SectionLink[] = [
   { href: "/admin/users", label: "Usuarios", icon: UserCog },
-  { href: "/admin/roles", label: "Roles", icon: ShieldCheck },
+  { href: "/admin/roles", label: "Perfiles de acceso", icon: ShieldCheck },
   { href: "/admin/plants", label: "Plantas", icon: Factory },
   { href: "/admin/departments", label: "Departamentos", icon: Building2 },
 ];
@@ -76,6 +77,10 @@ export function AdminPanelSidebar() {
           <SidebarLink
             item={{ href: "/admin/access", label: "Accesos a módulos", icon: Lock }}
             active={pathname === "/admin/access"}
+          />
+          <SidebarLink
+            item={{ href: "/admin/permissions", label: "Permisos por acción", icon: KeyRound }}
+            active={pathname === "/admin/permissions"}
           />
         </section>
 

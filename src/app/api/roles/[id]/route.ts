@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { revalidateTag } from "next/cache";
 import {
   findRoleById,
   updateRole,
@@ -6,13 +7,14 @@ import {
   RoleProtectedError,
   PROTECTED_ROLE,
 } from "@/modules/org/db/org";
-import { requireAnyRole } from "@/lib/auth/rbac";
+import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 interface UpdateBody {
   name?: unknown;
   description?: unknown;
   is_active?: unknown;
+  department_id?: unknown;
 }
 
 /**
@@ -35,7 +37,7 @@ export async function PUT(
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("org.role:update");
     const current = await findRoleById(id);
     if (!current) {
       return NextResponse.json({ error: "Rol no encontrado." }, { status: 404 });
@@ -44,6 +46,7 @@ export async function PUT(
       name?: string;
       description?: string | null;
       is_active?: boolean;
+      department_id?: number | null;
     } = {};
     if (typeof body.name === "string" && body.name.trim()) {
       changes.name = body.name.trim();
@@ -56,6 +59,13 @@ export async function PUT(
         typeof body.description === "string" ? body.description.trim() : null;
     }
     if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
+    if (body.department_id !== undefined) {
+      const dep = body.department_id === null ? null : Number(body.department_id);
+      if (dep !== null && (!Number.isInteger(dep) || dep <= 0)) {
+        return NextResponse.json({ error: "Departamento inválido." }, { status: 422 });
+      }
+      changes.department_id = dep;
+    }
     if (Object.keys(changes).length === 0) {
       return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
     }
@@ -90,7 +100,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requireAnyRole(["admin"]);
+    await requirePermission("org.role:delete");
     const current = await findRoleById(id);
     if (!current) {
       return NextResponse.json({ error: "Rol no encontrado." }, { status: 404 });
@@ -102,6 +112,10 @@ export async function DELETE(
       );
     }
     await deleteRole(id);
+    // deleteRole clears the profile's nav + permission grants in-transaction;
+    // both layout caches must drop their stale entries.
+    revalidateTag("nav", { expire: 0 });
+    revalidateTag("permissions", { expire: 0 });
     return NextResponse.json({ ok: true });
   } catch (err) {
     const res = authErrorResponse(err);

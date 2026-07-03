@@ -8,24 +8,38 @@ import { Badge } from "@/components/ui/badge";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 export interface RolesTableRow {
   role_id: number;
   name: string;
   description: string | null;
+  department_id: number | null;
+  department_name: string | null;
   is_active: boolean;
+}
+
+export interface DepartmentOption {
+  department_id: number;
+  name: string;
 }
 
 export interface RolesTablePageProps {
   roles: RolesTableRow[];
+  departments: DepartmentOption[];
 }
 
 /** Role protected from rename / deactivate / delete at the app layer. */
 const PROTECTED_ROLE = "admin";
 
-/** Roles admin table. Only `admin` is protected; `viewer` and the rest are normal CRUD. */
-export function RolesTablePage({ roles }: RolesTablePageProps) {
+/**
+ * Access-profile admin table (rol = perfil de acceso since V8 / ADR 0004).
+ * A profile may be scoped to a department ("Técnico Mantenimiento") or be
+ * cross-department (sin departamento, like `admin`). Only `admin` is
+ * protected; the rest are normal CRUD.
+ */
+export function RolesTablePage({ roles, departments }: RolesTablePageProps) {
   const router = useRouter();
   const [modalState, setModalState] = React.useState<{
     open: boolean;
@@ -34,12 +48,14 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
 
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
+  const [departmentId, setDepartmentId] = React.useState<string>("");
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   function resetForm() {
     setName("");
     setDescription("");
+    setDepartmentId("");
     setError(null);
   }
 
@@ -51,6 +67,7 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
   function openEdit(row: RolesTableRow) {
     setName(row.name);
     setDescription(row.description ?? "");
+    setDepartmentId(row.department_id === null ? "" : String(row.department_id));
     setError(null);
     setModalState({ open: true, editId: row.role_id });
   }
@@ -69,6 +86,7 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
       const body = JSON.stringify({
         name: name.trim(),
         description: description.trim() || null,
+        department_id: departmentId === "" ? null : Number(departmentId),
       });
       const res = await fetch(url, {
         method,
@@ -77,7 +95,7 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
       });
       if (!res.ok) {
         const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar el rol.");
+        throw new Error(d.error ?? "No se pudo guardar el perfil.");
       }
       resetForm();
       setModalState({ open: false, editId: null });
@@ -99,7 +117,7 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
     });
     if (!res.ok) {
       const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? "No se pudo desactivar el rol." };
+      return { ok: false, error: d.error ?? "No se pudo desactivar el perfil." };
     }
     router.refresh();
     return { ok: true };
@@ -115,12 +133,36 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
         ok: false,
         error:
           d.error ??
-          "No se pudo eliminar el rol (¿tiene usuarios asignados?).",
+          "No se pudo eliminar el perfil (¿tiene usuarios asignados?).",
       };
     }
     router.refresh();
     return { ok: true };
   }
+
+  async function onRestore(
+    row: RolesTableRow,
+  ): Promise<{ ok?: boolean; error?: string }> {
+    const res = await fetch(`/api/roles/${row.role_id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: true }),
+    });
+    if (!res.ok) {
+      const d = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: d.error ?? "No se pudo reactivar el perfil." };
+    }
+    router.refresh();
+    return { ok: true };
+  }
+
+  const departmentOptions = React.useMemo(
+    () =>
+      [...new Set(roles.map((r) => r.department_name ?? "Transversal"))].map(
+        (n) => ({ value: n, label: n }),
+      ),
+    [roles],
+  );
 
   const columns: ColumnDef<RolesTableRow>[] = React.useMemo(
     () => [
@@ -139,6 +181,19 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
         ),
       },
       {
+        key: "department",
+        header: "Departamento",
+        accessor: (r) => r.department_name ?? "Transversal",
+        filter: { kind: "catalog", options: departmentOptions },
+        render: (r) =>
+          r.department_name ? (
+            <span>{r.department_name}</span>
+          ) : (
+            <span className="text-muted-foreground">Transversal</span>
+          ),
+        className: "w-44",
+      },
+      {
         key: "description",
         header: "Descripción",
         accessor: (r) => r.description ?? "",
@@ -151,7 +206,7 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
           ),
       },
     ],
-    [],
+    [departmentOptions],
   );
 
   const isEditingProtected =
@@ -162,8 +217,8 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
     <>
       <DataTable
         icon={ShieldCheck}
-        title="Roles"
-        subtitle="Roles RBAC. 'admin' no se puede renombrar, desactivar ni eliminar; el resto son CRUD normales."
+        title="Perfiles de acceso"
+        subtitle="Un perfil combina puesto y departamento (sin departamento = transversal). 'admin' no se puede renombrar, desactivar ni eliminar."
         rows={roles}
         getRowId={(r) => r.role_id}
         columns={columns}
@@ -172,9 +227,10 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
         onEdit={openEdit}
         onSoftDelete={onSoftDelete}
         onHardDelete={onHardDelete}
+        onRestore={onRestore}
         canEdit={() => true}
         canDelete={(r) => r.name !== PROTECTED_ROLE}
-        addLabel="Nuevo rol"
+        addLabel="Nuevo perfil"
         onAfterChange={() => router.refresh()}
       />
       <EntityFormDialog
@@ -183,11 +239,11 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
           setModalState((prev) => ({ open, editId: open ? prev.editId : null }));
           if (!open) resetForm();
         }}
-        title={modalState.editId === null ? "Nuevo rol" : "Editar rol"}
+        title={modalState.editId === null ? "Nuevo perfil de acceso" : "Editar perfil de acceso"}
         description={
           isEditingProtected
             ? `El rol '${PROTECTED_ROLE}' no se puede renombrar ni desactivar.`
-            : "Defina nombre y descripción del rol."
+            : "Defina nombre, departamento y descripción del perfil."
         }
         busy={busy}
         error={error}
@@ -196,7 +252,7 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
           setModalState({ open: false, editId: null });
           resetForm();
         }}
-        submitLabel={modalState.editId === null ? "Crear rol" : "Guardar cambios"}
+        submitLabel={modalState.editId === null ? "Crear perfil" : "Guardar cambios"}
       >
         <div className="space-y-4">
           <div className="space-y-2">
@@ -207,11 +263,32 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
               onChange={(e) => setName(e.target.value)}
               maxLength={40}
               disabled={busy}
-              placeholder="p. ej. operador"
+              placeholder="p. ej. Técnico Mantenimiento"
             />
             {isEditingProtected ? (
               <p className="text-xs text-muted-foreground">
                 Este rol está protegido; el cambio de nombre se rechazará en el servidor.
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="role-department">Departamento</Label>
+            <Select
+              id="role-department"
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+              disabled={busy || Boolean(isEditingProtected)}
+            >
+              <option value="">Transversal (todos los departamentos)</option>
+              {departments.map((d) => (
+                <option key={d.department_id} value={d.department_id}>
+                  {d.name}
+                </option>
+              ))}
+            </Select>
+            {isEditingProtected ? (
+              <p className="text-xs text-muted-foreground">
+                El perfil protegido es transversal por definición.
               </p>
             ) : null}
           </div>
@@ -223,7 +300,7 @@ export function RolesTablePage({ roles }: RolesTablePageProps) {
               onChange={(e) => setDescription(e.target.value)}
               maxLength={256}
               rows={3}
-              placeholder="¿Qué permite hacer este rol?"
+              placeholder="¿Qué permite hacer este perfil?"
             />
           </div>
         </div>

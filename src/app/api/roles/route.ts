@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { listRoles, createRole } from "@/modules/org/db/org";
-import { requireUser, requireAnyRole } from "@/lib/auth/rbac";
+import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
 /** GET /api/roles — list roles (any authenticated user). Returns is_active + description. */
@@ -19,9 +19,11 @@ export async function GET() {
 interface CreateBody {
   name?: unknown;
   description?: unknown;
+  department_id?: unknown;
 }
 
-/** POST /api/roles — create a role (admin). */
+/** POST /api/roles — create an access profile. `department_id` scopes it to a
+ * department (NULL = cross-department, like `admin`) — plan 0006 / ADR 0004. */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
   try {
@@ -37,9 +39,16 @@ export async function POST(request: NextRequest) {
     typeof body.description === "string" && body.description.trim()
       ? body.description.trim()
       : null;
+  const department_id =
+    body.department_id === null || body.department_id === undefined
+      ? null
+      : Number(body.department_id);
+  if (department_id !== null && (!Number.isInteger(department_id) || department_id <= 0)) {
+    return NextResponse.json({ error: "Departamento inválido." }, { status: 422 });
+  }
   try {
-    await requireAnyRole(["admin"]);
-    const role = await createRole({ name, description });
+    await requirePermission("org.role:create");
+    const role = await createRole({ name, description, department_id });
     return NextResponse.json({ role }, { status: 201 });
   } catch (err) {
     const res = authErrorResponse(err);

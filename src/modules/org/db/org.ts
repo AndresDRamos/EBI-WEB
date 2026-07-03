@@ -72,8 +72,9 @@ export interface UpdateRoleInput {
 
 /**
  * Update a role. The `admin` role is protected at the app layer: it cannot be
- * renamed or deactivated. Other roles (`viewer`, custom roles) are normal CRUD
- * — caller can rename, edit description, activate/deactivate freely.
+ * renamed or deactivated (its department IS assignable — the bypass keys on
+ * the name). Other roles (`viewer`, custom roles) are normal CRUD — caller
+ * can rename, edit description, activate/deactivate freely.
  *
  * @param currentName the existing role name as loaded from the DB before the
  *   user attempted the change; used to detect protected-role rename/deactivate.
@@ -111,16 +112,10 @@ export async function updateRole(
     }
     changes.is_active = input.is_active;
   }
+  // department_id is free for every role, including `admin` (plan
+  // admin-panel-regroup): the protection covers name/state/deletion only —
+  // the permission bypass keys on the role NAME, never on department_id.
   if (input.department_id !== undefined) {
-    if (
-      input.department_id !== null &&
-      current &&
-      current.name === PROTECTED_ROLE
-    ) {
-      throw new RoleProtectedError(
-        `El rol '${PROTECTED_ROLE}' es transversal: no admite departamento.`,
-      );
-    }
     changes.department_id = input.department_id;
   }
   if (Object.keys(changes).length === 0) return;

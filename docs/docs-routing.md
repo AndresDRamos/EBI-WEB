@@ -50,10 +50,10 @@
 
 ### Layout / navigation
 - **Read always:** `docs/modules/navigation.md`
-- **Read if:** `docs/database/erd/auth.md` (only if touching the `nav_*` tables) · the relevant module's doc if seeding a new section
+- **Read if:** `docs/database/erd/auth.md` (only if touching the `nav_*` tables) · the relevant module's doc if seeding a new section · `docs/architecture/adr/0005-section-grants-authorize-pages.md` (when the change touches page reachability / the segment guard)
 - **Skip (known noise):** ETL docs · ADR 0001 unless touching auth
 - **Ask up front:** does the new section belong under `auth` role-priority visibility, or does it need public/no-role default?
-- **Gotchas:** sections are seeded by the migration of the module that owns the route — never let the admin panel create a section from scratch. The `admin` role needs no grant rows (sees everything).
+- **Gotchas:** sections **and their items** are seeded by the migration of the module that owns the route — never let the admin panel create a section from scratch. The `admin` role needs no grant rows (sees everything, including inactive sections — rendered dimmed). Section grants now **authorize pages** (ADR 0005): each module must add `(portal)/<module>/layout.tsx` calling `requireSectionOrRedirect("<code>")`, or its pages stay reachable by any authenticated user. The admin panel rail is code-built (`ADMIN_NAV_SECTION`), not a `nav_section`.
 
 ### Pure UI / no data
 - **Read always:** relevant `docs/modules/*.md`

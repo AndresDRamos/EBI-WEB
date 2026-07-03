@@ -1,6 +1,6 @@
 # Navigation (portal layout & DB-driven nav registry)
 
-**Last synced:** 2026-07-02 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation)
+**Last synced:** 2026-07-03 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005)
 
 ## Purpose
 
@@ -14,17 +14,25 @@ migration of the module that introduces them.
 ## Responsibilities
 
 - Owns the module slice `src/modules/navigation/`: nav data access (`db.ts`),
-  nav resolution + ordering (`getNavForUser`), the topbar/sidebar components
-  and the `/admin/access` panels (`components/`), the sidebar pin cookie
+  nav resolution + ordering (`getNavForUser`), the cached resolver (`cache.ts`:
+  `getCachedNav` / `navRoleKey`, shared by the shell, the home page and the
+  guard), the per-section page guard (`guard.ts`:
+  `requireSectionOrRedirect`), the topbar/sidebar components and the
+  `/admin/access` panels (`components/`), the sidebar pin cookie
   (`pin-action.ts` / `pin-cookie.ts`) and the curated icon map (`icons.tsx`).
   `src/components/layout/portal-shell.tsx` (global chrome) composes these
   pieces — the layer allowed to import from this module.
-- Does **not** own: route protection (that's `src/middleware.ts` +
-  `assertAdminOrRedirect`/`requireAnyRole` — the nav registry only decides
-  what's *shown*, not what's *reachable*; a user can still hit an unlisted
-  URL directly if RBAC allows it) or the admin panel's own nested sidebar
-  (`src/components/layout/admin-panel-sidebar.tsx`, unrelated — `/admin/*`
-  hides the global rail entirely).
+- **Owns page authorization by section** (plan portal-home-nav-authz, ADR 0005):
+  `requireSectionOrRedirect(code)` lets a route be reached only if its section
+  resolves visible for the user — *what is shown = what is reachable*. Each
+  module wires it in its own `(portal)/<module>/layout.tsx` (e.g.
+  `maintenance/layout.tsx`), redirecting denied users to `/`. Authentication
+  itself stays in `src/middleware.ts` (now default-deny, no per-prefix
+  allowlist); `/admin/*` keeps `assertAdminOrRedirect` (a role gate, not a
+  section grant).
+- The admin panel reuses this module's `PortalSidebar`, fed the code-built
+  `ADMIN_NAV_SECTION` (`src/components/layout/admin-nav.ts`) — no bespoke admin
+  rail. `PortalShell` renders `PortalSidebar` for both the portal and `/admin/*`.
 
 ## Dependency flow
 
@@ -38,7 +46,8 @@ auth.role_nav_section  (admin panel: label/icon/order/active + grants)
 getNavForUser(roleNames, isAdmin)  — src/modules/navigation/db.ts
       │  ordered by MIN(priority) across the user's roles, then sort_order
       ▼
-(portal)/layout.tsx — unstable_cache(tags:["nav"]), reads the pin cookie
+getCachedNav (cache.ts — unstable_cache, tags:["nav"]) ← layout / home / guard
+      │  (portal)/layout.tsx also reads the pin cookie
       │
       ▼
 PortalShell → PortalTopbar (sections) + PortalSidebar (active section's items)
@@ -49,7 +58,10 @@ render picks up the change without a manual cache-bust.
 
 ## Related ADRs
 
-None yet — the design decisions (DB-seeded registry, role-priority ordering,
+- [ADR 0005](../architecture/adr/0005-section-grants-authorize-pages.md) —
+  section grants authorize pages (the `requireSectionOrRedirect` guard).
+
+The original design decisions (DB-seeded registry, role-priority ordering,
 cookie-persisted pin) were recorded in plan 0005 (pruned; row in the
 [plans ledger](../plans/README.md), full text in git history), not split
 into an ADR. This module doc carries the live truth.
@@ -70,8 +82,8 @@ into an ADR. This module doc carries the live truth.
   topbar (0006 amendment: the admin never loses the portal map and can
   reactivate from `/admin/access`) — by an app-layer rule in `getNavForUser`
   (same pattern as the protected-role guard in `modules/org/db/org.ts`).
-  Non-admins never receive inactive sections; plan 0007 will reuse that rule
-  for page authorization — keep it intact. Adding an explicit grant row for
+  Non-admins never receive inactive sections; `requireSectionOrRedirect`
+  (plan portal-home-nav-authz) reuses that rule for page authorization — keep it intact. Adding an explicit grant row for
   `admin` is a no-op — don't "fix" a missing admin grant, it's intentional.
 - **Reactivation goes through the kit's `onRestore`** (`DataTable` prop,
   0006 amendment): sections and items PUT `{ is_active: true }` from

@@ -1,6 +1,6 @@
 # maintenance
 
-**Last synced:** 2026-07-02 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot)
+**Last synced:** 2026-07-03 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard)
 
 ## Purpose
 
@@ -27,7 +27,10 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   permission codes are seeded in V8; see `docs/modules/rbac.md`.
 - Owns the `(portal)/maintenance/*` UI: machines list (generic `DataTable`
   from `src/components/kit/`), machine detail (Datos / Procesos /
-  Restricciones / Documentos tabs), process catalog, printable QR label.
+  Restricciones / Documentos tabs), process catalog, printable QR label. The
+  segment `layout.tsx` gates the whole tree with
+  `requireSectionOrRedirect("maintenance")` (page authz by section grant, ADR
+  0005); the `Máquinas`/`Procesos` nav items are seeded by V9.
 - Does **not** own plants (module `org`, `auth.plant`) — assets reference
   them. Does not own users (`auth.app_user`) — document uploads and future
   work orders reference them.

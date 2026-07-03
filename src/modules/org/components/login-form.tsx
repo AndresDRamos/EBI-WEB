@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 export function LoginForm({ className }: { className?: string }) {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") ?? "/dashboards";
+  const callbackUrl = params.get("callbackUrl") ?? "/";
 
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");

@@ -51,7 +51,11 @@ export function PortalSidebar({
           pinned
             ? "w-60"
             : cn(
-                "absolute inset-y-0 left-0 shadow-lg transition-[width] duration-200 ease-out",
+                // Overlay above page content: DataTable's sticky header is
+                // `z-10`, so the hover panel needs a higher z-index or the
+                // content bleeds through it (stays below modals/dropdowns at
+                // z-50).
+                "absolute inset-y-0 left-0 z-30 shadow-lg transition-[width] duration-200 ease-out",
                 hovered ? "w-60" : "w-16",
               ),
         )}

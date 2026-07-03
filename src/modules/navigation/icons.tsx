@@ -5,7 +5,9 @@ import {
   Circle,
   ClipboardCheck,
   Factory,
+  KeyRound,
   LayoutDashboard,
+  Lock,
   ShieldCheck,
   Truck,
   UserSquare2,
@@ -32,6 +34,8 @@ export const NAV_ICON_NAMES = [
   "Wallet",
   "Truck",
   "UserSquare2",
+  "Lock",
+  "KeyRound",
 ] as const;
 
 /**
@@ -73,6 +77,10 @@ export function NavIcon({
       return <Truck className={className} />;
     case "UserSquare2":
       return <UserSquare2 className={className} />;
+    case "Lock":
+      return <Lock className={className} />;
+    case "KeyRound":
+      return <KeyRound className={className} />;
     default:
       return <Circle className={className} />;
   }

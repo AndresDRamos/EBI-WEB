@@ -17,7 +17,7 @@ They are imported here so Claude Code uses them:
   `db/migrations/`. The planner defines the *what*; `dba` produces the *how* (SQL + ERD
   delta) using the `ebi-sql-dev` MCP (read-only). A human runs `flyway migrate`.
 - **The planner writes the execution plan; the executor is not a DBA.** The plan's steps
-  plus the ready-to-run prompt in `prompts/NNNN-*.md` must carry everything the executor
+  plus the ready-to-run prompt in `prompts/<slug>.md` must carry everything the executor
   (OpenCode or a fresh Claude session running `/build-plan`) needs: scope, files to touch,
   acceptance checks. The executor's MCP access is only for extra context if it hits
   complications, not for designing schema or queries.
@@ -27,7 +27,8 @@ They are imported here so Claude Code uses them:
 - **Claude focuses on plans, ERD, migrations, ADRs and the workflow configuration.**
   Feature code is built via `/build-plan`, then gated by `/verify-plan` before
   `/commit-plan`.
-- When a plan is approved, leave it in `docs/plans/NNNN-*.md` with an updated status.
+- When a plan is approved, leave it in `docs/plans/<slug>.md` with an updated status; when
+  its PR merges, `/commit-plan` prunes it from `main` (the ledger row is the record).
 - **Doc-access telemetry is user-level, not in this repo.** The
   `trace-doc-access.mjs` hook lives in `~/.claude/hooks/` and is registered in the user
   `settings.json` (PostToolUse Read|Grep|Glob + Subagent boundaries); it writes

@@ -46,10 +46,16 @@
 - A standard CRUD screen = resource definition + composition (~30 lines). Screens with
   domain logic (kardex, plant map) are hand-built — do not force them into the kit.
 
-## 5. Navigation (✅ built in plan 0005)
+## 5. Navigation + page authorization (✅ nav in plan 0005 · page authz in plan portal-home-nav-authz — ADR 0005)
 
-- Section seeded by the module migration; admin edits label/icon/order/active/grants in
-  `/admin/access`, never creates routes.
+- Section **and its items** seeded by the module migration (V9 backfilled `maintenance`);
+  admin edits label/icon/order/active/grants in `/admin/access`, never creates routes.
+- **Every module adds a segment guard** `src/app/(portal)/<module>/layout.tsx` calling
+  `requireSectionOrRedirect("<section-code>")` (`src/modules/navigation/guard.ts`). This
+  makes the section grant *authorize the page*, not just paint the rail (ADR 0005): a
+  user without the grant is redirected to `/`. The guard reuses the cached nav
+  resolution, so admin bypass and inactive-section rules come for free. Omitting it
+  leaves the pages reachable by any authenticated user — it is a required step.
 
 ## 6. Documentation per module
 

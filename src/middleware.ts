@@ -7,9 +7,14 @@ import { authConfig } from "@/auth.config";
  * `authConfig` only — no DB/argon2 imports) to decode the JWT session and
  * gate protected routes.
  *
- * - `(portal)` routes are surfaced at `/dashboards` and `/admin`.
- * - `/api/**` is authenticated except the Auth.js handlers under `/api/auth/*`.
+ * - Every UI/API route requires a session except the public ones
+ *   (`PUBLIC_PATHS`) and the Auth.js handlers under `/api/auth/*`. There is
+ *   no per-prefix allowlist: authentication is default-deny (the matcher
+ *   already excludes static assets), so new modules are protected without
+ *   editing this file. Per-*section* authorization lives in each module's
+ *   segment layout (`requireSectionOrRedirect`), not here.
  * - Unauthenticated UI requests redirect to `/login`; API requests get `401`.
+ * - Authenticated users hitting a public UI route are bounced to `/` (home).
  */
 const { auth } = NextAuth(authConfig);
 
@@ -21,25 +26,24 @@ export default auth((req) => {
 
   const isApi = pathname.startsWith("/api");
   const isAuthEndpoint = pathname.startsWith("/api/auth/");
-  const isAuthRoute = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  const isPortal =
-    pathname.startsWith("/dashboards") || pathname.startsWith("/admin");
+  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
+  // Auth.js endpoints manage their own auth.
   if (isAuthEndpoint) return;
 
-  if (isAuthRoute) {
-    if (isLoggedIn) {
-      return NextResponse.redirect(new URL("/dashboards", req.url));
+  // Public routes: bounce already-authenticated users off the login/invite UI
+  // to the home landing; otherwise let the request through.
+  if (isPublic) {
+    if (isLoggedIn && !isApi) {
+      return NextResponse.redirect(new URL("/", req.url));
     }
     return;
   }
 
-  if ((isPortal || isApi) && !isLoggedIn) {
+  // Everything else requires a session.
+  if (!isLoggedIn) {
     if (isApi) {
-      return NextResponse.json(
-        { error: "No autenticado." },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "No autenticado." }, { status: 401 });
     }
     const url = new URL("/login", req.url);
     url.searchParams.set("callbackUrl", pathname);

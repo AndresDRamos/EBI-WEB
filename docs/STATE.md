@@ -16,19 +16,22 @@
   (Mantenimiento Fase A, V5/V6, **committed** 2026-07-02) and plan 0005
   (DB-driven nav registry, V7, **committed** 2026-07-02) — all live in
   `EBI_dev` and pushed to `origin/main`.
-- Nav section `maintenance` still `is_active=0` (dark launch) — activate in
-  `/admin/access` to expose the Mantenimiento module in the topbar.
-- Branch convention: `feat/m{n}-<slug>`.
+- Nav section `maintenance` is active and mapped (V9 seeded its `Máquinas` /
+  `Procesos` items); page access is gated by the section grant (ADR 0005).
+- Branch convention: `<type>/<slug>` (`feat/`, `fix/`, `chore/`, `docs/` per
+  change type). Plans are not numbered: the slug is the plan's identity, unique
+  in the ledger (`docs/plans/README.md`).
 
 ## In-flight plans
 
-None currently — 0006 (RBAC actions) was committed on 2026-07-03 (PR to `main`).
+None currently — portal-home-nav-authz (section grants authorize pages, home
+at `/`, Power BI purge) was committed on 2026-07-03 (PR to `main`).
 
 Next up (direction fixed 2026-07-02 — see
 [ADR 0003](architecture/adr/0003-composition-over-metadata.md) and the
 [module blueprint](architecture/module-blueprint.md)): **UI kit extraction**
 (generic kit in `src/components/kit/` + typed resource definitions). It and
-0006 precede the next business module.
+RBAC actions precede the next business module.
 
 ## Live decisions (current truth — supersedes the master plan where they differ)
 
@@ -40,7 +43,7 @@ Next up (direction fixed 2026-07-02 — see
 | Migrations | **Flyway** pure SQL in `db/migrations/` (`V{n}__` / `R__`). Written by the `dba` sub-agent; a human runs `flyway migrate`. |
 | Schemas | Medallion: `staging` (ETL landing) → `core` / `planeacion` (consumption). |
 | ETL | EPS is **read-only**. Never write to EPS. |
-| Admin UI | **Generic DataTable** (`src/components/kit/data-table.tsx`); per-entity modals; nested sidebar under `(portal)/admin` (PortalShell hides the global rail under `/admin`). |
+| Admin UI | **Generic DataTable** (`src/components/kit/data-table.tsx`); per-entity modals; the `/admin` panel reuses the shared `PortalSidebar` fed the code-built `ADMIN_NAV_SECTION` (no bespoke rail). |
 | Repo layout | **Modules-first** (2026-07-02): `app/` = thin routing only; `modules/<m>/` owns each domain (db + components); `components/kit|ui|layout` shared UI; `lib/` domain-blind infra. Business-module APIs namespaced (`/api/maintenance/...`). |
 
 ## Code conventions (non-trivial — violating them breaks things)
@@ -54,12 +57,11 @@ Next up (direction fixed 2026-07-02 — see
   that touches `auth` must do `rootDb.withSchema("auth")` at the top (see
   `modules/org/db/users.ts`, `modules/org/db/org.ts`,
   `modules/navigation/db.ts`). Without it, SQL Server resolves under `dbo`
-  and throws 208. `modules/reports/db.ts` accesses `dbo` and does **not**
-  apply `.withSchema()`; `modules/maintenance/db.ts` binds `maint`.
+  and throws 208. `modules/maintenance/db.ts` binds `maint`.
 - **MSSQL inserts use `.output("inserted.<pk>")`.** Kysely MSSQL does **not**
   populate `.insertId`; use `.output("inserted.id").executeTakeFirst()` and
-  then `select` the row. Uniform pattern across `users.ts`, `org.ts`,
-  `reports.ts`.
+  then `select` the row. Uniform pattern across `users.ts`, `org.ts` and the
+  maintenance/nav db layers.
 - **Transactions inherit the schema.** A `trx` created inside
   `withSchema("auth")` stays in `auth`; do not re-bind.
 - **Dependency direction (modules-first).** `app/` imports from
@@ -71,9 +73,16 @@ Next up (direction fixed 2026-07-02 — see
   is the one exception: it composes `modules/navigation` pieces.
 - **SQL/Kysely lives only in `src/lib/db/` (infra: `client.ts` + generated
   `types.ts`) and `src/modules/*/db{.ts,/*.ts}`.** No queries anywhere else.
-- **Global sidebar vs. panel sidebar.** `PortalShell` hides its rail when
-  `pathname.startsWith("/admin")`; the panel sidebar is mounted by
-  `(portal)/admin/layout.tsx`. No prop-drilling, no double rail.
+- **One sidebar component (`PortalSidebar`).** `PortalShell` renders it for
+  the portal (active section from the registry) and for `/admin/*` (the
+  code-built `ADMIN_NAV_SECTION`, `components/layout/admin-nav.ts`). No bespoke
+  admin rail, no prop-drilling, no double rail.
+- **Section grants authorize pages (ADR 0005).** A route is reachable only if
+  its `nav_section` resolves visible for the user; each module enforces it in
+  `(portal)/<module>/layout.tsx` via `requireSectionOrRedirect("<code>")`
+  (`modules/navigation/guard.ts`, reuses `getCachedNav`). Middleware is
+  default-deny for authn only (no per-prefix allowlist); `/admin/*` stays on
+  `assertAdminOrRedirect`.
 - **Protected `admin` role is enforced at the app layer.** `RoleProtectedError`
   in `modules/org/db/org.ts`; the guard receives the `current` role loaded by
   the API before mutation. No CHECK constraint — the app is the only barrier.
@@ -109,12 +118,7 @@ the app pages under `src/app/` are thin and compose from here):
     `permission-grants-panel.tsx` (profile ↔ permission replace-set),
     `user-form.tsx`, `login-form.tsx`, `accept-invite-form.tsx`,
     `profile-view.tsx`, `change-password-form.tsx`.
-- `reports/` — Power BI catalog (`dbo` schema, the only `dbo` layer).
-  - `db.ts` — `dbo.report` + `dbo.report_category`; full CRUD +
-    `adminListReports` joining category.
-  - `components/` — `report-admin-table.tsx`, `report-form.tsx`,
-    `category-manager.tsx` (Reportes admin is dormant pending embedding).
-- `navigation/` — DB-driven nav registry (`auth.nav_*`).
+- `navigation/` — DB-driven nav registry (`auth.nav_*`) + portal page authz.
   - `db.ts` — `getNavForUser(roleNames, isAdmin)` resolves topbar + nested
     sidebar (admin sees ALL sections including inactive ones — rendered
     dimmed/"oculta" by the topbar; non-admins only get active granted
@@ -122,8 +126,14 @@ the app pages under `src/app/` are thin and compose from here):
     reads/writes: `listSections/Items`, `listSectionGrants`, `updateSection`
     (no `createSection` — sections are seeded by module migrations),
     `create/update/deleteItem`, `setSectionGrants`.
-  - `icons.tsx` (curated `lucide-react` map), `pin-action.ts` /
-    `pin-cookie.ts` (sidebar pin cookie).
+  - `cache.ts` — `getCachedNav` (`unstable_cache`, tag `"nav"`) + `navRoleKey`
+    (sorted role-set cache key); shared by the portal layout, the home page
+    and the guard.
+  - `guard.ts` — `requireSectionOrRedirect(code)`: page-level authz (ADR 0005).
+    Denied users redirect to `/`; reuses `getCachedNav` so it inherits the
+    exact topbar visibility rules.
+  - `icons.tsx` (curated `lucide-react` map, incl. `Lock`/`KeyRound`),
+    `pin-action.ts` / `pin-cookie.ts` (sidebar pin cookie).
   - `components/` — `portal-topbar.tsx`, `portal-sidebar.tsx`, and the
     `/admin/access` panels: `nav-{sections-table-page,items-panel,
     grants-panel}.tsx`.
@@ -141,9 +151,11 @@ the app pages under `src/app/` are thin and compose from here):
   chrome), `table-utils.ts` (pure: NFD normalization, comparators, catalog
   intersection). Future: `ResourceTable/Form`, `Calendar`, `KpiCard`.
 - `layout/` — global chrome: `portal-shell.tsx` (composes
-  `modules/navigation` topbar + sidebar, conditional under `/admin`, +
-  `UserMenu`), `admin-panel-sidebar.tsx` (3 sections; "Usuarios" expands to
-  users/roles/plants/departments).
+  `modules/navigation` topbar + sidebar, rendering `PortalSidebar` for the
+  portal *and* under `/admin/*` — fed `ADMIN_NAV_SECTION`; no longer hides the
+  rail), `admin-nav.ts` (`ADMIN_NAV_SECTION`: the "Administración" panel as a
+  code-built `ResolvedNavSection` with synthetic negative ids — not in the DB
+  registry; keep reconciled with the real `/admin/*` pages).
 - `ui/` — shadcn / Radix primitives: button, card, input, label, textarea,
   select, checkbox, table, badge, separator, dialog, alert-dialog,
   dropdown-menu, popover, tooltip.
@@ -166,23 +178,30 @@ the app pages under `src/app/` are thin and compose from here):
 
 - `auth.config.ts` — edge-safe; no DB. `auth.ts` — Credentials provider,
   argon2id, JWT callbacks (`token_version` re-check for revocation).
-- `middleware.ts` — gates `(portal)` and `/api/**`; redirects UI to
-  `/login`, returns `401` for API.
+- `middleware.ts` — **default-deny for authentication** (no per-prefix
+  allowlist): unauthenticated UI → `/login`, `/api/**` → `401`; authenticated
+  users on public routes → `/`. Page-level authz per section lives in the
+  module layouts (ADR 0005), not here.
 
 **Routes** (`src/app/` — thin by rule):
 
-- `page.tsx` → redirect `/dashboards`. `(auth)/login` + `(auth)/invite/
-  [token]` compose `modules/org` forms.
-- `(portal)/admin/*` — `layout.tsx` (`assertAdminOrRedirect` +
-  `AdminPanelSidebar`), `page.tsx` → `/admin/users`; entity pages compose
+- No root `src/app/page.tsx`: the post-login landing is `(portal)/page.tsx`
+  (home at `/`, grant-free; one card per section the user can reach, resolved
+  from `getCachedNav`). `(auth)/login` + `(auth)/invite/[token]` compose
+  `modules/org` forms.
+- `(portal)/layout.tsx` — shell; consumes `getCachedNav`/`navRoleKey` from
+  `modules/navigation/cache.ts` + loads permission codes.
+- `(portal)/admin/*` — `layout.tsx` (only `assertAdminOrRedirect`, non-admin →
+  `/`; the sidebar is rendered by `PortalShell` via `ADMIN_NAV_SECTION`, not
+  mounted here), `page.tsx` → `/admin/users`; entity pages compose
   `modules/org`; `access/` composes `modules/navigation`; `permissions/`
-  composes the org grants panel; `reports/`, `reports/new`,
-  `reports/[reportId]/edit` compose `modules/reports`.
-- `(portal)/maintenance/*` — machines list/detail/label + process catalog.
+  composes the org grants panel.
+- `(portal)/maintenance/*` — `layout.tsx` guard
+  (`requireSectionOrRedirect("maintenance")`) + machines list/detail/label +
+  process catalog.
 - `api/` — core portal routes stay flat (`users`, `roles`, `plants`,
-  `departments`, `reports`, `nav`, `profile`, `invite`, `auth`);
-  business-module routes are namespaced: `api/maintenance/{assets,
-  processes}/**`.
+  `departments`, `nav`, `profile`, `invite`, `auth`); business-module routes
+  are namespaced: `api/maintenance/{assets,processes}/**`.
 
 ## Where the history lives (read on demand, not every session)
 

@@ -56,11 +56,11 @@ Dependency direction: `app → modules → kit/ui/lib` — never the reverse.
 
 ## Workflow (plan-driven)
 
-1. Drop the raw ask in `prompts/<slug>.md` (no number) and run
-   `/plan-module <slug>` → the skill claims the next plan number from the ledger
-   and produces `docs/plans/NNNN-slug.md` (invoking the `dba` sub-agent if the
-   schema changes). Human approves.
-2. `/plan-save` → persists plan + migration files + executor prompt (`prompts/NNNN-*`).
+1. Drop the raw ask in `prompts/<slug>.md` and run `/plan-module <slug>` → the
+   skill validates the slug against the ledger (never reused) and produces
+   `docs/plans/<slug>.md` (invoking the `dba` sub-agent if the schema changes).
+   Human approves.
+2. `/plan-save` → persists plan + migration files + executor prompt (`prompts/<slug>.md`).
 3. Human: `flyway migrate` against `EBI_dev` + `pnpm db:gen`.
 4. `/build-plan` → code; `docs-sync` reconciles docs at the end.
 5. `/verify-plan` → tests + check against the plan's objective.
@@ -74,14 +74,13 @@ Dependency direction: `app → modules → kit/ui/lib` — never the reverse.
   short-lived branches (days, not weeks). Server-side branch protection needs GitHub
   Pro/Team on private repos; until then the committed `.githooks/pre-push` guard
   enforces it per clone (see *Getting started*).
-- Name: `<type>/<NNNN>-<slug>` where `type` ∈ `feat|fix|refactor|docs|chore` and
-  `NNNN` is the plan number — e.g. `feat/0006-rbac-actions`. Small chores without a
-  plan drop the number: `chore/ci-tweaks`.
-- **Plan numbers are claimed by the tooling, not by people.** `/plan-module` takes
-  `max + 1` from the ledger (`docs/plans/README.md`) **on `origin/main`** and reports
-  it; humans never need to know the next number. If two in-flight plans collide
-  anyway, whichever PR merges second renumbers its plan (file rename + index row) —
-  cheap and explicit.
+- Name: `<type>/<slug>` where `type` ∈ `feat|fix|refactor|docs|chore` —
+  e.g. `feat/rbac-actions`. The slug matches the plan's slug when the branch
+  implements a plan.
+- **Plans are not numbered — the slug is the identity.** `/plan-module` checks the
+  ledger (`docs/plans/README.md`) **on `origin/main`**: if the slug was ever used,
+  the new plan takes a more specific one. Two in-flight plans can't collide because
+  distinct work gets distinct names.
 
 ### Commits and PRs
 
@@ -96,12 +95,14 @@ Dependency direction: `app → modules → kit/ui/lib` — never the reverse.
 Plans are **working artifacts, not permanent history** — git history is the archive:
 
 - A plan lives in `docs/plans/` while it is in flight (`draft → … → committed`) or
-  still carries roadmap (open phases, like plan 0004's Fases B–E).
-- When a plan is merged **and** its durable knowledge has been extracted (ADRs, module
-  docs, `STATE.md`, `docs-routing`), delete the plan file in a cleanup commit. Keep its
-  one-line row in `docs/plans/README.md` as the ledger (number, title, merge commit).
-- `prompts/NNNN-*` is ephemeral: it exists only on the plan's branch and is removed in
-  the plan's final commit — it never accumulates on `main`.
+  still carries roadmap (open phases, like Mantenimiento's Fases B–E).
+- When a plan's PR merges, `/commit-plan` **prunes the plan file automatically** in a
+  cleanup commit (extracting any remaining durable knowledge — ADRs, module docs,
+  `STATE.md`, `docs-routing` — first). The plan must survive *through* the squash
+  merge and be deleted *after* it, or its text never reaches `main`'s history. Its
+  one-line row in `docs/plans/README.md` is the permanent ledger (date, title, hook).
+- `prompts/<slug>.md` is ephemeral: it exists only on the plan's branch and is removed
+  in the plan's final commit — it never reaches `main`.
 
 ### Migrations (Flyway numbering)
 

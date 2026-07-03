@@ -22,14 +22,13 @@
 
 ## In-flight plans
 
-None currently — 0004 and 0005 were committed on 2026-07-02.
+None currently — 0006 (RBAC actions) was committed on 2026-07-03 (PR to `main`).
 
-Next up (direction fixed 2026-07-02, plans not yet drafted — see
+Next up (direction fixed 2026-07-02 — see
 [ADR 0003](architecture/adr/0003-composition-over-metadata.md) and the
-[module blueprint](architecture/module-blueprint.md)): **RBAC actions**
-(`auth.permission` + role grants + `requirePermission`/`can()`) and **UI kit
-extraction** (generic kit in `src/components/kit/` + typed resource
-definitions). Both precede the next business module.
+[module blueprint](architecture/module-blueprint.md)): **UI kit extraction**
+(generic kit in `src/components/kit/` + typed resource definitions). It and
+0006 precede the next business module.
 
 ## Live decisions (current truth — supersedes the master plan where they differ)
 
@@ -78,6 +77,13 @@ definitions). Both precede the next business module.
 - **Protected `admin` role is enforced at the app layer.** `RoleProtectedError`
   in `modules/org/db/org.ts`; the guard receives the `current` role loaded by
   the API before mutation. No CHECK constraint — the app is the only barrier.
+- **Mutations gate with `requirePermission("<module>.<resource>:<action>")`**
+  (V8/ADR 0004; GETs stay on `requireUser`/admin). `auth.role` = **access
+  profile** (`department_id` NULL = cross-department); `admin` bypasses with
+  no grant rows. Codes are contract: seed the permission in the module's
+  migration or the gate never passes for non-admins. UI: `useCan()` from
+  `PermissionsProvider` (display-only; may be stale — the API re-checks).
+  Live doc: [docs/modules/rbac.md](modules/rbac.md).
 
 ## File-by-file map (what the code *is* today)
 
@@ -92,8 +98,15 @@ the app pages under `src/app/` are thin and compose from here):
     `createInvitation / accept / revoke`.
   - `db/org.ts` — `auth.role | plant | department` + CRUD with the `admin`
     guard. Exports `RoleProtectedError` and `PROTECTED_ROLE = "admin"`.
+    `deleteRole` clears the profile's grants in-transaction (409 only for
+    assigned users).
+  - `db/permissions.ts` — `auth.permission | role_permission`:
+    `getPermissionCodesForRoles` (hot path for `requirePermission`), catalog
+    list + replace-set grants for the panel.
   - `components/` — `{users,roles,plants,departments}-table-page.tsx` (one
-    client page per entity: column defs + modal state + delete handlers),
+    client page per entity: column defs + modal state + delete handlers;
+    roles = "Perfiles de acceso" with department scope),
+    `permission-grants-panel.tsx` (profile ↔ permission replace-set),
     `user-form.tsx`, `login-form.tsx`, `accept-invite-form.tsx`,
     `profile-view.tsx`, `change-password-form.tsx`.
 - `reports/` — Power BI catalog (`dbo` schema, the only `dbo` layer).
@@ -103,7 +116,9 @@ the app pages under `src/app/` are thin and compose from here):
     `category-manager.tsx` (Reportes admin is dormant pending embedding).
 - `navigation/` — DB-driven nav registry (`auth.nav_*`).
   - `db.ts` — `getNavForUser(roleNames, isAdmin)` resolves topbar + nested
-    sidebar (admin sees all active sections, no grant rows). Admin
+    sidebar (admin sees ALL sections including inactive ones — rendered
+    dimmed/"oculta" by the topbar; non-admins only get active granted
+    sections). Admin
     reads/writes: `listSections/Items`, `listSectionGrants`, `updateSection`
     (no `createSection` — sections are seeded by module migrations),
     `create/update/deleteItem`, `setSectionGrants`.
@@ -132,16 +147,18 @@ the app pages under `src/app/` are thin and compose from here):
 - `ui/` — shadcn / Radix primitives: button, card, input, label, textarea,
   select, checkbox, table, badge, separator, dialog, alert-dialog,
   dropdown-menu, popover, tooltip.
-- `providers/` — `auth-session-provider.tsx`.
+- `providers/` — `auth-session-provider.tsx`, `permissions-provider.tsx`
+  (`useCan`; codes loaded server-side in `(portal)/layout.tsx`, cache tag
+  `"permissions"`).
 
 **Infra** (`src/lib/`, domain-blind):
 
 - `db/client.ts` — Kysely singleton + Azure SQL pool (Tarn, 1–10 conns).
 - `db/types.ts` — **generated** by `kysely-codegen`; do not edit by hand.
 - `auth/password.ts` — argon2id (`@node-rs/argon2`), Node only.
-- `auth/rbac.ts` — `requireUser / requireAnyRole / isAdmin /
-  assertAdminOrRedirect / getUserScope`. Errors: `UnauthenticatedError`,
-  `ForbiddenError`.
+- `auth/rbac.ts` — `requireUser / requireAnyRole / requirePermission /
+  isAdmin / assertAdminOrRedirect / getUserScope`. Errors:
+  `UnauthenticatedError`, `ForbiddenError`.
 - `auth/api.ts` — `authErrorResponse` (401/403), `parseJsonBody`.
 - `storage/blob.ts` — Azure Blob (SAS downloads, server-side uploads).
 
@@ -158,8 +175,9 @@ the app pages under `src/app/` are thin and compose from here):
   [token]` compose `modules/org` forms.
 - `(portal)/admin/*` — `layout.tsx` (`assertAdminOrRedirect` +
   `AdminPanelSidebar`), `page.tsx` → `/admin/users`; entity pages compose
-  `modules/org`; `access/` composes `modules/navigation`; `reports/`,
-  `reports/new`, `reports/[reportId]/edit` compose `modules/reports`.
+  `modules/org`; `access/` composes `modules/navigation`; `permissions/`
+  composes the org grants panel; `reports/`, `reports/new`,
+  `reports/[reportId]/edit` compose `modules/reports`.
 - `(portal)/maintenance/*` — machines list/detail/label + process catalog.
 - `api/` — core portal routes stay flat (`users`, `roles`, `plants`,
   `departments`, `reports`, `nav`, `profile`, `invite`, `auth`);

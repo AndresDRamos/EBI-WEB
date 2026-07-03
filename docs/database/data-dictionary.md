@@ -3,7 +3,7 @@
 > Generated from the live schema (read-only `ebi-sql-dev` MCP) by the `docs-sync`
 > sub-agent, which runs at the end of every `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-02. Reflects V1–V7.
+> Last synced: 2026-07-02. Reflects V1–V8.
 
 ---
 
@@ -89,7 +89,11 @@ Portal user accounts. Login identity is `username`.
 
 ### `auth.role`
 
-RBAC role catalog. Seeded with `admin` and `viewer`.
+RBAC role catalog. Seeded with `admin` and `viewer`. Since V8 a role means
+**access profile** (ADR 0004): optionally scoped to a department via
+`department_id` (NULL = cross-department/transversal profile). The protected
+`admin` profile bypasses grants at the app layer — it has no rows in
+`role_permission` nor `role_nav_section`, ever.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
@@ -97,6 +101,9 @@ RBAC role catalog. Seeded with `admin` and `viewer`.
 | name | nvarchar(40) | no | UQ | Role name (`admin`, `viewer`) |
 | description | nvarchar(256) | yes | | Human-readable description |
 | is_active | bit | no | DEFAULT 1 | Soft-disable flag for non-system roles. Only `admin` is protected from deactivation at the application layer (no DB constraint) |
+| department_id | int | yes | FK → auth.department (no cascade) | Department the access profile is scoped to; NULL = cross-department (added V8) |
+
+Indexes: `IX_role_department (department_id) WHERE department_id IS NOT NULL`.
 
 ### `auth.plant`
 
@@ -232,6 +239,39 @@ every active section at the app layer (same pattern as `RoleProtectedError`).
 | priority | int | no | DEFAULT 100 | Lower wins; topbar tie-break order across a user's roles |
 
 Indexes: `IX_role_nav_section_section (section_id)`.
+
+### `auth.permission`
+
+Permission catalog for resource+action RBAC (plan 0006). `code` is the stable
+key referenced by the codebase (`requirePermission("...")` / `useCan()`), in
+the format `<module>.<resource>:<action>` (e.g. `maintenance.asset:create`),
+lowercase-enforced by a CHECK with binary collation. Rows are seeded by module
+migrations only (V8 seeded 35 codes for org/reports/navigation/maintenance);
+the admin panel assigns/revokes grants but never creates permissions. There is
+no `is_active`: retiring a permission = a migration deletes it (grants
+cascade). See `docs/modules/rbac.md`.
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| permission_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
+| code | nvarchar(80) | no | UQ, CHECK format `<module>.<resource>:<action>` (lowercase alphanumerics + `._:`) | Stable key used by the codebase |
+| description | nvarchar(256) | yes | | Human-readable description shown in the grants panel |
+| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
+| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp (app-maintained) |
+
+### `auth.role_permission`
+
+Access profile → permission grant. Ships empty (V8): the only user at
+migration time was `admin`, which bypasses at the app layer and must never
+hold grant rows (same rule as `role_nav_section`). The app replaces a
+profile's full grant set in one transaction (`setRolePermissions`).
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| role_id | int | no | PK, FK → auth.role (no cascade) | Access profile reference (app clears grants on role delete, or 409s) |
+| permission_id | int | no | PK, FK → auth.permission (CASCADE DELETE) | Permission reference; grants die with their permission |
+
+Indexes: `IX_role_permission_permission (permission_id)`.
 
 ---
 

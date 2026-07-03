@@ -23,13 +23,17 @@
 - Kysely only; types regenerated with `pnpm db:gen` after every migration.
 - MSSQL inserts via `.output("inserted.<pk>")`; transactions inherit the bound schema.
 
-## 3. Authorization (🔜 plan: RBAC actions)
+## 3. Authorization (✅ built in plan 0006 — ADR 0004)
 
-- `auth.permission` (`<module>.<resource>:<action>`) + `role_permission`
-  (+ optional per-user overrides), seeded by module migrations.
-- Server: `requirePermission(...)` in every API route. Client: `can(...)` hook consumed
-  by kit components to show/hide actions. The protected `admin` role bypasses grants
-  (same app-layer rule as nav).
+- `auth.permission` (`<module>.<resource>:<action>`) + `role_permission`, seeded by
+  module migrations (V8 seeded org/reports/navigation/maintenance retroactively).
+  The grant subject is the **access profile**: `auth.role` + optional
+  `department_id` (NULL = cross-department). No per-user overrides in v1.
+- Server: `requirePermission(...)` in every mutation API route (GETs stay on
+  `requireUser`/admin in v1). Client: `useCan()` hook (PermissionsProvider, seeded
+  server-side in the portal layout) to show/hide actions. The protected `admin`
+  role bypasses grants (same app-layer rule as nav). Grants panel:
+  `/admin/permissions`. Live doc: `docs/modules/rbac.md`.
 
 ## 4. Resource definitions + UI kit (🔜 plan: resource definitions · ✅ kit relocated 2026-07-02)
 

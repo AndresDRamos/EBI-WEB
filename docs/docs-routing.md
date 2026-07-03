@@ -41,6 +41,13 @@
 - **Ask up front:** which least-privilege DB user runs this (`ebi_app`)? soft vs hard delete (and what does the inactive-view "permanent delete" do for referenced rows)? are any roles code-coupled — which are protected (only `admin`; `viewer` is normal CRUD)?
 - **Gotchas:** all DB access through Kysely in `src/lib/db/` (infra) + `src/modules/*/db*.ts` — no raw queries elsewhere · the session JWT carries only `userId/username/display_name/roles/token_version` (NO email) — read profile fields server-side via `getUserDetail`, not from the session · catalog DELETEs 409 on FK by design (block referenced rows); user deletes cascade via the junction FKs.
 
+### RBAC / permission-gated actions
+- **Read always:** `docs/modules/rbac.md` · `docs/architecture/adr/0004-role-as-access-profile.md`
+- **Read if:** `docs/database/erd/auth.md` (only if touching `permission` / `role_permission` / `role.department_id`) · the owning module's doc (when seeding new permission codes)
+- **Skip (known noise):** ETL docs · ADR 0001 (identity model is orthogonal; only the JWT `roles` claim is shared)
+- **Ask up front:** does the new endpoint need a new permission code (→ seed it in the same plan's migration)? mutation or read (v1 gates mutations only)?
+- **Gotchas:** `admin` bypasses at app layer — never create grant rows for it · permission codes are contract: `requirePermission("x.y:z")` without a seeded row can never pass for non-admins · `useCan` is display-only and may be stale; the API is the barrier.
+
 ### Layout / navigation
 - **Read always:** `docs/modules/navigation.md`
 - **Read if:** `docs/database/erd/auth.md` (only if touching the `nav_*` tables) · the relevant module's doc if seeding a new section

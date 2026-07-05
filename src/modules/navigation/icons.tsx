@@ -7,6 +7,8 @@ import {
   Factory,
   KeyRound,
   LayoutDashboard,
+  LayoutGrid,
+  Layers,
   Lock,
   ShieldCheck,
   Truck,
@@ -31,6 +33,8 @@ export const NAV_ICON_NAMES = [
   "BarChart3",
   "ClipboardCheck",
   "Boxes",
+  "Layers",
+  "LayoutGrid",
   "Wallet",
   "Truck",
   "UserSquare2",
@@ -71,6 +75,10 @@ export function NavIcon({
       return <ClipboardCheck className={className} />;
     case "Boxes":
       return <Boxes className={className} />;
+    case "Layers":
+      return <Layers className={className} />;
+    case "LayoutGrid":
+      return <LayoutGrid className={className} />;
     case "Wallet":
       return <Wallet className={className} />;
     case "Truck":

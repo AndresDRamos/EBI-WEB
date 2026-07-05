@@ -173,6 +173,7 @@ export interface CreateAssetInput {
   location?: string | null;
   criticality?: string;
   status?: string;
+  asset_category?: string;
   parent_asset_id?: number | null;
   acquisition_date?: Date | null;
   notes?: string | null;
@@ -193,6 +194,9 @@ export async function createAsset(input: CreateAssetInput): Promise<AssetRow> {
         ? { criticality: input.criticality }
         : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.asset_category !== undefined
+        ? { asset_category: input.asset_category }
+        : {}),
       parent_asset_id: input.parent_asset_id ?? null,
       acquisition_date: input.acquisition_date ?? null,
       notes: emptyToNull(input.notes),
@@ -215,6 +219,7 @@ export interface UpdateAssetInput {
   location?: string | null;
   criticality?: string;
   status?: string;
+  asset_category?: string;
   parent_asset_id?: number | null;
   acquisition_date?: Date | null;
   notes?: string | null;
@@ -236,6 +241,8 @@ export async function updateAsset(
   if (input.location !== undefined) changes.location = emptyToNull(input.location);
   if (input.criticality !== undefined) changes.criticality = input.criticality;
   if (input.status !== undefined) changes.status = input.status;
+  if (input.asset_category !== undefined)
+    changes.asset_category = input.asset_category;
   if (input.parent_asset_id !== undefined)
     changes.parent_asset_id = input.parent_asset_id;
   if (input.acquisition_date !== undefined)
@@ -521,6 +528,7 @@ export async function softDeleteDocument(id: number): Promise<void> {
 export {
   ASSET_STATUSES,
   ASSET_CRITICALITIES,
+  ASSET_CATEGORIES,
   RESTRICTION_TYPES,
   DOC_TYPES,
 } from "@/modules/maintenance/enums";

@@ -46,6 +46,18 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
   other: "Otro",
 };
 
+// `asset_category` mirrors CK_asset_asset_category on maint.asset (V11, plan
+// production-cell-assignment). The canonical domain lives in the production
+// module (whose migration introduced the CHECK); re-exported here so
+// maintenance UI/API keep one import site. Import direction maintenance →
+// production matches the justified one-way dependency (Ubicación tab).
+export {
+  ASSET_CATEGORIES,
+  ASSET_CATEGORY_LABELS,
+  assetCategoryLabel,
+  type AssetCategory,
+} from "@/modules/production/enums";
+
 export function statusLabel(code: string): string {
   return (ASSET_STATUS_LABELS as Record<string, string>)[code] ?? code;
 }

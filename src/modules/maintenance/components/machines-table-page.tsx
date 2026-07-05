@@ -13,7 +13,7 @@ import {
   type PlantOption,
   type ParentOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
-import { statusLabel } from "@/modules/maintenance/enums";
+import { assetCategoryLabel, statusLabel } from "@/modules/maintenance/enums";
 
 export interface MachinesTableRow {
   asset_id: number;
@@ -27,6 +27,7 @@ export interface MachinesTableRow {
   location: string | null;
   criticality: string;
   status: string;
+  asset_category: string;
   parent_asset_id: number | null;
   acquisition_date: string | null;
   notes: string | null;
@@ -92,6 +93,9 @@ export function MachinesTablePage({
   const statusOptions = [...new Set(machines.map((m) => m.status))].map(
     (s) => ({ value: s, label: statusLabel(s) }),
   );
+  const categoryOptions = [...new Set(machines.map((m) => m.asset_category))].map(
+    (c) => ({ value: c, label: assetCategoryLabel(c) }),
+  );
 
   const columns: ColumnDef<MachinesTableRow>[] = React.useMemo(
     () => [
@@ -148,6 +152,13 @@ export function MachinesTablePage({
         filter: { kind: "text" },
       },
       {
+        key: "category",
+        header: "Categoría",
+        accessor: (r) => assetCategoryLabel(r.asset_category),
+        filter: { kind: "catalog", options: categoryOptions },
+        className: "w-40",
+      },
+      {
         key: "criticality",
         header: "Criticidad",
         accessor: (r) => r.criticality,
@@ -171,7 +182,7 @@ export function MachinesTablePage({
         className: "w-36",
       },
     ],
-    [plantOptions, statusOptions],
+    [plantOptions, statusOptions, categoryOptions],
   );
 
   return (

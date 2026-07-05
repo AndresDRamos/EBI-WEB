@@ -1,10 +1,11 @@
 # ERD — esquema `maint`
 
-> Generado a partir de las migraciones aplicadas `V5__maint_asset_catalog.sql` y
-> `V6__maint_plans_workorders_spares.sql`. No editar a mano; lo regenera el sub-agente
+> Generado a partir de las migraciones aplicadas `V5__maint_asset_catalog.sql`,
+> `V6__maint_plans_workorders_spares.sql` y `V11__produccion_schema.sql` (columna
+> `asset.asset_category`). No editar a mano; lo regenera el sub-agente
 > `docs-sync` al cierre de cada `/build-plan`.
 >
-> Última sincronización: 2026-07-01. Refleja V5 + V6.
+> Última sincronización: 2026-07-03. Refleja V5 + V6 + V11.
 
 ```mermaid
 erDiagram
@@ -30,6 +31,7 @@ erDiagram
         nvarchar_160 location
         char_1 criticality
         nvarchar_20 status
+        nvarchar_20 asset_category
         int parent_asset_id FK
         date acquisition_date
         nvarchar_2000 notes
@@ -194,6 +196,9 @@ erDiagram
 - `work_order_task.done_by` → `auth.app_user.user_id` (sin cascade).
 - `stock_movement.moved_by` → `auth.app_user.user_id` (sin cascade).
 
+FK entrante desde otro esquema: `produccion.asset_cell_assignment.asset_id` →
+`maint.asset.asset_id` (sin cascade; ver [produccion.md](produccion.md)).
+
 ## Notas de diseño (V5/V6)
 
 - Enumeraciones vía `CHECK` constraints con nombre (sin tablas lookup).
@@ -206,3 +211,8 @@ erDiagram
   (`work_order_task`, `work_order_material`) cascadean desde su cabecera.
 - Cascades restantes: `asset` → `asset_process`, `asset_restriction`;
   `maintenance_plan` → `plan_task`, `plan_material`.
+- V11 añade `asset.asset_category` (`CHECK IN ('production_equipment',
+  'material_handling')`, `DEFAULT 'production_equipment'`, índice
+  `IX_asset_category`). La ubicación física del activo ahora la historiza
+  `produccion.asset_cell_assignment`; `asset.location` (texto libre) sigue
+  existiendo hasta una decisión futura.

@@ -3,11 +3,13 @@
 > Generated from the live schema (read-only `ebi-sql-dev` MCP) by the `docs-sync`
 > sub-agent, which runs at the end of every `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-02. Reflects V1–V7.
+> Last synced: 2026-07-03. Reflects V1–V11 (this sync from applied migration
+> files V9–V11 + regenerated Kysely types, not live introspection).
 
 El diagrama completo por esquema:
 
-- [dbo](dbo.md) — catálogo y configuración de reportes Power BI (`report_category`, `report`).
+- [dbo](dbo.md) — sin tablas de aplicación desde V10 (el catálogo Power BI `report`/`report_category` fue retirado; se re-migrará cuando el feature se reconstruya).
 - [etl](etl.md) — bitácora de ejecuciones ETL (`etl_run_log`).
 - [auth](auth.md) — usuarios, roles, plantas, departamentos, invitaciones y el registro de navegación del portal (`nav_section`, `nav_item`, `role_nav_section`).
 - [maint](maint.md) — CMMS de Mantenimiento: activos, procesos, documentos, refacciones, planes preventivos/autónomos y órdenes de trabajo (`process`, `asset`, `asset_process`, `asset_restriction`, `asset_document`, `spare_part`, `maintenance_plan`, `plan_task`, `plan_material`, `work_order`, `work_order_task`, `work_order_material`, `stock_movement`).
+- [produccion](produccion.md) — estructura lógica de producción y ubicación de equipos: líneas, celdas y el puente temporal historizado activo↔celda (`production_line`, `cell`, `asset_cell_assignment`).

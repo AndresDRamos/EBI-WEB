@@ -24,9 +24,11 @@
 
 ## In-flight plans
 
-None currently — admin-panel-regroup (2 tabbed groups, kit `PageTabs` +
-`GroupedDataTable`, roles grouped inside departments, permission matrix) was
-committed on 2026-07-03 (PR to `main`).
+None currently — production-cell-assignment (`produccion` schema V11: line →
+cell + temporal asset↔cell assignment, `maint.asset.asset_category`, module
+`production`) was committed on 2026-07-03 (PR to `main`). The `production`
+nav section remains dark-launched: activation in `/admin/portal/modules` is
+a pending human step.
 
 Next up (direction fixed 2026-07-02 — see
 [ADR 0003](architecture/adr/0003-composition-over-metadata.md) and the

@@ -1,44 +1,20 @@
 # Data dictionary — EBI database
 
-> Generated from the live schema (read-only `ebi-sql-dev` MCP) by the `docs-sync`
-> sub-agent, which runs at the end of every `/build-plan`. Do not edit by hand.
+> Maintained by the `docs-sync` sub-agent, which runs at the end of every
+> `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-02. Reflects V1–V8.
+> Last synced: 2026-07-03. Reflects V1–V11 (this sync sourced from the applied
+> migration files `V9`–`V11` + regenerated Kysely types (`pnpm db:gen`), not
+> live introspection; `flyway info` in `EBI_dev` reports schema version 11).
 
 ---
 
 ## Schema `dbo`
 
-### `dbo.report_category`
-
-Lookup table that groups reports into navigation categories.
-
-| Column | Type | Nullable | Constraints | Description |
-|---|---|---|---|---|
-| category_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
-| name | nvarchar(120) | no | UQ | Display name for the category |
-| sort_order | int | no | DEFAULT 0 | Display order in the portal navigation |
-
-### `dbo.report`
-
-Central catalog of Power BI reports embedded in the portal.  
-Replaces public "Publish to web" URLs.
-
-| Column | Type | Nullable | Constraints | Description |
-|---|---|---|---|---|
-| report_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
-| name | nvarchar(200) | no | | Display name in the portal |
-| workspace_guid | nvarchar(64) | no | UQ with report_guid | Power BI workspace ID |
-| report_guid | nvarchar(64) | no | UQ with workspace_guid | Power BI report ID |
-| dataset_guid | nvarchar(64) | yes | | Power BI dataset ID (used for embed token when set) |
-| category_id | int | yes | FK → dbo.report_category | Navigation category; NULL means uncategorized |
-| description | nvarchar(1000) | yes | | Optional long description |
-| sort_order | int | no | DEFAULT 0 | Display order within the category |
-| is_active | bit | no | DEFAULT 1 | Controls visibility in the portal |
-| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
-| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
-
-Indexes: `IX_report_category (category_id) WHERE category_id IS NOT NULL`, `IX_report_active (is_active)`.
+No application tables. `dbo.report` and `dbo.report_category` (V1) were dropped
+by `V10__drop_reports_powerbi.sql` (Power BI purge cleanup; both were empty and
+unreferenced). The real Power BI catalog will be re-planned and re-migrated when
+the feature is rebuilt.
 
 ---
 
@@ -246,7 +222,8 @@ Permission catalog for resource+action RBAC (plan 0006). `code` is the stable
 key referenced by the codebase (`requirePermission("...")` / `useCan()`), in
 the format `<module>.<resource>:<action>` (e.g. `maintenance.asset:create`),
 lowercase-enforced by a CHECK with binary collation. Rows are seeded by module
-migrations only (V8 seeded 35 codes for org/reports/navigation/maintenance);
+migrations only (V8 seeded 35 codes for org/reports/navigation/maintenance;
+V10 deleted the 6 inert `reports.*` codes; V11 added 6 `production.*` codes);
 the admin panel assigns/revokes grants but never creates permissions. There is
 no `is_active`: retiring a permission = a migration deletes it (grants
 cascade). See `docs/modules/rbac.md`.
@@ -312,9 +289,10 @@ Machine/equipment catalog. `code` is the internal tag (QR payload).
 | model | nvarchar(120) | yes | | Model |
 | serial_number | nvarchar(120) | yes | | Serial number |
 | plant_id | int | no | FK → auth.plant (no cascade) | Plant where the asset lives |
-| location | nvarchar(160) | yes | | Free-text area/cell (v1) |
+| location | nvarchar(160) | yes | | Free-text area/cell (v1). Physical location is now historized in `produccion.asset_cell_assignment`; this column survives until a future decision |
 | criticality | char(1) | no | DEFAULT 'C', CHECK IN ('A','B','C') | Criticality class |
 | status | nvarchar(20) | no | DEFAULT `active`, CHECK IN (`active`,`in_repair`,`standby`,`retired`) | Operational status |
+| asset_category | nvarchar(20) | no | DEFAULT `production_equipment`, CHECK IN (`production_equipment`,`material_handling`) | Asset kind (added V11). Material-handling equipment (forklifts, hoists) shares the catalog but usually has no fixed cell; loaders must set it explicitly — the silent default only suits manufacturing machinery |
 | parent_asset_id | int | yes | FK → maint.asset (no cascade), CHECK ≠ asset_id | Parent asset (sub-assembly of) |
 | acquisition_date | date | yes | | Acquisition date |
 | notes | nvarchar(2000) | yes | | Free notes |
@@ -322,7 +300,7 @@ Machine/equipment catalog. `code` is the internal tag (QR payload).
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
 
-Indexes: `IX_asset_plant (plant_id, is_active)`, `IX_asset_parent (parent_asset_id) WHERE parent_asset_id IS NOT NULL`.
+Indexes: `IX_asset_plant (plant_id, is_active)`, `IX_asset_parent (parent_asset_id) WHERE parent_asset_id IS NOT NULL`, `IX_asset_category (asset_category)` (added V11).
 
 ### `maint.asset_process`
 
@@ -534,3 +512,96 @@ Indexes: `IX_stock_movement_part (spare_part_id, moved_at) INCLUDE (quantity, mo
 
 `GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::maint TO ebi_app`;
 `GRANT SELECT ON SCHEMA::maint TO ebi_agent_ro` (issued idempotently in V5 and V6).
+
+---
+
+## Schema `produccion`
+
+Production module (plan production-cell-assignment, V11): logical production
+structure (line → cell) plus a temporal, historized M:N bridge between
+`maint.asset` and cells — the source of truth for where an asset physically
+works, replacing the free-text `maint.asset.location`. Same house patterns as
+`maint`: named CHECK constraints, soft-delete via `is_active` on catalogs,
+app-maintained `updated_at` (no triggers), FKs NO ACTION.
+See `docs/modules/production.md` and `docs/database/erd/produccion.md`.
+
+### `produccion.production_line`
+
+Optional sequencing container for cells (e.g. a welding line with
+Op 10 → Op 20 → Op 30). Not every cell needs one.
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| line_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
+| code | nvarchar(32) | no | UQ | Short line code |
+| name | nvarchar(160) | no | | Line name |
+| plant_id | int | no | FK → auth.plant (no cascade) | Plant the line belongs to |
+| is_active | bit | no | DEFAULT 1 | Soft-delete flag |
+| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
+| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
+
+Indexes: `IX_production_line_plant (plant_id, is_active)`.
+
+### `produccion.cell`
+
+Logical production post/function. `line_id` is nullable: standalone cells
+(e.g. "Laser 1", "Laser 2") belong to no line.
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| cell_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
+| code | nvarchar(32) | no | UQ | Short cell code |
+| name | nvarchar(160) | no | | Cell name |
+| plant_id | int | no | FK → auth.plant (no cascade) | Plant the cell belongs to |
+| line_id | int | yes | FK → produccion.production_line (no cascade) | Owning line; NULL = standalone cell |
+| sequence_in_line | int | yes | CHECK > 0 (or NULL); CHECK requires line_id set (`CK_cell_sequence_requires_line`) | Position within the line (Op order) |
+| is_active | bit | no | DEFAULT 1 | Soft-delete flag |
+| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
+| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
+
+Indexes: `IX_cell_plant (plant_id, is_active)`,
+`IX_cell_line (line_id) WHERE line_id IS NOT NULL`,
+`UQ_cell_line_sequence (line_id, sequence_in_line) UNIQUE WHERE line_id IS NOT NULL`
+(no duplicate "Op 20" within a line; cells without a line stay unconstrained).
+
+### `produccion.asset_cell_assignment`
+
+Temporal M:N bridge asset ↔ cell, historized. A cell can be composed of several
+assets and one asset can serve several cells at once (e.g. a feed tower shared
+by "Laser 1" and "Laser 2"). Rows are **immutable once written except for
+closing `valid_to`**: a reassignment = close the current row + insert a new one,
+never an in-place UPDATE of `asset_id`/`cell_id`. There is **no `updated_at` on
+purpose** — it would invite the in-place rewrite this design prevents.
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| assignment_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
+| asset_id | int | no | FK → maint.asset (no cascade) | Asset reference; history survives asset retirement |
+| cell_id | int | no | FK → produccion.cell (no cascade) | Cell reference; history survives cell retirement |
+| role_label | nvarchar(120) | yes | | Free label, e.g. `Laser 1 - position 1`, `Feed tower - shared` |
+| valid_from | date | no | DEFAULT CAST(SYSUTCDATETIME() AS DATE) | Start of validity |
+| valid_to | date | yes | CHECK ≥ valid_from (or NULL) | End of validity; NULL = currently in effect |
+| created_by | int | no | FK → auth.app_user (no cascade) | User who recorded the assignment |
+| note | nvarchar(1000) | yes | | Optional note |
+| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
+
+Indexes: `IX_asset_cell_assignment_asset (asset_id, valid_from)`,
+`IX_asset_cell_assignment_cell (cell_id, valid_from)`,
+`UQ_asset_cell_assignment_current (asset_id, cell_id) UNIQUE WHERE valid_to IS NULL`
+(one *current* row per (asset, cell) pair; does not limit how many distinct
+cells an asset serves nor how many assets a cell holds).
+
+### Seeds (V11, data in `auth`)
+
+- `auth.nav_section` `production` (dark-launched `is_active = 0`, icon
+  `Factory`, base path `/production`, sort 30) + `auth.nav_item` rows
+  `Líneas` (`/production/lines`, `Layers`) and `Celdas` (`/production/cells`,
+  `LayoutGrid`).
+- 6 `auth.permission` codes: `production.line:{create,update}`,
+  `production.cell:{create,update}`, `production.assignment:{create,close}`.
+  No `role_permission` seeds (admin bypasses at app layer, ADR 0004).
+
+### Grants (schema scope)
+
+`GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::produccion TO ebi_app`;
+`GRANT SELECT ON SCHEMA::produccion TO ebi_agent_ro` (guarded, V11).

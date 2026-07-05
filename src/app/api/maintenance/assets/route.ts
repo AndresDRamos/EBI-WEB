@@ -4,6 +4,7 @@ import {
   createAsset,
   ASSET_STATUSES,
   ASSET_CRITICALITIES,
+  ASSET_CATEGORIES,
 } from "@/modules/maintenance/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
@@ -39,6 +40,7 @@ interface CreateBody {
   location?: unknown;
   criticality?: unknown;
   status?: unknown;
+  asset_category?: unknown;
   parent_asset_id?: unknown;
   acquisition_date?: unknown;
   notes?: unknown;
@@ -76,6 +78,14 @@ export async function POST(request: NextRequest) {
   ) {
     return NextResponse.json({ error: "Estatus inválido." }, { status: 422 });
   }
+  const assetCategory =
+    typeof body.asset_category === "string" ? body.asset_category : undefined;
+  if (
+    assetCategory !== undefined &&
+    !(ASSET_CATEGORIES as readonly string[]).includes(assetCategory)
+  ) {
+    return NextResponse.json({ error: "Categoría inválida." }, { status: 422 });
+  }
   const parentId =
     body.parent_asset_id == null ? null : Number(body.parent_asset_id);
   if (parentId !== null && (!Number.isInteger(parentId) || parentId <= 0)) {
@@ -100,6 +110,7 @@ export async function POST(request: NextRequest) {
       location: strOrNull(body.location),
       criticality,
       status,
+      asset_category: assetCategory,
       parent_asset_id: parentId,
       acquisition_date: acquisitionDate,
       notes: strOrNull(body.notes),

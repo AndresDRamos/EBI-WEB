@@ -34,6 +34,7 @@ import {
 import {
   DOC_TYPES,
   RESTRICTION_TYPES,
+  assetCategoryLabel,
   docTypeLabel,
   restrictionTypeLabel,
 } from "@/modules/maintenance/enums";
@@ -71,21 +72,35 @@ export interface DocumentItem {
   uploaded_at: string;
 }
 
+/** Asset ↔ cell assignment row (module production, read-only here — the
+ * assign/close/reassign actions live on the cell detail page). */
+export interface AssignmentItem {
+  assignment_id: number;
+  cell_id: number;
+  cell_code: string;
+  cell_name: string;
+  role_label: string | null;
+  valid_from: string;
+  valid_to: string | null;
+}
+
 export interface MachineDetailProps {
   asset: MachineDetailAsset;
   assetProcessIds: number[];
   restrictions: RestrictionItem[];
   documents: DocumentItem[];
+  assignments: AssignmentItem[];
   allProcesses: ProcessOption[];
   plants: PlantOption[];
   parents: ParentOption[];
 }
 
-type TabId = "datos" | "procesos" | "restricciones" | "documentos";
+type TabId = "datos" | "procesos" | "ubicacion" | "restricciones" | "documentos";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "datos", label: "Datos" },
   { id: "procesos", label: "Procesos" },
+  { id: "ubicacion", label: "Ubicación" },
   { id: "restricciones", label: "Restricciones" },
   { id: "documentos", label: "Documentos" },
 ];
@@ -97,6 +112,7 @@ export function MachineDetail({
   assetProcessIds,
   restrictions,
   documents,
+  assignments,
   allProcesses,
   plants,
   parents,
@@ -177,6 +193,7 @@ export function MachineDetail({
           onChanged={() => router.refresh()}
         />
       ) : null}
+      {tab === "ubicacion" ? <UbicacionTab assignments={assignments} /> : null}
       {tab === "restricciones" ? (
         <RestriccionesTab
           assetId={asset.asset_id}
@@ -220,6 +237,10 @@ function DatosTab({ asset }: { asset: MachineDetailAsset }) {
         <Field label="Número de serie" value={asset.serial_number} mono />
         <Field label="Planta" value={asset.plant_name} />
         <Field label="Ubicación" value={asset.location} />
+        <Field
+          label="Categoría"
+          value={assetCategoryLabel(asset.asset_category)}
+        />
         <div>
           <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Criticidad
@@ -386,6 +407,82 @@ function ProcesosTab({
           {busy ? "Guardando…" : "Guardar procesos"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Ubicación (asignación a celdas de producción — módulo production)
+// ---------------------------------------------------------------------------
+
+function UbicacionTab({ assignments }: { assignments: AssignmentItem[] }) {
+  const current = assignments.filter((a) => a.valid_to === null);
+  const history = assignments.filter((a) => a.valid_to !== null);
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-3 rounded-lg border bg-card p-4">
+        <p className="text-sm text-muted-foreground">
+          Celdas de producción donde trabaja este equipo hoy. La asignación se
+          administra desde el detalle de cada celda en{" "}
+          <Link href="/production/cells" className="underline">
+            Producción → Celdas
+          </Link>
+          .
+        </p>
+        {current.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Sin celda asignada (equipo de pool o pendiente de asignar).
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {current.map((a) => (
+              <li key={a.assignment_id} className="flex items-center gap-3 py-2.5">
+                <Link
+                  href={`/production/cells/${a.cell_id}`}
+                  className="font-mono text-sm font-medium text-ezi-gray underline-offset-2 hover:text-ezi-orange hover:underline"
+                >
+                  {a.cell_code}
+                </Link>
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {a.cell_name}
+                  {a.role_label ? (
+                    <span className="text-muted-foreground"> · {a.role_label}</span>
+                  ) : null}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  desde {a.valid_from.slice(0, 10)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {history.length > 0 ? (
+        <div className="space-y-3 rounded-lg border bg-card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Historial de asignaciones
+          </p>
+          <ul className="divide-y">
+            {history.map((a) => (
+              <li
+                key={a.assignment_id}
+                className="flex items-center gap-3 py-2 text-muted-foreground"
+              >
+                <span className="font-mono text-sm">{a.cell_code}</span>
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {a.cell_name}
+                  {a.role_label ? <span> · {a.role_label}</span> : null}
+                </span>
+                <span className="shrink-0 text-xs">
+                  {a.valid_from.slice(0, 10)} → {a.valid_to?.slice(0, 10)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

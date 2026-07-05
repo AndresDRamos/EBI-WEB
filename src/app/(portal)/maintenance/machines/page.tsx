@@ -27,6 +27,7 @@ export default async function MachinesPage() {
     location: a.location,
     criticality: a.criticality,
     status: a.status,
+    asset_category: a.asset_category,
     parent_asset_id: a.parent_asset_id,
     acquisition_date: a.acquisition_date
       ? a.acquisition_date.toISOString()

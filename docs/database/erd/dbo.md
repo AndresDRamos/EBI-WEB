@@ -1,34 +1,16 @@
 # ERD — esquema `dbo`
 
-> Generado desde el esquema vivo (`ebi-sql-dev`, read-only). No editar a mano; lo regenera
-> el sub-agente `docs-sync` al cierre de cada `/build-plan`.
+> No editar a mano; lo regenera el sub-agente `docs-sync` al cierre de cada
+> `/build-plan`.
 >
-> Última sincronización: 2026-06-28. Refleja V1 + V2 + V3 + V4.
+> Última sincronización: 2026-07-03. Refleja V1 + V10.
 
-```mermaid
-erDiagram
+**Sin tablas de aplicación.** `dbo.report` y `dbo.report_category` (creadas en
+V1) fueron eliminadas por `V10__drop_reports_powerbi.sql` (limpieza tras el
+purge de Power BI del plan portal-home-nav-authz): ambas estaban vacías y
+ninguna otra tabla las referenciaba. V10 también retiró los 6 códigos
+`reports.*` de `auth.permission`.
 
-    report_category {
-        int category_id PK
-        nvarchar_120 name
-        int sort_order
-    }
-
-    report {
-        int report_id PK
-        nvarchar_200 name
-        nvarchar_64 workspace_guid
-        nvarchar_64 report_guid
-        nvarchar_64 dataset_guid
-        int category_id FK
-        nvarchar_1000 description
-        int sort_order
-        bit is_active
-        datetime2 created_at
-        datetime2 updated_at
-    }
-
-    %% ── relaciones ──────────────────────────────────────────────────────────
-
-    report_category ||--o{ report : "groups"
-```
+El catálogo real de Power BI (reportes + categorías, probablemente con otra
+forma) se re-planeará y re-migrará cuando el feature se construya; una
+migración futura define la nueva forma.

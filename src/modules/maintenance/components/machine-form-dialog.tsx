@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ASSET_CATEGORIES,
   ASSET_CRITICALITIES,
   ASSET_STATUSES,
+  assetCategoryLabel,
   statusLabel,
 } from "@/modules/maintenance/enums";
 
@@ -35,6 +37,7 @@ export interface MachineFormAsset {
   location: string | null;
   criticality: string;
   status: string;
+  asset_category: string;
   parent_asset_id: number | null;
   acquisition_date: string | null;
   notes: string | null;
@@ -83,6 +86,11 @@ function MachineFormDialogInner({
     asset?.criticality ?? "C",
   );
   const [status, setStatus] = React.useState(asset?.status ?? "active");
+  // Explicit select, seeded but never silent: material-handling equipment
+  // must be flagged at capture time (the DB default only suits machinery).
+  const [assetCategory, setAssetCategory] = React.useState(
+    asset?.asset_category ?? "production_equipment",
+  );
   const [parentId, setParentId] = React.useState<string>(
     asset?.parent_asset_id ? String(asset.parent_asset_id) : "",
   );
@@ -116,6 +124,7 @@ function MachineFormDialogInner({
           location: location.trim() || null,
           criticality,
           status,
+          asset_category: assetCategory,
           parent_asset_id: parentId ? Number(parentId) : null,
           acquisition_date: acquisitionDate || null,
           notes: notes.trim() || null,
@@ -273,6 +282,25 @@ function MachineFormDialogInner({
               disabled={busy}
             />
           </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="machine-category">Categoría *</Label>
+          <Select
+            id="machine-category"
+            value={assetCategory}
+            onChange={(e) => setAssetCategory(e.target.value)}
+            disabled={busy}
+          >
+            {ASSET_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {assetCategoryLabel(c)}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Manejo de materiales = equipo móvil o compartido de planta
+            (montacargas, polipasto, volteador); no requiere celda asignada.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="machine-parent">Equipo padre (subconjunto de)</Label>

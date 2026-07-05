@@ -7,6 +7,7 @@ import {
   setAssetProcesses,
   ASSET_STATUSES,
   ASSET_CRITICALITIES,
+  ASSET_CATEGORIES,
 } from "@/modules/maintenance/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
@@ -47,6 +48,7 @@ interface PatchBody {
   location?: unknown;
   criticality?: unknown;
   status?: unknown;
+  asset_category?: unknown;
   parent_asset_id?: unknown;
   acquisition_date?: unknown;
   notes?: unknown;
@@ -102,6 +104,15 @@ export async function PATCH(
       return NextResponse.json({ error: "Estatus inválido." }, { status: 422 });
     }
     changes.status = body.status;
+  }
+  if (body.asset_category !== undefined) {
+    if (
+      typeof body.asset_category !== "string" ||
+      !(ASSET_CATEGORIES as readonly string[]).includes(body.asset_category)
+    ) {
+      return NextResponse.json({ error: "Categoría inválida." }, { status: 422 });
+    }
+    changes.asset_category = body.asset_category;
   }
   if (body.parent_asset_id !== undefined) {
     const parentId = body.parent_asset_id == null ? null : Number(body.parent_asset_id);

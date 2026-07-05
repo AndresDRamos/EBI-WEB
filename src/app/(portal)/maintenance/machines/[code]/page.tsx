@@ -6,6 +6,7 @@ import {
   listProcesses,
 } from "@/modules/maintenance/db";
 import { listPlants } from "@/modules/org/db/org";
+import { listHistoryByAsset } from "@/modules/production/db";
 import {
   MachineDetail,
   type MachineDetailAsset,
@@ -23,12 +24,14 @@ export default async function MachineDetailPage({
   const asset = await findAssetByCode(code);
   if (!asset) notFound();
 
-  const [detail, allProcesses, plants, allAssets] = await Promise.all([
-    getAssetDetail(asset.asset_id),
-    listProcesses(true).catch(() => []),
-    listPlants(true).catch(() => []),
-    listAssets({ activeOnly: true }).catch(() => []),
-  ]);
+  const [detail, allProcesses, plants, allAssets, assignments] =
+    await Promise.all([
+      getAssetDetail(asset.asset_id),
+      listProcesses(true).catch(() => []),
+      listPlants(true).catch(() => []),
+      listAssets({ activeOnly: true }).catch(() => []),
+      listHistoryByAsset(asset.asset_id).catch(() => []),
+    ]);
   if (!detail) notFound();
 
   const a = detail.asset;
@@ -44,6 +47,7 @@ export default async function MachineDetailPage({
     location: a.location,
     criticality: a.criticality,
     status: a.status,
+    asset_category: a.asset_category,
     parent_asset_id: a.parent_asset_id,
     parent_code: a.parent_code,
     acquisition_date: a.acquisition_date
@@ -64,6 +68,15 @@ export default async function MachineDetailPage({
         restriction_type: r.restriction_type,
         description: r.description,
         is_active: r.is_active,
+      }))}
+      assignments={assignments.map((x) => ({
+        assignment_id: x.assignment_id,
+        cell_id: x.cell_id,
+        cell_code: x.cell_code,
+        cell_name: x.cell_name,
+        role_label: x.role_label,
+        valid_from: x.valid_from.toISOString(),
+        valid_to: x.valid_to ? x.valid_to.toISOString() : null,
       }))}
       documents={detail.documents.map((d) => ({
         document_id: d.document_id,

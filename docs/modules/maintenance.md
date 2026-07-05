@@ -1,6 +1,6 @@
 # maintenance
 
-**Last synced:** 2026-07-03 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard)
+**Last synced:** 2026-07-03 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11)
 
 ## Purpose
 
@@ -26,14 +26,26 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   module was the pilot; the `admin` profile bypasses at the app layer). The
   permission codes are seeded in V8; see `docs/modules/rbac.md`.
 - Owns the `(portal)/maintenance/*` UI: machines list (generic `DataTable`
-  from `src/components/kit/`), machine detail (Datos / Procesos /
-  Restricciones / Documentos tabs), process catalog, printable QR label. The
+  from `src/components/kit/`, with a Categoría column + catalog filter since
+  V11), machine detail (Datos / Procesos / Restricciones / Documentos /
+  Ubicación tabs), process catalog, printable QR label. The **Ubicación tab is
+  read-only**: it shows the asset's current cell assignments + history read
+  from `production/db.listHistoryByAsset`; all assignment actions live in the
+  production cell detail. The
   segment `layout.tsx` gates the whole tree with
   `requireSectionOrRedirect("maintenance")` (page authz by section grant, ADR
   0005); the `Máquinas`/`Procesos` nav items are seeded by V9.
+- `maint.asset.asset_category` (`production_equipment` | `material_handling`,
+  added V11): the machine form exposes an **explicit required select** —
+  data loading must not rely on the DB default, which only suits manufacturing
+  machinery (the catalog was empty at migration time, verified by
+  data-analyst 2026-07-03). The `location` free-text column still exists (and
+  shows in Datos) until a future decision; the source of truth for physical
+  location is now `produccion.asset_cell_assignment`.
 - Does **not** own plants (module `org`, `auth.plant`) — assets reference
   them. Does not own users (`auth.app_user`) — document uploads and future
-  work orders reference them.
+  work orders reference them. Does not own lines/cells/assignments (module
+  `production`, schema `produccion`) — it only reads them for display.
 - Restrictions are managed through dedicated sub-routes
   (`/api/maintenance/assets/[id]/restrictions[/...]`), not inside the asset
   PATCH payload (executor's choice per plan step 5).
@@ -54,6 +66,13 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   `auth.app_user` (cross-schema queries resolved as separate per-schema
   queries merged in JS — a typed cross-schema join is not expressible with
   the flattened codegen keys).
+- **maintenance → production (one-way, justified):**
+  `modules/maintenance/enums.ts` re-exports the canonical asset-category
+  domain from `modules/production/enums.ts` (V11 owns the CHECK), and the
+  machine detail page (`(portal)/maintenance/machines/[code]/page.tsx`) reads
+  `listHistoryByAsset` from `modules/production/db.ts` for the Ubicación tab.
+  Nothing in `src/modules/production/` imports from
+  `src/modules/maintenance/` (only app routes compose both).
 
 ## Related ADRs
 
@@ -65,7 +84,9 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   folio). Never insert or update it; SQL Server computes it from the identity.
 - **Enum values are CHECK constraints, not lookup tables.**
   `src/modules/maintenance/enums.ts` mirrors the CHECKs in V5/V6 — change them
-  together (migration + module) or inserts start failing with 547.
+  together (migration + module) or inserts start failing with 547. The
+  `asset_category` domain is **not defined here**: it is re-exported from
+  `src/modules/production/enums.ts` (V11 owns that CHECK) — edit it there.
 - **`asset_document` rows are soft-delete only.** `plan_task
   .visual_aid_document_id` may reference them and the blob is kept until an
   explicit cleanup pass (ADR 0002); a hard DELETE either breaks the FK or

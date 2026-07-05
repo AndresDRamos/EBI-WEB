@@ -24,6 +24,7 @@ export interface AppUser {
 
 export interface Asset {
   acquisition_date: Date | null;
+  asset_category: Generated<string>;
   asset_id: Generated<number>;
   brand: string | null;
   code: string;
@@ -39,6 +40,18 @@ export interface Asset {
   serial_number: string | null;
   status: Generated<string>;
   updated_at: Generated<Date>;
+}
+
+export interface AssetCellAssignment {
+  asset_id: number;
+  assignment_id: Generated<number>;
+  cell_id: number;
+  created_at: Generated<Date>;
+  created_by: number;
+  note: string | null;
+  role_label: string | null;
+  valid_from: Generated<Date>;
+  valid_to: Date | null;
 }
 
 export interface AssetDocument {
@@ -67,6 +80,18 @@ export interface AssetRestriction {
   is_active: Generated<boolean>;
   restriction_id: Generated<number>;
   restriction_type: string;
+  updated_at: Generated<Date>;
+}
+
+export interface Cell {
+  cell_id: Generated<number>;
+  code: string;
+  created_at: Generated<Date>;
+  is_active: Generated<boolean>;
+  line_id: number | null;
+  name: string;
+  plant_id: number;
+  sequence_in_line: number | null;
   updated_at: Generated<Date>;
 }
 
@@ -197,6 +222,16 @@ export interface Process {
   updated_at: Generated<Date>;
 }
 
+export interface ProductionLine {
+  code: string;
+  created_at: Generated<Date>;
+  is_active: Generated<boolean>;
+  line_id: Generated<number>;
+  name: string;
+  plant_id: number;
+  updated_at: Generated<Date>;
+}
+
 export interface Role {
   department_id: number | null;
   description: string | null;
@@ -306,9 +341,11 @@ export interface WorkOrderTask {
 export interface DB {
   app_user: AppUser;
   asset: Asset;
+  asset_cell_assignment: AssetCellAssignment;
   asset_document: AssetDocument;
   asset_process: AssetProcess;
   asset_restriction: AssetRestriction;
+  cell: Cell;
   database_firewall_rules: DatabaseFirewallRules;
   department: Department;
   flyway_schema_history: FlywaySchemaHistory;
@@ -321,6 +358,7 @@ export interface DB {
   plan_task: PlanTask;
   plant: Plant;
   process: Process;
+  production_line: ProductionLine;
   role: Role;
   role_nav_section: RoleNavSection;
   role_permission: RolePermission;

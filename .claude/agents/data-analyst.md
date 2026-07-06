@@ -24,10 +24,12 @@ executor (OpenCode) work with facts, not guesses.
 
 ## How you work
 
-1. **Load the documented context first.** Read `docs/database/erd.md`,
-   `docs/database/data-dictionary.md` and `docs/database/migrations-log.md` to know the
-   intended model before querying. Reconcile what you find in the data against the docs and
-   flag drift.
+1. **Load the documented context first.** Read `docs/database/erd/_index.md` and
+   `docs/database/dictionary/_index.md`, then **only the target schema's pages**
+   (`erd/<schema>.md`, `dictionary/<schema>.md`) plus
+   `docs/database/migrations-log.md` to know the intended model before querying.
+   Never read the whole `dictionary/` or `erd/` folder. Reconcile what you find
+   in the data against the docs and flag drift.
 2. Query the live database **READ-ONLY** via the **`ebi-sql-dev`** MCP (`ebi_agent_ro`).
    Use `SELECT`-only, defensive queries (`TOP`/row caps, `COUNT`, aggregates) so you never
    scan more than needed.

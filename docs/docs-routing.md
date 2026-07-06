@@ -15,7 +15,7 @@
 ## Routing by module type
 
 ### ETL / ingestion from EPS
-- **Read always:** `docs/database/erd/_index.md` (then the target schema page, e.g. `erd/etl.md`) · `docs/database/data-dictionary.md`
+- **Read always:** `docs/database/erd/_index.md` and `docs/database/dictionary/_index.md` (then only the target schema pages, e.g. `erd/etl.md` + `dictionary/etl.md` — never the whole folder)
 - **Read if:** `docs/database/migrations-log.md` (only if it touches schema) · ADR (only for rationale) · `docs/modules/etl-eps-ebi.md` *once it exists* (retired in the doc restructure; recreate when the ETL module is planned)
 - **Skip (known noise):** ADR 0001 (auth)
 - **Ask up front:** watermark column for incremental load? exact EPS source tables? `staging`→`core` ownership?
@@ -36,7 +36,7 @@
 
 ### Admin CRUD (users, catalogs, report metadata)
 - **Read always:** `docs/database/erd/auth.md` (plus `erd/dbo.md` for reports) · the existing module slice `src/modules/<module>/db*.ts` + `src/app/api/**` for the entity (M2 already built users/plants/departments/reports CRUD — extend, don't rebuild)
-- **Read if:** `docs/database/data-dictionary.md` (when adding/altering columns) · relevant `docs/modules/*.md` (only if one exists for the entity)
+- **Read if:** `docs/database/dictionary/auth.md` (when adding/altering columns; index at `dictionary/_index.md`) · relevant `docs/modules/*.md` (only if one exists for the entity)
 - **Skip (known noise):** ETL docs · ADR 0001 unless touching auth/roles · the dormant Reportes admin screens (don't refactor them for unrelated work).
 - **Ask up front:** which least-privilege DB user runs this (`ebi_app`)? soft vs hard delete (and what does the inactive-view "permanent delete" do for referenced rows)? are any roles code-coupled — which are protected (only `admin`; `viewer` is normal CRUD)?
 - **Gotchas:** all DB access through Kysely in `src/lib/db/` (infra) + `src/modules/*/db*.ts` — no raw queries elsewhere · the session JWT carries only `userId/username/display_name/roles/token_version` (NO email) — read profile fields server-side via `getUserDetail`, not from the session · catalog DELETEs 409 on FK by design (block referenced rows); user deletes cascade via the junction FKs.
@@ -74,6 +74,35 @@
   `docs/plans/README.md`) live only in git history — never treat them as live docs.
 - When a row's *Skip* or *Gotchas* keeps proving wrong, fix it here in the same session — this
   table is only worth its tokens if it stays honest.
+- **`docs/database/` entry point is always the index.** For both `erd/` and `dictionary/`,
+  read `_index.md` first, then only the target schema page it points to (e.g. `erd/etl.md` +
+  `dictionary/etl.md`). Never Glob or read the whole folder — a row's "Read always" already
+  names the specific page needed.
+- **Already-injected files: never re-Read them.** `AGENTS.md`, `CLAUDE.md` and
+  `docs/STATE.md` are always in context at session start (STATE is the always-loaded
+  baseline). Do not call Read on them by reflex. Re-read `STATE.md` only immediately after
+  editing it, to confirm the write landed — not to "check current truth" again mid-session.
+
+### Cross-phase (plan/commit ceremony)
+
+Not module-specific — belongs to the skill phase, not a routing row per module type:
+
+- `docs/plans/_plan-template.md` — read once, when drafting a plan's structure
+  (`/plan-module`/`/ship-module` planning phase). Skip if the skill you're running already
+  embeds the template's shape in its own instructions.
+- `.github/pull_request_template.md` — read once, only in the `/commit-plan` phase. Never
+  needed during planning or building.
+
+### Sub-agent routes (measured, `/trace-map` 2026-07-04)
+
+- `dba` — lean route: target schema's `erd/<schema>.md` + relevant ADRs + `module-blueprint.md`.
+  Reads **zero** dictionary pages unless a proposed column needs an existing description;
+  when it does, read only `dictionary/<schema>.md` (never `_index.md` alone, never the whole
+  folder). Use this as the expected baseline for future trace audits.
+- `docs-sync` — rewrites only the touched schema's `dictionary/<schema>.md` /
+  `erd/<schema>.md`; touches `_index.md` only when the table inventory or sync header changes.
+- `data-analyst` — `erd/_index.md` + `dictionary/_index.md`, then only the target schema pages,
+  before querying live data.
 
 ## Change log
 
@@ -86,3 +115,40 @@
   `docs/architecture/overview.md`).
 - 2026-07-03 — docs-sync (plan production-cell-assignment): added row "Business module with
   temporal-bridge catalogs"; recorded the nav-cache and shared-enums gotchas.
+- 2026-07-04 — /trace-map (9 sessions, 2026-06-28→07-04, 520 events). Measured findings and
+  proposals (goal: stop wasting tokens, not "save" them):
+  1. **`data-dictionary.md` is read monolithically but rarely by whom expected.** 3 full
+     reads measured: 1× by `main` during planning, 2× by `docs-sync` (its maintainer —
+     legitimate). The `dba` sub-agent read **zero** dictionary in these traces; it worked
+     from `erd/<schema>.md` + ADRs + `module-blueprint.md`, which is the efficient route.
+     Proposal: split the dictionary per schema, mirroring the ERD layout already adopted —
+     `docs/database/dictionary/_index.md` (one line per table: name + purpose) +
+     `dictionary/<schema>.md` (auth ≈230 lines, maint ≈260, produccion ≈90, etl ≈30,
+     dbo ≈8). Update rows that cite `data-dictionary.md` to "read `_index.md`, then only
+     the target schema page"; `docs-sync` keeps rewriting only the touched schema file.
+  2. **ERD full-sweep by `main`.** One session read all four `erd/*.md` pages up front
+     instead of `_index.md` → target schema. Reinforce in rows: the entry point is
+     `erd/_index.md`, never a glob of the folder.
+  3. **Re-reads of auto-loaded files.** `AGENTS.md`/`CLAUDE.md` were explicitly Read in 3
+     sessions despite being injected every session; `docs/STATE.md` was read up to 4× in a
+     single session. Candidate cross-type note: "AGENTS/CLAUDE are already in context —
+     never Read them; re-read STATE.md only after an edit to it."
+  4. **Unrouted but recurring:** `.github/pull_request_template.md` (4 sessions, commit
+     phase) and `docs/plans/_plan-template.md` (4 sessions, planning phase) are consistently
+     needed but appear in no row — they belong to the skills' own flow; consider a
+     "Cross-phase (plan/commit ceremony)" note instead of per-module rows.
+  5. **No routing row exists for sub-agents** (`dba`, `docs-sync`, `data-analyst`); their
+     measured routes are lean today, but once the dictionary splits, `dba`'s row should say
+     "dictionary page of the target schema only, on demand".
+- 2026-07-05 — plan `split-data-dictionary` applied proposal #1 above: the dictionary now
+  lives in `docs/database/dictionary/` (`_index.md` + per-schema pages, mirror of `erd/`);
+  the ETL and Admin CRUD rows were repointed to "index → target schema page"; `docs-sync`
+  (user-level agent) now rewrites only the touched schema's page; `data-analyst` reads
+  index → target schema.
+- 2026-07-05 — applied proposals #2–#5: added the `docs/database/` entry-point rule
+  (index → target schema, never the folder) and the already-injected-files rule
+  (never Read `AGENTS.md`/`CLAUDE.md`/`STATE.md` by reflex) to Cross-type notes; added
+  "Cross-phase (plan/commit ceremony)" for `_plan-template.md` / `pull_request_template.md`;
+  added "Sub-agent routes (measured)" documenting `dba`/`docs-sync`/`data-analyst` baselines
+  and updated the user-level `dba` agent instructions to read `dictionary/<schema>.md` only
+  on demand, never the index alone or the whole folder.

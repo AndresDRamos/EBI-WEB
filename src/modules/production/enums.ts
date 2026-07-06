@@ -1,5 +1,6 @@
 /**
- * Enum domains of the `produccion` schema and the production-related CHECK on
+ * Enum domains of the `production` schema (V11, renamed by V12) and the
+ * production-related CHECK on
  * `maint.asset` — mirror the constraints in migration V11 and must stay in
  * sync with them. Pure module (no I/O, no server-only) so both API validation
  * and client UI import the same source. Codes are stored in English; labels

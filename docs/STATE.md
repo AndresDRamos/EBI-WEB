@@ -24,8 +24,9 @@
 
 ## In-flight plans
 
-None currently — split-data-dictionary (docs-only: per-schema dictionary
-pages under `docs/database/dictionary/`) was committed on 2026-07-06.
+None currently — production-schema-rename (V12: schema `produccion` →
+`production`, English DB naming) was committed on 2026-07-06; V12 is live in
+`EBI_dev`.
 
 The `production` nav section remains dark-launched: activation in
 `/admin/portal/modules` is a pending human step

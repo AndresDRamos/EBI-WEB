@@ -196,8 +196,8 @@ erDiagram
 - `work_order_task.done_by` → `auth.app_user.user_id` (sin cascade).
 - `stock_movement.moved_by` → `auth.app_user.user_id` (sin cascade).
 
-FK entrante desde otro esquema: `produccion.asset_cell_assignment.asset_id` →
-`maint.asset.asset_id` (sin cascade; ver [produccion.md](produccion.md)).
+FK entrante desde otro esquema: `production.asset_cell_assignment.asset_id` →
+`maint.asset.asset_id` (sin cascade; ver [production.md](production.md)).
 
 ## Notas de diseño (V5/V6)
 
@@ -214,5 +214,6 @@ FK entrante desde otro esquema: `produccion.asset_cell_assignment.asset_id` →
 - V11 añade `asset.asset_category` (`CHECK IN ('production_equipment',
   'material_handling')`, `DEFAULT 'production_equipment'`, índice
   `IX_asset_category`). La ubicación física del activo ahora la historiza
-  `produccion.asset_cell_assignment`; `asset.location` (texto libre) sigue
+  `production.asset_cell_assignment` (esquema creado como `produccion` en V11
+  y renombrado en V12); `asset.location` (texto libre) sigue
   existiendo hasta una decisión futura.

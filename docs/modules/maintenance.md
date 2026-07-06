@@ -41,11 +41,11 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   machinery (the catalog was empty at migration time, verified by
   data-analyst 2026-07-03). The `location` free-text column still exists (and
   shows in Datos) until a future decision; the source of truth for physical
-  location is now `produccion.asset_cell_assignment`.
+  location is now `production.asset_cell_assignment`.
 - Does **not** own plants (module `org`, `auth.plant`) — assets reference
   them. Does not own users (`auth.app_user`) — document uploads and future
   work orders reference them. Does not own lines/cells/assignments (module
-  `production`, schema `produccion`) — it only reads them for display.
+  `production`, schema `production` since V12) — it only reads them for display.
 - Restrictions are managed through dedicated sub-routes
   (`/api/maintenance/assets/[id]/restrictions[/...]`), not inside the asset
   PATCH payload (executor's choice per plan step 5).

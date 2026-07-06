@@ -8,8 +8,9 @@
 
 ## 1. Schema (✅ pattern proven by `maint`)
 
-- Own SQL schema per module (`maint`, future `calidad`, `produccion`...), Flyway
-  migrations produced by the `dba` sub-agent.
+- Own SQL schema per module (`maint`, `production`, future `quality`... —
+  English schema names since V12), Flyway migrations produced by the `dba`
+  sub-agent.
 - Real constraints, not app-side checks alone: named CHECKs for enumerations, computed
   columns for folios, append-only ledgers where history matters.
 - The module's migration **seeds its own registry rows**: its `nav_section` (+ items,

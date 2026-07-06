@@ -56,7 +56,7 @@
 - **Gotchas:** sections **and their items** are seeded by the migration of the module that owns the route — never let the admin panel create a section from scratch. The `admin` role needs no grant rows (sees everything, including inactive sections — rendered dimmed). Section grants now **authorize pages** (ADR 0005): each module must add `(portal)/<module>/layout.tsx` calling `requireSectionOrRedirect("<code>")`, or its pages stay reachable by any authenticated user. The admin panel rail is code-built (`ADMIN_NAV_SECTION`), not a `nav_section`.
 
 ### Business module with temporal-bridge catalogs (production-style)
-- **Read always:** `docs/modules/production.md` · `docs/database/erd/produccion.md` · `docs/architecture/module-blueprint.md`
+- **Read always:** `docs/modules/production.md` · `docs/database/erd/production.md` · `docs/architecture/module-blueprint.md`
 - **Read if:** `docs/modules/maintenance.md` + `docs/database/erd/maint.md` (when touching `asset_category` / the Ubicación tab) · `docs/modules/rbac.md` / `docs/modules/navigation.md` (when seeding new permission codes or nav rows)
 - **Skip (known noise):** ETL docs · ADR 0001
 - **Ask up front:** does the new relation need temporal validity (close+open, history preserved) or a plain M:N? does the section dark-launch (`is_active = 0`)?
@@ -152,3 +152,7 @@ Not module-specific — belongs to the skill phase, not a routing row per module
   added "Sub-agent routes (measured)" documenting `dba`/`docs-sync`/`data-analyst` baselines
   and updated the user-level `dba` agent instructions to read `dictionary/<schema>.md` only
   on demand, never the index alone or the whole folder.
+- 2026-07-06 — docs-sync (plan production-schema-rename): DB schema `produccion` renamed to
+  `production` (V12); `erd/produccion.md` → `erd/production.md` and
+  `dictionary/produccion.md` → `dictionary/production.md`; the "Business module with
+  temporal-bridge catalogs" row now points at `erd/production.md`.

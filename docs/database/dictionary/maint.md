@@ -38,7 +38,7 @@ Machine/equipment catalog. `code` is the internal tag (QR payload).
 | model | nvarchar(120) | yes | | Model |
 | serial_number | nvarchar(120) | yes | | Serial number |
 | plant_id | int | no | FK → auth.plant (no cascade) | Plant where the asset lives |
-| location | nvarchar(160) | yes | | Free-text area/cell (v1). Physical location is now historized in `produccion.asset_cell_assignment`; this column survives until a future decision |
+| location | nvarchar(160) | yes | | Free-text area/cell (v1). Physical location is now historized in `production.asset_cell_assignment`; this column survives until a future decision |
 | criticality | char(1) | no | DEFAULT 'C', CHECK IN ('A','B','C') | Criticality class |
 | status | nvarchar(20) | no | DEFAULT `active`, CHECK IN (`active`,`in_repair`,`standby`,`retired`) | Operational status |
 | asset_category | nvarchar(20) | no | DEFAULT `production_equipment`, CHECK IN (`production_equipment`,`material_handling`) | Asset kind (added V11). Material-handling equipment (forklifts, hoists) shares the catalog but usually has no fixed cell; loaders must set it explicitly — the silent default only suits manufacturing machinery |

@@ -7,10 +7,10 @@ import type {
   ProductionLine,
 } from "@/lib/db/types";
 
-// All tables here live in the `produccion` schema. Same rule as maintenance:
+// All tables here live in the `production` schema. Same rule as maintenance:
 // kysely-codegen drops the schema from the generated keys, so bind the client
-// to `produccion` or SQL Server looks under dbo and 208s.
-const db = rootDb.withSchema("produccion");
+// to `production` or SQL Server looks under dbo and 208s.
+const db = rootDb.withSchema("production");
 
 // Plant names come from `auth.plant`; asset code/name from `maint.asset`.
 // Typed cross-schema joins are not expressible with the flattened codegen
@@ -440,7 +440,7 @@ export interface ReassignInput {
 
 /**
  * Historized move: close the current row and open a new one against the target
- * cell, in one transaction (the trx inherits the `produccion` binding — do not
+ * cell, in one transaction (the trx inherits the `production` binding — do not
  * re-bind). Returns the new assignment, or undefined when the source row does
  * not exist or is already closed (API maps to 404/409).
  */

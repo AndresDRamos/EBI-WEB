@@ -107,8 +107,9 @@ Notes / things that bit us:
 ### 2. Refresh the living docs
 
 Regenerate the ERD, data dictionary and migrations log from the real schema: run
-`/sync-docs` (Claude). Do **not** hand-edit `docs/database/erd.md` /
-`data-dictionary.md` / `migrations-log.md` — they are generated.
+`/sync-docs` (Claude). Do **not** hand-edit `docs/database/erd/` /
+`docs/database/dictionary/` (per-schema pages + `_index.md`) /
+`migrations-log.md` — they are generated.
 
 ## Production (reference only)
 

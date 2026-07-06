@@ -24,11 +24,13 @@
 
 ## In-flight plans
 
-None currently — production-cell-assignment (`produccion` schema V11: line →
-cell + temporal asset↔cell assignment, `maint.asset.asset_category`, module
-`production`) was committed on 2026-07-03 (PR to `main`). The `production`
-nav section remains dark-launched: activation in `/admin/portal/modules` is
-a pending human step.
+- **split-data-dictionary** (docs-only, branch `docs/trace-map-database`):
+  monolithic data dictionary → per-schema pages under
+  `docs/database/dictionary/`. No migrations.
+
+The `production` nav section remains dark-launched: activation in
+`/admin/portal/modules` is a pending human step
+(production-cell-assignment was committed 2026-07-03).
 
 Next up (direction fixed 2026-07-02 — see
 [ADR 0003](architecture/adr/0003-composition-over-metadata.md) and the
@@ -225,6 +227,7 @@ the app pages under `src/app/` are thin and compose from here):
 - **Configurability strategy (composition vs. metadata) + module recipe:**
   [ADR 0003](architecture/adr/0003-composition-over-metadata.md) +
   [module blueprint](architecture/module-blueprint.md).
-- **DB current shape:** `docs/database/erd/_index.md` (per-schema pages) +
-  `docs/database/{data-dictionary, migrations-log}.md`.
+- **DB current shape:** `docs/database/erd/_index.md` +
+  `docs/database/dictionary/_index.md` (per-schema pages — index first, then
+  only the target schema) + `docs/database/migrations-log.md`.
 - **Rules of engagement:** [AGENTS.md](../AGENTS.md).

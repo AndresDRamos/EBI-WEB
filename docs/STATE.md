@@ -24,9 +24,8 @@
 
 ## In-flight plans
 
-- **split-data-dictionary** (docs-only, branch `docs/trace-map-database`):
-  monolithic data dictionary → per-schema pages under
-  `docs/database/dictionary/`. No migrations.
+None currently — split-data-dictionary (docs-only: per-schema dictionary
+pages under `docs/database/dictionary/`) was committed on 2026-07-06.
 
 The `production` nav section remains dark-launched: activation in
 `/admin/portal/modules` is a pending human step

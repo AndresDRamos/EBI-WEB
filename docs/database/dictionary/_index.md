@@ -3,9 +3,9 @@
 > Maintained by the `docs-sync` sub-agent, which runs at the end of every
 > `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-03. Reflects V1–V11 (this sync sourced from the applied
-> migration files `V9`–`V11` + regenerated Kysely types (`pnpm db:gen`), not
-> live introspection; `flyway info` in `EBI_dev` reports schema version 11).
+> Last synced: 2026-07-06. Reflects V1–V12 (this sync sourced from the applied
+> migration file `V12` + regenerated Kysely types (`pnpm db:gen`), not
+> live introspection; `flyway info` in `EBI_dev` reports schema version 12).
 >
 > **How to read:** find the table below, then open only its schema page —
 > never read the whole folder. One page per schema, mirroring
@@ -52,8 +52,10 @@ when the feature is rebuilt).
 - `maint.work_order_material` — actual spare-part consumption per WO.
 - `maint.stock_movement` — append-only signed stock ledger (truth for current stock).
 
-## [produccion](produccion.md)
+## [production](production.md)
 
-- `produccion.production_line` — optional sequencing container for cells.
-- `produccion.cell` — logical production post/function; `line_id` nullable (standalone cells).
-- `produccion.asset_cell_assignment` — temporal, historized M:N bridge asset ↔ cell (truth for where an asset works).
+Created as `produccion` in V11; renamed to `production` in V12 (structure unchanged).
+
+- `production.production_line` — optional sequencing container for cells.
+- `production.cell` — logical production post/function; `line_id` nullable (standalone cells).
+- `production.asset_cell_assignment` — temporal, historized M:N bridge asset ↔ cell (truth for where an asset works).

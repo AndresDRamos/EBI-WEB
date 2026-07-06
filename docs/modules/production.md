@@ -1,13 +1,13 @@
 # production
 
-**Last synced:** 2026-07-03 · **Synced from:** plan production-cell-assignment (branch `feat/production-cell-assignment`, V11)
+**Last synced:** 2026-07-06 · **Synced from:** plan production-cell-assignment (branch `feat/production-cell-assignment`, V11) + plan production-schema-rename (branch `chore/production-schema-rename`, V12: schema `produccion` → `production`, structure unchanged)
 
 ## Purpose
 
 Production-structure module of the EBI portal. Separates the physical asset
 (`maint.asset`, owned by maintenance) from the logical production structure —
 line → cell — with a **temporal, historized M:N assignment** between assets and
-cells (`produccion.asset_cell_assignment`). It replaces the free-text
+cells (`production.asset_cell_assignment`). It replaces the free-text
 `maint.asset.location` as the source of truth for where an asset works (the
 free-text column still exists until a future decision), and is the structural
 base for future planning/APS work. V11 also added `maint.asset.asset_category`
@@ -18,8 +18,9 @@ so cell assignments stay optional for it.
 ## Responsibilities
 
 - Owns the module slice `src/modules/production/` — `db.ts` is the only place
-  that queries `produccion.*` tables (client bound with
-  `withSchema("produccion")`); `components/` holds the module UI; `enums.ts`
+  that queries `production.*` tables (client bound with
+  `withSchema("production")` since V12 renamed the schema from `produccion`);
+  `components/` holds the module UI; `enums.ts`
   is the **canonical** home of `ASSET_CATEGORIES` /
   `ASSET_CATEGORY_LABELS` / `assetCategoryLabel` (V11 introduced the CHECK),
   re-exported by `src/modules/maintenance/enums.ts`.
@@ -57,7 +58,7 @@ so cell assignments stay optional for it.
   composition, allowed by the blueprint).
 - `/api/production/**` → `modules/production/db.ts`; the assignment-create
   route also calls `maintenance/db.findAssetById` to validate the asset (422).
-- `modules/production/db.ts` → `produccion.*` via the schema-bound client;
+- `modules/production/db.ts` → `production.*` via the schema-bound client;
   cross-schema lookups (`auth.plant` names, `maint.asset` code/name) run as
   separate per-schema queries merged in JS (typed cross-schema joins are not
   expressible with the flattened codegen keys — same pattern as maintenance).
@@ -76,7 +77,7 @@ so cell assignments stay optional for it.
 ## Do not touch without reading
 
 - **Never UPDATE `asset_id`/`cell_id` in place on
-  `produccion.asset_cell_assignment`.** A reassignment is close (`valid_to`) +
+  `production.asset_cell_assignment`.** A reassignment is close (`valid_to`) +
   insert, in one transaction (`reassign` in `db.ts`). The table has **no
   `updated_at` on purpose** — do not add one; it would invite exactly the
   in-place rewrite the design prevents.

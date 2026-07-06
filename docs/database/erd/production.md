@@ -1,10 +1,13 @@
-# ERD — `produccion` schema
+# ERD — `production` schema
 
-> Generated from the applied migration `V11__produccion_schema.sql` (Flyway schema
-> version 11 in `EBI_dev`; Kysely types regenerated via `pnpm db:gen`). Do not edit
+> Generated from the applied migrations `V11__produccion_schema.sql` and
+> `V12__rename_produccion_schema_to_production.sql` (Flyway schema version 12 in
+> `EBI_dev`; Kysely types regenerated via `pnpm db:gen`). V12 renamed the schema
+> `produccion` → `production` (ALTER SCHEMA TRANSFER); tables, columns,
+> constraints, indexes and relationships are unchanged from V11. Do not edit
 > by hand; the `docs-sync` sub-agent regenerates it at the close of each build.
 >
-> Last synced: 2026-07-03. Reflects V11.
+> Last synced: 2026-07-06. Reflects V11 + V12.
 
 ```mermaid
 erDiagram
@@ -89,5 +92,6 @@ All FKs are NO ACTION — catalog rows and history are protected, never cascaded
   [maint.md](maint.md). Material-handling equipment shares the maintenance
   catalog but typically has no fixed cell (shared plant pool), so assignment
   rows stay optional for that category.
-- Grants: `ebi_app` = SELECT/INSERT/UPDATE/DELETE on schema `produccion`;
-  `ebi_agent_ro` = SELECT (guarded, idempotent).
+- Grants: `ebi_app` = SELECT/INSERT/UPDATE/DELETE on schema `production`;
+  `ebi_agent_ro` = SELECT (guarded, idempotent; re-issued by V12 after the
+  schema rename — schema-scoped grants do not survive `DROP SCHEMA`).

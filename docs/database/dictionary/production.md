@@ -1,17 +1,19 @@
-# Data dictionary — schema `produccion`
+# Data dictionary — schema `production`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-03 (V1–V11). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-06 (V1–V12). Index: [`_index.md`](_index.md).
 
-Production module (plan production-cell-assignment, V11): logical production
+Production module (created as `produccion` by V11, plan
+production-cell-assignment; renamed to `production` by V12, plan
+production-schema-rename — structure unchanged): logical production
 structure (line → cell) plus a temporal, historized M:N bridge between
 `maint.asset` and cells — the source of truth for where an asset physically
 works, replacing the free-text `maint.asset.location`. Same house patterns as
 `maint`: named CHECK constraints, soft-delete via `is_active` on catalogs,
 app-maintained `updated_at` (no triggers), FKs NO ACTION.
-See `docs/modules/production.md` and `docs/database/erd/produccion.md`.
+See `docs/modules/production.md` and `docs/database/erd/production.md`.
 
-## `produccion.production_line`
+## `production.production_line`
 
 Optional sequencing container for cells (e.g. a welding line with
 Op 10 → Op 20 → Op 30). Not every cell needs one.
@@ -28,7 +30,7 @@ Op 10 → Op 20 → Op 30). Not every cell needs one.
 
 Indexes: `IX_production_line_plant (plant_id, is_active)`.
 
-## `produccion.cell`
+## `production.cell`
 
 Logical production post/function. `line_id` is nullable: standalone cells
 (e.g. "Laser 1", "Laser 2") belong to no line.
@@ -39,7 +41,7 @@ Logical production post/function. `line_id` is nullable: standalone cells
 | code | nvarchar(32) | no | UQ | Short cell code |
 | name | nvarchar(160) | no | | Cell name |
 | plant_id | int | no | FK → auth.plant (no cascade) | Plant the cell belongs to |
-| line_id | int | yes | FK → produccion.production_line (no cascade) | Owning line; NULL = standalone cell |
+| line_id | int | yes | FK → production.production_line (no cascade) | Owning line; NULL = standalone cell |
 | sequence_in_line | int | yes | CHECK > 0 (or NULL); CHECK requires line_id set (`CK_cell_sequence_requires_line`) | Position within the line (Op order) |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
@@ -50,7 +52,7 @@ Indexes: `IX_cell_plant (plant_id, is_active)`,
 `UQ_cell_line_sequence (line_id, sequence_in_line) UNIQUE WHERE line_id IS NOT NULL`
 (no duplicate "Op 20" within a line; cells without a line stay unconstrained).
 
-## `produccion.asset_cell_assignment`
+## `production.asset_cell_assignment`
 
 Temporal M:N bridge asset ↔ cell, historized. A cell can be composed of several
 assets and one asset can serve several cells at once (e.g. a feed tower shared
@@ -63,7 +65,7 @@ purpose** — it would invite the in-place rewrite this design prevents.
 |---|---|---|---|---|
 | assignment_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
 | asset_id | int | no | FK → maint.asset (no cascade) | Asset reference; history survives asset retirement |
-| cell_id | int | no | FK → produccion.cell (no cascade) | Cell reference; history survives cell retirement |
+| cell_id | int | no | FK → production.cell (no cascade) | Cell reference; history survives cell retirement |
 | role_label | nvarchar(120) | yes | | Free label, e.g. `Laser 1 - position 1`, `Feed tower - shared` |
 | valid_from | date | no | DEFAULT CAST(SYSUTCDATETIME() AS DATE) | Start of validity |
 | valid_to | date | yes | CHECK ≥ valid_from (or NULL) | End of validity; NULL = currently in effect |
@@ -89,5 +91,7 @@ cells an asset serves nor how many assets a cell holds).
 
 ## Grants (schema scope)
 
-`GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::produccion TO ebi_app`;
-`GRANT SELECT ON SCHEMA::produccion TO ebi_agent_ro` (guarded, V11).
+`GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::production TO ebi_app`;
+`GRANT SELECT ON SCHEMA::production TO ebi_agent_ro` (guarded; originally
+issued on `produccion` by V11, re-issued on `production` by V12 — schema-scoped
+grants do not survive the schema drop).

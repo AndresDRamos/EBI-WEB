@@ -8,25 +8,55 @@ import type {
   Process,
 } from "@/lib/db/types";
 
-// All tables here live in the `maint` schema. Same rule as org.ts/users.ts:
-// kysely-codegen drops the schema from the generated keys, so bind the client
-// to `maint` or SQL Server looks under dbo and 208s.
+// `asset`, `asset_process`, `asset_restriction`, `asset_document` live in the
+// `maint` schema. kysely-codegen drops the schema from the generated keys, so
+// bind the client to `maint` or SQL Server looks under dbo and 208s.
 const db = rootDb.withSchema("maint");
 
-// Plant names come from `auth.plant`. A typed cross-schema join is not
-// expressible with the flattened codegen keys (each client is bound to one
-// schema), so plant names are resolved with a second, auth-bound query and
-// merged in JS. Catalog sizes make this a non-issue.
-const authDb = rootDb.withSchema("auth");
+// Plant AND process both moved to the `org` schema in V15 (process was
+// promoted out of `maint` to become the canonical company-wide catalog). A
+// typed cross-schema join is not expressible with the flattened codegen keys
+// (each client binds one schema), so `asset_process` (maint) links to process
+// names via a second, `org`-bound query merged in JS. Catalog sizes make this
+// a non-issue.
+const orgDb = rootDb.withSchema("org");
 
 async function plantNamesById(ids: number[]): Promise<Map<number, string>> {
   if (ids.length === 0) return new Map();
-  const rows = await authDb
+  const rows = await orgDb
     .selectFrom("plant")
     .select(["plant_id", "name"])
     .where("plant_id", "in", ids)
     .execute();
   return new Map(rows.map((r) => [r.plant_id, r.name]));
+}
+
+/** Process names by id, from `org.process` (for the asset-process JS merge). */
+async function processNamesById(ids: number[]): Promise<Map<number, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await orgDb
+    .selectFrom("process")
+    .select(["process_id", "name"])
+    .where("process_id", "in", ids)
+    .execute();
+  return new Map(rows.map((r) => [r.process_id, r.name]));
+}
+
+/** Full process rows an asset runs, ordered by name (maint links → org rows). */
+async function assetProcessRows(assetId: number): Promise<ProcessRow[]> {
+  const links = await db
+    .selectFrom("asset_process")
+    .select("process_id")
+    .where("asset_id", "=", assetId)
+    .execute();
+  const ids = links.map((l) => l.process_id);
+  if (ids.length === 0) return [];
+  return orgDb
+    .selectFrom("process")
+    .selectAll()
+    .where("process_id", "in", ids)
+    .orderBy("name", "asc")
+    .execute();
 }
 
 export type AssetRow = Selectable<Asset>;
@@ -73,23 +103,27 @@ export async function listAssets(
   const assets = await q.orderBy("code", "asc").execute();
   if (assets.length === 0) return [];
 
-  const [plantNames, links] = await Promise.all([
+  // asset_process (maint) links to process names in org: fetch the link rows,
+  // then resolve names from org and merge (no cross-schema join possible).
+  const links = await db
+    .selectFrom("asset_process")
+    .select(["asset_id", "process_id"])
+    .where(
+      "asset_id",
+      "in",
+      assets.map((a) => a.asset_id),
+    )
+    .execute();
+  const [plantNames, processNames] = await Promise.all([
     plantNamesById([...new Set(assets.map((a) => a.plant_id))]),
-    db
-      .selectFrom("asset_process")
-      .innerJoin("process", "process.process_id", "asset_process.process_id")
-      .select(["asset_process.asset_id", "process.name"])
-      .where(
-        "asset_process.asset_id",
-        "in",
-        assets.map((a) => a.asset_id),
-      )
-      .execute(),
+    processNamesById([...new Set(links.map((l) => l.process_id))]),
   ]);
   const byAsset = new Map<number, string[]>();
   for (const l of links) {
+    const name = processNames.get(l.process_id);
+    if (!name) continue;
     const arr = byAsset.get(l.asset_id) ?? [];
-    arr.push(l.name);
+    arr.push(name);
     byAsset.set(l.asset_id, arr);
   }
   return assets.map((a) => ({
@@ -140,13 +174,7 @@ export async function getAssetDetail(
   };
 
   const [processes, restrictions, documents] = await Promise.all([
-    db
-      .selectFrom("asset_process")
-      .innerJoin("process", "process.process_id", "asset_process.process_id")
-      .selectAll("process")
-      .where("asset_process.asset_id", "=", assetId)
-      .orderBy("process.name", "asc")
-      .execute(),
+    assetProcessRows(assetId),
     db
       .selectFrom("asset_restriction")
       .selectAll()
@@ -281,90 +309,13 @@ export async function setAssetProcesses(
 }
 
 // ---------------------------------------------------------------------------
-// Processes
+// Processes — the catalog moved to the `org` schema in V15 and is administered
+// from the admin panel (`/admin/organization/processes`). Maintenance still
+// needs READ access (the asset↔process picker in the machine detail, the QR
+// flows), so re-export the org reads here to keep import sites stable. The
+// write CRUD lives in `@/modules/org/db/processes`.
 // ---------------------------------------------------------------------------
-
-export async function listProcesses(activeOnly = false): Promise<ProcessRow[]> {
-  let q = db.selectFrom("process").selectAll();
-  if (activeOnly) q = q.where("is_active", "=", true);
-  return q.orderBy("name", "asc").execute();
-}
-
-export async function findProcessById(
-  id: number,
-): Promise<ProcessRow | undefined> {
-  const row = await db
-    .selectFrom("process")
-    .selectAll()
-    .where("process_id", "=", id)
-    .executeTakeFirst();
-  return row ?? undefined;
-}
-
-export interface CreateProcessInput {
-  code: string;
-  name: string;
-  description?: string | null;
-}
-
-export async function createProcess(
-  input: CreateProcessInput,
-): Promise<ProcessRow> {
-  const result = await db
-    .insertInto("process")
-    .values({
-      code: input.code.trim(),
-      name: input.name.trim(),
-      description: emptyToNull(input.description),
-    })
-    .output("inserted.process_id")
-    .executeTakeFirst();
-  if (!result) throw new Error("Process insert returned no identity");
-  const row = await db
-    .selectFrom("process")
-    .selectAll()
-    .where("process_id", "=", result.process_id)
-    .executeTakeFirst();
-  if (!row) throw new Error("Process not found after insert");
-  return row;
-}
-
-export interface UpdateProcessInput {
-  code?: string;
-  name?: string;
-  description?: string | null;
-  is_active?: boolean;
-}
-
-export async function updateProcess(
-  id: number,
-  input: UpdateProcessInput,
-): Promise<void> {
-  const changes: Partial<Insertable<Process>> = { updated_at: new Date() };
-  if (input.code !== undefined && input.code.trim()) changes.code = input.code.trim();
-  if (input.name !== undefined && input.name.trim()) changes.name = input.name.trim();
-  if (input.description !== undefined)
-    changes.description = emptyToNull(input.description);
-  if (input.is_active !== undefined) changes.is_active = input.is_active;
-  await db
-    .updateTable("process")
-    .set(changes)
-    .where("process_id", "=", id)
-    .execute();
-}
-
-export async function softDeleteProcess(id: number): Promise<void> {
-  await db
-    .updateTable("process")
-    .set({ is_active: false, updated_at: new Date() })
-    .where("process_id", "=", id)
-    .execute();
-}
-
-/** Hard delete: blocked by FK when any asset still links the process. */
-export async function deleteProcess(id: number): Promise<void> {
-  await db.deleteFrom("process").where("process_id", "=", id).execute();
-}
+export { listProcesses, findProcessById } from "@/modules/org/db/processes";
 
 // ---------------------------------------------------------------------------
 // Restrictions

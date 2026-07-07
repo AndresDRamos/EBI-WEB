@@ -57,7 +57,7 @@
 
 ### Business module with temporal-bridge catalogs (production-style)
 - **Read always:** `docs/modules/production.md` · `docs/database/erd/production.md` · `docs/architecture/module-blueprint.md`
-- **Read if:** `docs/modules/maintenance.md` + `docs/database/erd/maint.md` (when touching `asset_category` / the Ubicación tab) · `docs/modules/rbac.md` / `docs/modules/navigation.md` (when seeding new permission codes or nav rows)
+- **Read if:** `docs/modules/maintenance.md` + `docs/database/erd/maint.md` (when touching `asset_category` / the Ubicación tab) · `docs/modules/rbac.md` / `docs/modules/navigation.md` (when seeding new permission codes or nav rows) · `docs/architecture/cad-layout-contract.md` + ADR 0006 (only when touching layout import / DXF / placements)
 - **Skip (known noise):** ETL docs · ADR 0001
 - **Ask up front:** does the new relation need temporal validity (close+open, history preserved) or a plain M:N? does the section dark-launch (`is_active = 0`)?
 - **Gotchas:** never UPDATE `asset_id`/`cell_id` in place on `asset_cell_assignment` — close + insert; the filtered unique index only blocks a duplicate *current* pair · migration-seeded nav rows do **not** invalidate the persisted `"nav"` `unstable_cache` — fire `revalidateTag` via any `/api/nav/*` mutation after migrating, or the section guard redirects even admins · shared enum domains live in one module and are re-exported (`asset_category` canonical in `src/modules/production/enums.ts`; maintenance re-exports) — keep `enums.ts` pure.

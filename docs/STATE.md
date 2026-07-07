@@ -24,9 +24,7 @@
 
 ## In-flight plans
 
-None currently — production-schema-rename (V12: schema `produccion` →
-`production`, English DB naming) was committed on 2026-07-06; V12 is live in
-`EBI_dev`.
+None currently — see *Where the history lives* for recently committed plans.
 
 The `production` nav section remains dark-launched: activation in
 `/admin/portal/modules` is a pending human step
@@ -50,6 +48,7 @@ RBAC actions precede the next business module.
 | ETL | EPS is **read-only**. Never write to EPS. |
 | Admin UI | **Generic kit tables** (`src/components/kit/`: `data-table.tsx`, `grouped-data-table.tsx`, `page-tabs.tsx`); per-entity modals; the `/admin` panel = 2 tabbed groups (Organización / Portal, tabs as real routes) behind the shared `PortalSidebar` fed the code-built `ADMIN_NAV_SECTION` (no bespoke rail). |
 | Repo layout | **Modules-first** (2026-07-02): `app/` = thin routing only; `modules/<m>/` owns each domain (db + components); `components/kit|ui|layout` shared UI; `lib/` domain-blind infra. Business-module APIs namespaced (`/api/maintenance/...`). |
+| Unproven modules | `(portal)/test/*` (founded 2026-07-06): admin-only proving ground, outside the nav registry, for modules whose portal-fit isn't settled yet. First tenant: plant-layout (`docs/modules/production.md`). Promote by moving pages back + re-seeding the nav item. |
 
 ## Code conventions (non-trivial — violating them breaks things)
 

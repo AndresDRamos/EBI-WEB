@@ -3,9 +3,10 @@
 > Maintained by the `docs-sync` sub-agent, which runs at the end of every
 > `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-06. Reflects V1–V12 (this sync sourced from the applied
-> migration file `V12` + regenerated Kysely types (`pnpm db:gen`), not
-> live introspection; `flyway info` in `EBI_dev` reports schema version 12).
+> Last synced: 2026-07-06. Reflects V1–V13 (this sync sourced from the applied
+> migration file `V13` + regenerated Kysely types (`pnpm db:gen`, 35 tables),
+> not live introspection; `flyway_schema_history` in `EBI_dev` reports schema
+> version 13, success).
 >
 > **How to read:** find the table below, then open only its schema page —
 > never read the whole folder. One page per schema, mirroring
@@ -54,8 +55,12 @@ when the feature is rebuilt).
 
 ## [production](production.md)
 
-Created as `produccion` in V11; renamed to `production` in V12 (structure unchanged).
+Created as `produccion` in V11; renamed to `production` in V12 (structure
+unchanged); plant-layout tables added in V13.
 
 - `production.production_line` — optional sequencing container for cells.
 - `production.cell` — logical production post/function; `line_id` nullable (standalone cells).
 - `production.asset_cell_assignment` — temporal, historized M:N bridge asset ↔ cell (truth for where an asset works).
+- `production.plant_layout` — versioned, immutable plant canvas (DXF → normalized JSON); one `active` per plant.
+- `production.asset_footprint` — top-view shape per asset (one per asset, editable in place; `dxf` | `rectangle`).
+- `production.asset_placement` — temporal, historized position of an asset on a layout (close + insert, never in-place).

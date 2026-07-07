@@ -362,9 +362,9 @@ function ProcesosTab({
       </p>
       {allProcesses.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          No hay procesos en el catálogo. Créalos en{" "}
-          <Link href="/maintenance/process" className="underline">
-            Procesos
+          No hay procesos en el catálogo. Un administrador los crea en{" "}
+          <Link href="/admin/organization/processes" className="underline">
+            Organización → Procesos
           </Link>
           .
         </p>

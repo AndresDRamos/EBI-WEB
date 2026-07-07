@@ -1,14 +1,14 @@
-import { listProcesses } from "@/modules/maintenance/db";
+import { listProcesses } from "@/modules/org/db/processes";
 import {
   ProcessesTablePage,
   type ProcessesTableRow,
-} from "@/modules/maintenance/components/processes-table-page";
+} from "@/modules/org/components/processes-table-page";
 
 export const dynamic = "force-dynamic";
 
-/** Procesos — manufacturing process catalog. Action visibility is resolved
- * client-side by `useCan` (PermissionsProvider in the portal layout). */
-export default async function ProcessesPage() {
+/** Procesos tab (Organización) — company-wide process catalog (`org.process`).
+ * Action visibility resolves client-side via `useCan`; the API re-checks. */
+export default async function AdminProcessesPage() {
   const processes = await listProcesses().catch(() => []);
 
   const rows: ProcessesTableRow[] = processes.map((p) => ({

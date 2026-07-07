@@ -15,7 +15,7 @@ export default function AdminOrganizationLayout({
       <header>
         <h1 className="text-2xl font-bold">Organización</h1>
         <p className="text-sm text-muted-foreground">
-          Usuarios, departamentos con sus roles y plantas.
+          Usuarios, departamentos con sus roles, plantas y procesos.
         </p>
       </header>
       <PageTabs
@@ -23,6 +23,8 @@ export default function AdminOrganizationLayout({
           { href: "/admin/organization/users", label: "Usuarios" },
           { href: "/admin/organization/departments", label: "Departamentos y roles" },
           { href: "/admin/organization/plants", label: "Plantas" },
+          { href: "/admin/organization/processes", label: "Procesos" },
+          { href: "/admin/organization/plant-processes", label: "Procesos por planta" },
         ]}
       />
       {children}

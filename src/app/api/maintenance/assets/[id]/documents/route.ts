@@ -5,7 +5,7 @@ import {
   createDocument,
   DOC_TYPES,
 } from "@/modules/maintenance/db";
-import { buildBlobKey, uploadDocumentBlob } from "@/lib/storage/blob";
+import { BLOB_CONTAINERS, buildBlobKey, uploadBlob } from "@/lib/storage/blob";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 
@@ -85,9 +85,9 @@ export async function POST(
     const title =
       typeof titleRaw === "string" && titleRaw.trim() ? titleRaw.trim() : file.name;
 
-    const blobPath = buildBlobKey(id, file.name);
+    const blobPath = buildBlobKey(`assets/${id}`, file.name);
     const bytes = Buffer.from(await file.arrayBuffer());
-    await uploadDocumentBlob(blobPath, bytes, file.type || null);
+    await uploadBlob(BLOB_CONTAINERS.maintenance, blobPath, bytes, file.type || null);
 
     const document = await createDocument({
       asset_id: id,

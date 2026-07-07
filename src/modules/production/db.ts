@@ -12,15 +12,16 @@ import type {
 // to `production` or SQL Server looks under dbo and 208s.
 const db = rootDb.withSchema("production");
 
-// Plant names come from `auth.plant`; asset code/name from `maint.asset`.
-// Typed cross-schema joins are not expressible with the flattened codegen
-// keys, so lookups run as separate per-schema queries merged in JS.
-const authDb = rootDb.withSchema("auth");
+// Plant names come from `org.plant` (moved out of `auth` in V15); asset
+// code/name from `maint.asset`. Typed cross-schema joins are not expressible
+// with the flattened codegen keys, so lookups run as separate per-schema
+// queries merged in JS.
+const orgDb = rootDb.withSchema("org");
 const maintDb = rootDb.withSchema("maint");
 
 async function plantNamesById(ids: number[]): Promise<Map<number, string>> {
   if (ids.length === 0) return new Map();
-  const rows = await authDb
+  const rows = await orgDb
     .selectFrom("plant")
     .select(["plant_id", "name"])
     .where("plant_id", "in", ids)

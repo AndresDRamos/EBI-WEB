@@ -3,10 +3,12 @@ import { db as rootDb } from "@/lib/db/client";
 import type { Selectable, Insertable, Transaction } from "kysely";
 import type { Plant, Department, Role } from "@/lib/db/types";
 
-// All tables here (role, plant, department) live in the `auth` schema. See the
-// note in users.ts: kysely-codegen dropped the schema from the generated keys,
-// so bind the client to `auth` or SQL Server looks under dbo and 208s.
+// `role` and `department` live in the `auth` schema; `plant` moved to the new
+// `org` schema in V15 (organization vs identity split). See the note in
+// users.ts: kysely-codegen drops the schema from the generated keys, so bind
+// the client to the right schema or SQL Server looks under dbo and 208s.
 const db = rootDb.withSchema("auth");
+const orgDb = rootDb.withSchema("org");
 
 export type PlantRow = Selectable<Plant>;
 export type DepartmentRow = Selectable<Department>;
@@ -182,9 +184,18 @@ export class RoleProtectedError extends Error {
 // ---------------------------------------------------------------------------
 
 export async function listPlants(activeOnly = false): Promise<PlantRow[]> {
-  let q = db.selectFrom("plant").selectAll();
+  let q = orgDb.selectFrom("plant").selectAll();
   if (activeOnly) q = q.where("is_active", "=", true);
   return q.orderBy("name", "asc").execute();
+}
+
+export async function findPlantById(id: number): Promise<PlantRow | undefined> {
+  const row = await orgDb
+    .selectFrom("plant")
+    .selectAll()
+    .where("plant_id", "=", id)
+    .executeTakeFirst();
+  return row ?? undefined;
 }
 
 export interface CreatePlantInput {
@@ -195,7 +206,7 @@ export interface CreatePlantInput {
 }
 
 export async function createPlant(input: CreatePlantInput): Promise<PlantRow> {
-  const result = await db
+  const result = await orgDb
     .insertInto("plant")
     .values({
       code: input.code.trim(),
@@ -212,7 +223,7 @@ export async function createPlant(input: CreatePlantInput): Promise<PlantRow> {
     .output("inserted.plant_id")
     .executeTakeFirst();
   if (!result) throw new Error("Plant insert returned no identity");
-  const row = await db
+  const row = await orgDb
     .selectFrom("plant")
     .selectAll()
     .where("plant_id", "=", result.plant_id)
@@ -255,11 +266,11 @@ export async function updatePlant(
         : null;
   }
   if (input.is_active !== undefined) changes.is_active = input.is_active;
-  await db.updateTable("plant").set(changes).where("plant_id", "=", id).execute();
+  await orgDb.updateTable("plant").set(changes).where("plant_id", "=", id).execute();
 }
 
 export async function deletePlant(id: number): Promise<void> {
-  await db.deleteFrom("plant").where("plant_id", "=", id).execute();
+  await orgDb.deleteFrom("plant").where("plant_id", "=", id).execute();
 }
 
 // ---------------------------------------------------------------------------

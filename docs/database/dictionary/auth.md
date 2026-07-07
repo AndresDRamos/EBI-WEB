@@ -1,7 +1,7 @@
 # Data dictionary — schema `auth`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-03 (V1–V11). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-07 (V1–V15). Index: [`_index.md`](_index.md).
 
 Portal-owned authentication and RBAC. JWT sessions (no session table).
 See ADR `docs/architecture/adr/0001-portal-owned-auth.md`.
@@ -41,20 +41,9 @@ RBAC role catalog. Seeded with `admin` and `viewer`. Since V8 a role means
 
 Indexes: `IX_role_department (department_id) WHERE department_id IS NOT NULL`.
 
-## `auth.plant`
-
-Plant catalog managed by portal admins. May later map to EPS plant IDs.
-
-| Column | Type | Nullable | Constraints | Description |
-|---|---|---|---|---|
-| plant_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
-| code | nvarchar(32) | no | UQ | Short plant code |
-| name | nvarchar(160) | no | | Full plant name |
-| is_active | bit | no | DEFAULT 1 | Soft-delete flag |
-| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
-| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
-| address | nvarchar(256) | yes | | Optional street address (added V4) |
-| postal_code | nvarchar(16) | yes | | Optional postal/ZIP code (added V4) |
+> **`plant` moved out in V15.** The plant catalog is now `org.plant` — see
+> [`org.md`](org.md). `auth.user_plant` stays here; its `plant_id` is now a
+> cross-schema FK to `org.plant`.
 
 ## `auth.department`
 
@@ -82,13 +71,14 @@ Indexes: `IX_user_role_role (role_id)`.
 
 ## `auth.user_plant`
 
-Many-to-many join between `app_user` and `plant`.
-Ignored for users where `all_plants = 1`.
+Many-to-many join between `app_user` and `plant` (identity scoping: which
+plants a user may see). Ignored for users where `all_plants = 1`. Stays in
+`auth`; since V15 its `plant_id` is a **cross-schema FK to `org.plant`**.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
 | user_id | int | no | PK, FK → auth.app_user (CASCADE DELETE) | User reference |
-| plant_id | int | no | PK, FK → auth.plant | Plant reference |
+| plant_id | int | no | PK, FK → org.plant (no cascade; cross-schema since V15) | Plant reference |
 
 Indexes: `IX_user_plant_plant (plant_id)`.
 
@@ -183,8 +173,10 @@ key referenced by the codebase (`requirePermission("...")` / `useCan()`), in
 the format `<module>.<resource>:<action>` (e.g. `maintenance.asset:create`),
 lowercase-enforced by a CHECK with binary collation. Rows are seeded by module
 migrations only (V8 seeded 35 codes for org/reports/navigation/maintenance;
-V10 deleted the 6 inert `reports.*` codes; V11 added 6 `production.*` codes);
-the admin panel assigns/revokes grants but never creates permissions. There is
+V10 deleted the 6 inert `reports.*` codes; V11 added 6 `production.*` codes;
+V15 added 4 `org.process:*` / `org.plant_process:assign` codes and deleted the
+3 `maintenance.process:*` codes); the admin panel assigns/revokes grants but
+never creates permissions. There is
 no `is_active`: retiring a permission = a migration deletes it (grants
 cascade). See `docs/modules/rbac.md`.
 

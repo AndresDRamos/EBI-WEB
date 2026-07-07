@@ -35,7 +35,7 @@
 - **Gotchas:** embedding is **deferred in v1**. Keep `src/lib/powerbi/` mode-agnostic (`Aad` dev / `Embed` prod); fork token acquisition, not the embed component.
 
 ### Admin CRUD (users, catalogs, report metadata)
-- **Read always:** `docs/database/erd/auth.md` (plus `erd/dbo.md` for reports) · the existing module slice `src/modules/<module>/db*.ts` + `src/app/api/**` for the entity (M2 already built users/plants/departments/reports CRUD — extend, don't rebuild)
+- **Read always:** `docs/database/erd/auth.md` (identity/RBAC catalogs) · `docs/database/erd/org.md` (organizational catalogs: plants, processes, plant↔process — moved out of `auth`/`maint` in V15) (plus `erd/dbo.md` for reports) · the existing module slice `src/modules/<module>/db*.ts` + `src/app/api/**` for the entity (M2 already built users/plants/departments/reports CRUD — extend, don't rebuild)
 - **Read if:** `docs/database/dictionary/auth.md` (when adding/altering columns; index at `dictionary/_index.md`) · relevant `docs/modules/*.md` (only if one exists for the entity)
 - **Skip (known noise):** ETL docs · ADR 0001 unless touching auth/roles · the dormant Reportes admin screens (don't refactor them for unrelated work).
 - **Ask up front:** which least-privilege DB user runs this (`ebi_app`)? soft vs hard delete (and what does the inactive-view "permanent delete" do for referenced rows)? are any roles code-coupled — which are protected (only `admin`; `viewer` is normal CRUD)?
@@ -156,3 +156,10 @@ Not module-specific — belongs to the skill phase, not a routing row per module
   `production` (V12); `erd/produccion.md` → `erd/production.md` and
   `dictionary/produccion.md` → `dictionary/production.md`; the "Business module with
   temporal-bridge catalogs" row now points at `erd/production.md`.
+- 2026-07-07 — docs-sync (plan org-schema-plant-process, V15): new `org` schema
+  (`erd/org.md` + `dictionary/org.md`) holding `plant` (moved from `auth`),
+  `process` (promoted from `maint`) and the new `plant_process` link. The
+  "Admin CRUD" row now also reads `erd/org.md` for plant/process organizational
+  work (plants are no longer in `erd/auth.md`). Process catalog administration
+  moved from the maintenance module to the admin panel; `maintenance.process:*`
+  permissions and the `/maintenance/process` nav item retired.

@@ -256,6 +256,11 @@ export interface PlantLayout {
   width_m: number;
 }
 
+export interface PlantProcess {
+  plant_id: number;
+  process_id: number;
+}
+
 export interface Process {
   code: string;
   created_at: Generated<Date>;
@@ -404,6 +409,7 @@ export interface DB {
   plan_task: PlanTask;
   plant: Plant;
   plant_layout: PlantLayout;
+  plant_process: PlantProcess;
   process: Process;
   production_line: ProductionLine;
   role: Role;

@@ -68,6 +68,33 @@ export interface AssetDocument {
   version: Generated<number>;
 }
 
+export interface AssetFootprint {
+  asset_id: number;
+  created_at: Generated<Date>;
+  created_by: number;
+  depth_m: number;
+  footprint_id: Generated<number>;
+  geometry: string;
+  source_blob_path: string | null;
+  source_kind: string;
+  updated_at: Generated<Date>;
+  width_m: number;
+}
+
+export interface AssetPlacement {
+  asset_id: number;
+  created_at: Generated<Date>;
+  created_by: number;
+  layout_id: number;
+  note: string | null;
+  placement_id: Generated<number>;
+  rotation_deg: Generated<number>;
+  valid_from: Generated<Date>;
+  valid_to: Date | null;
+  x_m: number;
+  y_m: number;
+}
+
 export interface AssetProcess {
   asset_id: number;
   process_id: number;
@@ -212,6 +239,23 @@ export interface PlanTask {
   visual_aid_document_id: number | null;
 }
 
+export interface PlantLayout {
+  activated_at: Date | null;
+  archived_at: Date | null;
+  created_at: Generated<Date>;
+  created_by: number;
+  geometry: string;
+  height_m: number;
+  layout_id: Generated<number>;
+  name: string;
+  note: string | null;
+  plant_id: number;
+  source_blob_path: string;
+  status: Generated<string>;
+  version: number;
+  width_m: number;
+}
+
 export interface Process {
   code: string;
   created_at: Generated<Date>;
@@ -343,6 +387,8 @@ export interface DB {
   asset: Asset;
   asset_cell_assignment: AssetCellAssignment;
   asset_document: AssetDocument;
+  asset_footprint: AssetFootprint;
+  asset_placement: AssetPlacement;
   asset_process: AssetProcess;
   asset_restriction: AssetRestriction;
   cell: Cell;
@@ -357,6 +403,7 @@ export interface DB {
   plan_material: PlanMaterial;
   plan_task: PlanTask;
   plant: Plant;
+  plant_layout: PlantLayout;
   process: Process;
   production_line: ProductionLine;
   role: Role;

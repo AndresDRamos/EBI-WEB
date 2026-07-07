@@ -16,9 +16,11 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
 - Owns the module slice `src/modules/maintenance/` — `db.ts` is the only
   place that queries `maint.*` tables; `components/` holds the module UI;
   `enums.ts` mirrors the schema CHECKs.
-- Owns blob upload/download for asset documents (`src/lib/storage/blob.ts`,
-  ADR 0002): DB stores metadata + `blob_path`; bytes live in the private
-  container; downloads are 302 redirects to 15-minute SAS URLs.
+- Owns blob upload/download for asset documents (ADR 0002): DB stores
+  metadata + `blob_path`; bytes live in the private `maintenance` container;
+  downloads are 302 redirects to 15-minute SAS URLs. The blob helper
+  (`src/lib/storage/blob.ts`) is **shared infra** since V13 (container as a
+  parameter, names as code constants) — maintenance consumes it, not owns it.
 - Owns `/api/maintenance/assets/**` and `/api/maintenance/processes/**`
   (business-module APIs are namespaced by module). Reads require any
   authenticated user; each mutation is gated by

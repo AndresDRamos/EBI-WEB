@@ -1,13 +1,14 @@
 # ERD — `production` schema
 
-> Generated from the applied migrations `V11__produccion_schema.sql` and
-> `V12__rename_produccion_schema_to_production.sql` (Flyway schema version 12 in
-> `EBI_dev`; Kysely types regenerated via `pnpm db:gen`). V12 renamed the schema
-> `produccion` → `production` (ALTER SCHEMA TRANSFER); tables, columns,
-> constraints, indexes and relationships are unchanged from V11. Do not edit
-> by hand; the `docs-sync` sub-agent regenerates it at the close of each build.
+> Generated from the applied migrations `V11__produccion_schema.sql`,
+> `V12__rename_produccion_schema_to_production.sql` and
+> `V13__production_plant_layout.sql` (Flyway schema version 13 in `EBI_dev`,
+> confirmed via `flyway_schema_history` this session; Kysely types regenerated
+> via `pnpm db:gen` — 35 tables). V12 renamed the schema `produccion` →
+> `production`; V13 added the three plant-layout tables. Do not edit by hand;
+> the `docs-sync` sub-agent regenerates it at the close of each build.
 >
-> Last synced: 2026-07-06. Reflects V11 + V12.
+> Last synced: 2026-07-06. Reflects V11 + V12 + V13.
 
 ```mermaid
 erDiagram
@@ -46,10 +47,55 @@ erDiagram
         datetime2 created_at
     }
 
+    plant_layout {
+        int layout_id PK
+        int plant_id FK
+        int version "unique per plant"
+        nvarchar_160 name
+        nvarchar_1000 note
+        nvarchar_400 source_blob_path "archived source DXF in Azure Blob"
+        decimal_9_3 width_m
+        decimal_9_3 height_m
+        nvarchar_max geometry "normalized JSON, ISJSON-checked"
+        nvarchar_20 status "draft | active | archived"
+        int created_by FK
+        datetime2 created_at
+        datetime2 activated_at "set once, on confirm"
+        datetime2 archived_at "set once, when replaced/retired"
+    }
+
+    asset_footprint {
+        int footprint_id PK
+        int asset_id FK "UQ — one footprint per asset"
+        decimal_9_3 width_m
+        decimal_9_3 depth_m
+        nvarchar_max geometry "JSON polygon + ports, ISJSON-checked"
+        nvarchar_12 source_kind "dxf | rectangle"
+        nvarchar_400 source_blob_path "only when source_kind = dxf"
+        int created_by FK
+        datetime2 created_at
+        datetime2 updated_at
+    }
+
+    asset_placement {
+        int placement_id PK
+        int layout_id FK
+        int asset_id FK
+        decimal_9_3 x_m "footprint bbox center, meters"
+        decimal_9_3 y_m "footprint bbox center, meters"
+        decimal_5_2 rotation_deg "0 <= deg < 360, about the center"
+        date valid_from
+        date valid_to "NULL = currently in effect"
+        int created_by FK
+        nvarchar_1000 note
+        datetime2 created_at
+    }
+
     %% ── relationships ───────────────────────────────────────────────────────
 
     production_line ||--o{ cell : "sequences (optional line_id)"
     cell ||--o{ asset_cell_assignment : "composed of (temporal)"
+    plant_layout ||--o{ asset_placement : "positions (temporal)"
 ```
 
 ## Cross-schema FKs
@@ -60,6 +106,12 @@ erDiagram
   survives the asset being retired).
 - `asset_cell_assignment.created_by` → `auth.app_user.user_id` (no cascade:
   authorship history preserved).
+- `plant_layout.plant_id` → `auth.plant.plant_id` (no cascade).
+- `plant_layout.created_by` → `auth.app_user.user_id` (no cascade).
+- `asset_footprint.asset_id` → `maint.asset.asset_id` (no cascade).
+- `asset_footprint.created_by` → `auth.app_user.user_id` (no cascade).
+- `asset_placement.asset_id` → `maint.asset.asset_id` (no cascade).
+- `asset_placement.created_by` → `auth.app_user.user_id` (no cascade).
 
 All FKs are NO ACTION — catalog rows and history are protected, never cascaded.
 
@@ -94,4 +146,53 @@ All FKs are NO ACTION — catalog rows and history are protected, never cascaded
   rows stay optional for that category.
 - Grants: `ebi_app` = SELECT/INSERT/UPDATE/DELETE on schema `production`;
   `ebi_agent_ro` = SELECT (guarded, idempotent; re-issued by V12 after the
-  schema rename — schema-scoped grants do not survive `DROP SCHEMA`).
+  schema rename — schema-scoped grants do not survive `DROP SCHEMA`). V13
+  added **no** new grants: the V12 schema-level grants cover the new tables.
+
+## Design notes (V13 — plant layout)
+
+- **`plant_layout` is an immutable, versioned canvas per plant.** A DXF upload
+  is parsed into normalized JSON and lands as a `draft`; confirming it
+  activates the draft and archives the previous `active`. Geometry is never
+  edited in place — a correction is a new upload = a new version (ADR 0006).
+  `UQ_plant_layout_plant_version (plant_id, version)` numbers the versions;
+  the **filtered unique index `UQ_plant_layout_active` `(plant_id) WHERE
+  status = N'active'`** guarantees exactly one active layout per plant (drafts
+  and archived versions are unconstrained).
+- **No generic `updated_at` on `plant_layout`** — the only legitimate mutations
+  are lifecycle transitions, captured explicitly by `activated_at` /
+  `archived_at` (same reasoning as `asset_cell_assignment`).
+- **Geometry is JSON in `NVARCHAR(MAX)` (`ISJSON` CHECK), not the native
+  GEOMETRY type:** rendering happens client-side, no server-side spatial
+  predicates exist yet, and DXF-derived payloads (zones / aisles /
+  route-centerlines / ports + metadata) do not map cleanly onto OGC
+  primitives. Revisit only when a real spatial query appears.
+- **`asset_footprint` is ONE top-view shape per asset**
+  (`UQ_asset_footprint_asset`, which doubles as the FK-support index) and is
+  **editable in place** (`created_at`/`updated_at`, app-maintained): footprint
+  shape is presentation, not history. `CK_asset_footprint_source_kind`
+  (`dxf` | `rectangle`) and `CK_asset_footprint_source_path` (a rectangle has
+  no source file; only a `dxf` footprint may archive `source_blob_path`).
+- **`asset_placement` is the temporal position of an asset on a layout** —
+  same invariant family as `asset_cell_assignment`: reposition = close the
+  current row (`valid_to`) + insert a new one; `x_m`/`y_m`/`rotation_deg` are
+  never UPDATEd in place, and there is **no `updated_at` on purpose**.
+  `CK_asset_placement_rotation` (`0 ≤ deg < 360`), `CK_asset_placement_range`
+  (`valid_to ≥ valid_from` or NULL).
+- **Filtered unique index `UQ_asset_placement_current` `(layout_id, asset_id)
+  WHERE valid_to IS NULL`**: one *current* placement per asset **per layout**
+  — deliberately NOT per asset globally, so a draft layout can be populated
+  while the active layout still holds the asset's live position (the
+  draft-preparation overlap window). Physical truth ("where is the asset
+  really") = current placement JOIN its layout WHERE `status = 'active'`;
+  `UQ_plant_layout_active` guarantees that join yields at most one row per
+  plant. On activation the app closes the outgoing layout's open rows and
+  inserts fresh rows on the new version (carry-forward); archived layouts keep
+  their closed history untouched. `IX_asset_placement_layout` /
+  `IX_asset_placement_asset` `(…, valid_from)` serve composition and history
+  queries.
+- **Cross-schema invariant enforced by the app, not the DB** (house style: no
+  triggers): `maint.asset.plant_id` must match `plant_layout.plant_id` for a
+  placement — validated by the API when creating placements (422 otherwise).
+- Blob paths only, never content: `source_blob_path` points at the archived
+  original DXF in the private `production` container (account `ezistorage`).

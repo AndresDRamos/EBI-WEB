@@ -21,8 +21,12 @@ binary payloads, and the portal already runs against Azure services.
   request (`src/lib/storage/blob.ts`). Uploads are server-side through the API
   route — the browser never holds account credentials.
 - **Configuration by env var name** (values in `.env` / Key Vault, never in
-  the repo): `AZURE_STORAGE_CONNECTION_STRING`,
-  `AZURE_STORAGE_CONTAINER_MAINT`.
+  the repo): `AZURE_STORAGE_CONNECTION_STRING`.
+  *Amended 2026-07-06 (plan plant-layout-foundation):* container names are
+  **code constants** (`BLOB_CONTAINERS` in `src/lib/storage/blob.ts`), not env
+  vars — they are not secrets, and per-environment separation comes from the
+  per-environment connection string. `AZURE_STORAGE_CONTAINER_MAINT` was
+  removed.
 - **Blob key convention:** `assets/{asset_id}/{timestamp}-{sanitized-filename}`.
   The DB row is the source of truth for the mapping; blobs are never
   enumerated to reconstruct state.

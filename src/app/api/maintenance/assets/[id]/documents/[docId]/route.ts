@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { findDocumentById, softDeleteDocument } from "@/modules/maintenance/db";
-import { getDocumentSasUrl } from "@/lib/storage/blob";
+import { BLOB_CONTAINERS, getBlobSasUrl } from "@/lib/storage/blob";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse } from "@/lib/auth/api";
 
@@ -33,7 +33,7 @@ export async function GET(
         { status: 404 },
       );
     }
-    const url = await getDocumentSasUrl(doc.blob_path);
+    const url = await getBlobSasUrl(BLOB_CONTAINERS.maintenance, doc.blob_path);
     return NextResponse.redirect(url, 302);
   } catch (err) {
     const res = authErrorResponse(err);

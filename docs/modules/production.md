@@ -30,8 +30,8 @@ axes:
   - `db.ts` (V11 tables — untouched by V13; maintenance consumes its exports)
     plus the V13 data layer `db/{shared,layout,footprint,placement}.ts`. Both
     bind the client with `withSchema("production")`; cross-schema display
-    names (`auth.plant`, `maint.asset`) resolve as separate per-schema queries
-    merged in JS (`db/shared.ts` helpers).
+    names (`org.plant` since V15, `maint.asset`) resolve as separate per-schema
+    queries merged in JS (`db/shared.ts` helpers).
   - `dxf/` — the **pure** DXF import pipeline (no I/O, no `server-only`):
     `decode.ts` (UTF-8 for `$ACADVER >= AC1021`, `$DWGCODEPAGE` mapping for
     legacy files), `parse.ts` (`dxf-parser`, extracts the `EBI-*` layers),
@@ -114,7 +114,7 @@ axes:
   `AZURE_STORAGE_CONTAINER_MAINT` was removed and maintenance call sites
   updated). Uploads go through `uploadBlob(container, key, …)` +
   `buildBlobKey(prefix, filename)`.
-- Does **not** own assets (`maint.asset`) or plants (`auth.plant`) —
+- Does **not** own assets (`maint.asset`) or plants (`org.plant` since V15) —
   placements/footprints/assignments reference them; `findAssetById` from
   `maintenance/db.ts` validates asset existence/plant in the API layer.
 

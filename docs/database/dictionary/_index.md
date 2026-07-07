@@ -3,10 +3,10 @@
 > Maintained by the `docs-sync` sub-agent, which runs at the end of every
 > `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-06. Reflects V1–V13 (this sync sourced from the applied
-> migration file `V13` + regenerated Kysely types (`pnpm db:gen`, 35 tables),
+> Last synced: 2026-07-07. Reflects V1–V15 (this sync sourced from the applied
+> migration file `V15` + regenerated Kysely types (`pnpm db:gen`, 36 tables),
 > not live introspection; `flyway_schema_history` in `EBI_dev` reports schema
-> version 13, success).
+> version 15, success).
 >
 > **How to read:** find the table below, then open only its schema page —
 > never read the whole folder. One page per schema, mirroring
@@ -25,8 +25,7 @@ when the feature is rebuilt).
 
 - `auth.app_user` — portal user accounts; login identity is `username`.
 - `auth.role` — RBAC role catalog; since V8 a role = access profile (ADR 0004), optionally department-scoped.
-- `auth.plant` — plant catalog managed by portal admins.
-- `auth.department` — department catalog managed by portal admins.
+- `auth.department` — department catalog managed by portal admins. (`plant` moved to `org` in V15.)
 - `auth.user_role` — M:N user ↔ role.
 - `auth.user_plant` — M:N user ↔ plant (ignored when `all_plants = 1`).
 - `auth.user_department` — M:N user ↔ department.
@@ -37,11 +36,19 @@ when the feature is rebuilt).
 - `auth.permission` — permission catalog `<module>.<resource>:<action>` (plan 0006).
 - `auth.role_permission` — access profile → permission grant.
 
+## [org](org.md)
+
+Created in V15 by transferring `auth.plant` → `org.plant` and `maint.process`
+→ `org.process` (columns unchanged) plus a new N:M link.
+
+- `org.plant` — plant catalog managed by portal admins (moved from `auth`).
+- `org.process` — company-wide manufacturing process catalog (promoted from `maint`).
+- `org.plant_process` — M:N link "which processes each plant runs" (link-row only).
+
 ## [maint](maint.md)
 
-- `maint.process` — manufacturing process catalog (stamping, welding, ...).
 - `maint.asset` — machine/equipment catalog; `code` is the internal tag (QR payload).
-- `maint.asset_process` — M:N asset ↔ process.
+- `maint.asset_process` — M:N asset ↔ `org.process` (cross-schema since V15).
 - `maint.asset_restriction` — operational/safety limitations per asset.
 - `maint.asset_document` — document metadata; bytes live in Azure Blob Storage.
 - `maint.spare_part` — spare-part catalog (single maintenance warehouse in v1).

@@ -26,6 +26,11 @@
 
 None currently — see *Where the history lives* for recently committed plans.
 
+The new `org` schema (V15, plan org-schema-plant-process, ADR 0007) separates
+organization from identity: `plant` moved from `auth`, `process` unified from
+`maint`, + N:M `org.plant_process`; process admin lives in the admin panel
+(Organización tabs). `user_plant`/`department`/`role` stay in `auth`.
+
 The `production` nav section remains dark-launched: activation in
 `/admin/portal/modules` is a pending human step
 (production-cell-assignment was committed 2026-07-03).

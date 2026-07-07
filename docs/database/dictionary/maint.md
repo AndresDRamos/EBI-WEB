@@ -1,7 +1,7 @@
 # Data dictionary — schema `maint`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-03 (V1–V11). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-07 (V1–V15). Index: [`_index.md`](_index.md).
 
 Mantenimiento module (CMMS): asset catalog, documents, spare parts with an
 append-only stock ledger, preventive/autonomous maintenance plans and work
@@ -10,19 +10,9 @@ constraints (no lookup tables). Soft-delete via `is_active`; `updated_at` is
 app-maintained (no triggers). See plan `docs/plans/0004-*` and
 `docs/modules/maintenance.md`.
 
-## `maint.process`
-
-Manufacturing process catalog (stamping, welding, ...).
-
-| Column | Type | Nullable | Constraints | Description |
-|---|---|---|---|---|
-| process_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
-| code | nvarchar(32) | no | UQ | Short process code |
-| name | nvarchar(160) | no | | Process name |
-| description | nvarchar(512) | yes | | Optional description |
-| is_active | bit | no | DEFAULT 1 | Soft-delete flag |
-| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
-| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
+> **`process` moved out in V15.** The process catalog is now `org.process`
+> (company-wide) — see [`org.md`](org.md). `maint.asset_process` stays here;
+> its `process_id` is now a cross-schema FK to `org.process`.
 
 ## `maint.asset`
 
@@ -37,7 +27,7 @@ Machine/equipment catalog. `code` is the internal tag (QR payload).
 | brand | nvarchar(120) | yes | | Manufacturer brand |
 | model | nvarchar(120) | yes | | Model |
 | serial_number | nvarchar(120) | yes | | Serial number |
-| plant_id | int | no | FK → auth.plant (no cascade) | Plant where the asset lives |
+| plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15) | Plant where the asset lives |
 | location | nvarchar(160) | yes | | Free-text area/cell (v1). Physical location is now historized in `production.asset_cell_assignment`; this column survives until a future decision |
 | criticality | char(1) | no | DEFAULT 'C', CHECK IN ('A','B','C') | Criticality class |
 | status | nvarchar(20) | no | DEFAULT `active`, CHECK IN (`active`,`in_repair`,`standby`,`retired`) | Operational status |
@@ -53,12 +43,14 @@ Indexes: `IX_asset_plant (plant_id, is_active)`, `IX_asset_parent (parent_asset_
 
 ## `maint.asset_process`
 
-Many-to-many join between `asset` and `process` (multi-process machines, storage).
+Many-to-many join between `asset` and the company-wide process catalog
+(multi-process machines, storage). Stays in `maint`; since V15 its `process_id`
+is a **cross-schema FK to `org.process`**.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
 | asset_id | int | no | PK, FK → maint.asset (CASCADE DELETE) | Asset reference |
-| process_id | int | no | PK, FK → maint.process (no cascade) | Process reference |
+| process_id | int | no | PK, FK → org.process (no cascade; cross-schema since V15) | Process reference |
 
 Indexes: `IX_asset_process_process (process_id)`.
 

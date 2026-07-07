@@ -1,7 +1,9 @@
 # Data dictionary — schema `production`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-06 (V1–V13). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-07 (V1–V15). Index: [`_index.md`](_index.md).
+> V15 left `production`'s tables unchanged but transferred `auth.plant` →
+> `org.plant`, so the `plant_id` FKs below now cross to `org.plant`.
 
 Production module (created as `produccion` by V11, plan
 production-cell-assignment; renamed to `production` by V12, plan
@@ -27,7 +29,7 @@ Op 10 → Op 20 → Op 30). Not every cell needs one.
 | line_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
 | code | nvarchar(32) | no | UQ | Short line code |
 | name | nvarchar(160) | no | | Line name |
-| plant_id | int | no | FK → auth.plant (no cascade) | Plant the line belongs to |
+| plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15) | Plant the line belongs to |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
@@ -44,7 +46,7 @@ Logical production post/function. `line_id` is nullable: standalone cells
 | cell_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
 | code | nvarchar(32) | no | UQ | Short cell code |
 | name | nvarchar(160) | no | | Cell name |
-| plant_id | int | no | FK → auth.plant (no cascade) | Plant the cell belongs to |
+| plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15) | Plant the cell belongs to |
 | line_id | int | yes | FK → production.production_line (no cascade) | Owning line; NULL = standalone cell |
 | sequence_in_line | int | yes | CHECK > 0 (or NULL); CHECK requires line_id set (`CK_cell_sequence_requires_line`) | Position within the line (Op order) |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
@@ -95,7 +97,7 @@ mutations are lifecycle transitions, captured by `activated_at` / `archived_at`.
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
 | layout_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
-| plant_id | int | no | FK → auth.plant (no cascade); UQ with version | Plant the canvas belongs to |
+| plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15); UQ with version | Plant the canvas belongs to |
 | version | int | no | CHECK > 0; UQ `(plant_id, version)` | Version number within the plant |
 | name | nvarchar(160) | no | | Layout name (defaults to the uploaded filename) |
 | note | nvarchar(1000) | yes | | Optional note |

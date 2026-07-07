@@ -5,20 +5,12 @@
 > `asset.asset_category`). No editar a mano; lo regenera el sub-agente
 > `docs-sync` al cierre de cada `/build-plan`.
 >
-> Última sincronización: 2026-07-03. Refleja V5 + V6 + V11.
+> Última sincronización: 2026-07-07. Refleja V5 + V6 + V11 + V15. V15 promovió
+> `maint.process` → `org.process` (ver `docs/database/erd/org.md`);
+> `asset_process` permanece en `maint`.
 
 ```mermaid
 erDiagram
-
-    process {
-        int process_id PK
-        nvarchar_32 code
-        nvarchar_160 name
-        nvarchar_512 description
-        bit is_active
-        datetime2 created_at
-        datetime2 updated_at
-    }
 
     asset {
         int asset_id PK
@@ -167,7 +159,7 @@ erDiagram
     asset ||--o{ asset : "sub-ensamble (parent_asset_id)"
 
     asset   ||--o{ asset_process : "runs"
-    process ||--o{ asset_process : "performed by"
+    %% asset_process.process_id is a cross-schema FK to org.process (moved in V15).
 
     asset ||--o{ asset_restriction : "restricted by"
     asset ||--o{ asset_document    : "documented by"
@@ -190,7 +182,8 @@ erDiagram
 
 ## FKs hacia otros esquemas
 
-- `asset.plant_id` → `auth.plant.plant_id` (sin cascade).
+- `asset.plant_id` → `org.plant.plant_id` (sin cascade; antes `auth.plant`, movida en V15).
+- `asset_process.process_id` → `org.process.process_id` (sin cascade; antes `maint.process`, promovida en V15).
 - `asset_document.uploaded_by` → `auth.app_user.user_id` (sin cascade).
 - `work_order.assigned_to`, `work_order.completed_by` → `auth.app_user.user_id` (sin cascade).
 - `work_order_task.done_by` → `auth.app_user.user_id` (sin cascade).

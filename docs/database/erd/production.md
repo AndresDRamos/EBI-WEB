@@ -8,7 +8,10 @@
 > `production`; V13 added the three plant-layout tables. Do not edit by hand;
 > the `docs-sync` sub-agent regenerates it at the close of each build.
 >
-> Last synced: 2026-07-06. Reflects V11 + V12 + V13.
+> Last synced: 2026-07-07. Reflects V11 + V12 + V13 + V15. V15 did not change
+> `production`'s tables; it transferred `auth.plant` → `org.plant`, so the
+> `plant_id` FKs below now cross to `org` (re-pointed by `object_id`, not
+> recreated). See `docs/database/erd/org.md`.
 
 ```mermaid
 erDiagram
@@ -100,13 +103,13 @@ erDiagram
 
 ## Cross-schema FKs
 
-- `production_line.plant_id` → `auth.plant.plant_id` (no cascade).
-- `cell.plant_id` → `auth.plant.plant_id` (no cascade).
+- `production_line.plant_id` → `org.plant.plant_id` (no cascade; was `auth.plant` before V15).
+- `cell.plant_id` → `org.plant.plant_id` (no cascade; was `auth.plant` before V15).
 - `asset_cell_assignment.asset_id` → `maint.asset.asset_id` (no cascade: history
   survives the asset being retired).
 - `asset_cell_assignment.created_by` → `auth.app_user.user_id` (no cascade:
   authorship history preserved).
-- `plant_layout.plant_id` → `auth.plant.plant_id` (no cascade).
+- `plant_layout.plant_id` → `org.plant.plant_id` (no cascade; was `auth.plant` before V15).
 - `plant_layout.created_by` → `auth.app_user.user_id` (no cascade).
 - `asset_footprint.asset_id` → `maint.asset.asset_id` (no cascade).
 - `asset_footprint.created_by` → `auth.app_user.user_id` (no cascade).

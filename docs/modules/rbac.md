@@ -30,7 +30,11 @@ with no grant rows — the bypass keys on the role **name**, never on
   server-side in `(portal)/layout.tsx`, cache tag `"permissions"`).
 - Does **not** own: the permission catalog content — each module's migration
   seeds its own permission rows (V8 seeded org/reports/navigation/maintenance
-  retroactively; blueprint §1/§3). Does not own page-level admin gating
+  retroactively; V11 added `production.*`; V15 added
+  `org.process:{create,update,delete}` + `org.plant_process:assign` and
+  **retired** `maintenance.process:{create,update,delete}` — the process
+  catalog is now governed from the `org` module, not maintenance; blueprint
+  §1/§3). Does not own page-level admin gating
   (`assertAdminOrRedirect` on the `/admin` layout stays) nor nav visibility
   (`modules/navigation` — showing a section is unrelated to permitting its
   actions).

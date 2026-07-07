@@ -1,15 +1,22 @@
 # maintenance
 
-**Last synced:** 2026-07-03 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11)
+**Last synced:** 2026-07-07 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11) + plan org-schema-plant-process (process catalog moved to `org`, V15)
 
 ## Purpose
 
 CMMS module of the EBI portal. Fase A ships the asset catalog: machines and
-manufacturing equipment (`maint.asset`) with processes, operational/safety
+manufacturing equipment (`maint.asset`) with process links, operational/safety
 restrictions, documents stored in Azure Blob Storage, and a printable QR label
 per asset that deep-links to the asset's detail page. The full data model for
 later phases (maintenance plans, work orders, spare parts) is already migrated
 (V5 + V6) but has no UI yet — see plan 0004's open phases.
+
+Since V15 the **process catalog itself is no longer owned here** — it moved to
+the `org` schema (`org.process`) and is administered from the admin panel
+(Organización group), not the maintenance module. Maintenance keeps only the
+**asset↔process link** (`maint.asset_process`), gated by the existing
+`maintenance.asset:update` permission (asset-process linking rides on it; there
+is no dedicated `maintenance.process:*` permission — those were retired in V15).
 
 ## Responsibilities
 
@@ -21,22 +28,26 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   downloads are 302 redirects to 15-minute SAS URLs. The blob helper
   (`src/lib/storage/blob.ts`) is **shared infra** since V13 (container as a
   parameter, names as code constants) — maintenance consumes it, not owns it.
-- Owns `/api/maintenance/assets/**` and `/api/maintenance/processes/**`
-  (business-module APIs are namespaced by module). Reads require any
-  authenticated user; each mutation is gated by
+- Owns `/api/maintenance/assets/**` (business-module APIs are namespaced by
+  module). There is **no** `/api/maintenance/processes/**` anymore — the
+  process CRUD moved to `/api/org/processes/**` under the `org` module in V15.
+  Reads require any authenticated user; each mutation is gated by
   `requirePermission("maintenance.<resource>:<action>")` (plan 0006 — this
   module was the pilot; the `admin` profile bypasses at the app layer). The
   permission codes are seeded in V8; see `docs/modules/rbac.md`.
 - Owns the `(portal)/maintenance/*` UI: machines list (generic `DataTable`
   from `src/components/kit/`, with a Categoría column + catalog filter since
   V11), machine detail (Datos / Procesos / Restricciones / Documentos /
-  Ubicación tabs), process catalog, printable QR label. The **Ubicación tab is
+  Ubicación tabs), printable QR label. There is **no** `/maintenance/process`
+  page anymore — the process catalog page (and its `Procesos` nav item, V9)
+  were retired in V15; the machine-detail Procesos tab still links/saves the
+  asset↔process assignment (picking from `org.process`), and its "create them"
+  link now points to `/admin/organization/processes`. The **Ubicación tab is
   read-only**: it shows the asset's current cell assignments + history read
   from `production/db.listHistoryByAsset`; all assignment actions live in the
-  production cell detail. The
-  segment `layout.tsx` gates the whole tree with
+  production cell detail. The segment `layout.tsx` gates the whole tree with
   `requireSectionOrRedirect("maintenance")` (page authz by section grant, ADR
-  0005); the `Máquinas`/`Procesos` nav items are seeded by V9.
+  0005); the `Máquinas` nav item is seeded by V9.
 - `maint.asset.asset_category` (`production_equipment` | `material_handling`,
   added V11): the machine form exposes an **explicit required select** —
   data loading must not rely on the DB default, which only suits manufacturing
@@ -44,10 +55,12 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   data-analyst 2026-07-03). The `location` free-text column still exists (and
   shows in Datos) until a future decision; the source of truth for physical
   location is now `production.asset_cell_assignment`.
-- Does **not** own plants (module `org`, `auth.plant`) — assets reference
-  them. Does not own users (`auth.app_user`) — document uploads and future
-  work orders reference them. Does not own lines/cells/assignments (module
-  `production`, schema `production` since V12) — it only reads them for display.
+- Does **not** own plants (module `org`, `org.plant` since V15) nor the process
+  catalog (module `org`, `org.process` since V15) — assets and `asset_process`
+  reference them cross-schema. Does not own users (`auth.app_user`) — document
+  uploads and future work orders reference them. Does not own
+  lines/cells/assignments (module `production`, schema `production` since V12) —
+  it only reads them for display.
 - Restrictions are managed through dedicated sub-routes
   (`/api/maintenance/assets/[id]/restrictions[/...]`), not inside the asset
   PATCH payload (executor's choice per plan step 5).
@@ -59,15 +72,22 @@ later phases (maintenance plans, work orders, spare parts) is already migrated
   `canManage`/`isAdmin` prop: action visibility is gated client-side by
   `useCan()` from `PermissionsProvider` (seeded in `(portal)/layout.tsx`);
   the API re-checks with `requirePermission` per request.
-- `/api/maintenance/{assets,processes}/**` → `modules/maintenance/db.ts`;
-  document routes also → `src/lib/storage/blob.ts` (Azure Blob).
+- `/api/maintenance/assets/**` → `modules/maintenance/db.ts`; document routes
+  also → `src/lib/storage/blob.ts` (Azure Blob). (Process CRUD is
+  `/api/org/processes/**` → `modules/org/db/processes.ts` since V15;
+  `maintenance/db.ts` keeps only thin `org`-bound reads `listProcesses` /
+  `findProcessById`, re-exported from `modules/org/db/processes`, for the
+  machine-detail picker.)
 - QR label page → `qrcode` (server-side data URL) → encodes
   `{NEXT_PUBLIC_APP_URL}/maintenance/machines/{code}` (falls back to the
   request origin when the env var is unset).
-- `maint.asset.plant_id` → `auth.plant`; `maint.asset_document.uploaded_by` →
-  `auth.app_user` (cross-schema queries resolved as separate per-schema
-  queries merged in JS — a typed cross-schema join is not expressible with
-  the flattened codegen keys).
+- `maint.asset.plant_id` → `org.plant` (since V15); `maint.asset_process
+  .process_id` → `org.process` (since V15); `maint.asset_document.uploaded_by`
+  → `auth.app_user` (cross-schema queries resolved as separate per-schema
+  queries merged in JS — a typed cross-schema join is not expressible with the
+  flattened codegen keys; the process-name join in `listAssets` /
+  `getAssetDetail` now resolves via an `org`-bound query, same technique as
+  `plantNamesById`).
 - **maintenance → production (one-way, justified):**
   `modules/maintenance/enums.ts` re-exports the canonical asset-category
   domain from `modules/production/enums.ts` (V11 owns the CHECK), and the

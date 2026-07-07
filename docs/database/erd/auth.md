@@ -3,8 +3,10 @@
 > Generado desde el esquema vivo (`ebi-sql-dev`, read-only). No editar a mano; lo regenera
 > el sub-agente `docs-sync` al cierre de cada `/build-plan`.
 >
-> Última sincronización: 2026-07-02. Refleja V1 + V2 + V3 + V4 + V7 + V8 (V5/V6
-> pertenecen al esquema `maint`, ver `docs/database/erd/maint.md`).
+> Última sincronización: 2026-07-07. Refleja V1 + V2 + V3 + V4 + V7 + V8 + V15
+> (V5/V6 pertenecen al esquema `maint`, ver `docs/database/erd/maint.md`). V15
+> transfirió `auth.plant` → `org.plant` (ver `docs/database/erd/org.md`);
+> `user_plant` permanece en `auth`.
 
 ```mermaid
 erDiagram
@@ -41,17 +43,6 @@ erDiagram
     role_permission {
         int role_id PK,FK
         int permission_id PK,FK
-    }
-
-    plant {
-        int plant_id PK
-        nvarchar_32 code
-        nvarchar_160 name
-        bit is_active
-        datetime2 created_at
-        datetime2 updated_at
-        nvarchar_256 address
-        nvarchar_16 postal_code
     }
 
     department {
@@ -125,7 +116,7 @@ erDiagram
     role      ||--o{ user_role : "assigned to"
 
     app_user ||--o{ user_plant : "has access to"
-    plant    ||--o{ user_plant : "granted to"
+    %% user_plant.plant_id is a cross-schema FK to org.plant (moved in V15).
 
     app_user   ||--o{ user_department : "belongs to"
     department ||--o{ user_department : "contains"
@@ -143,3 +134,10 @@ erDiagram
     role       ||--o{ role_permission : "granted"
     permission ||--o{ role_permission : "granted via"
 ```
+
+## FKs hacia otros esquemas
+
+- `auth.user_plant.plant_id` → `org.plant.plant_id` (sin cascade). La tabla
+  `user_plant` (scope de identidad: qué plantas ve un usuario) sigue en `auth`;
+  su FK cruza a `org` desde V15, cuando `plant` se transfirió a `org` (ver
+  `docs/database/erd/org.md`).

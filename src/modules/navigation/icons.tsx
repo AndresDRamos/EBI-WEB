@@ -10,6 +10,7 @@ import {
   LayoutGrid,
   Layers,
   Lock,
+  Map,
   ShieldCheck,
   Truck,
   UserSquare2,
@@ -35,6 +36,7 @@ export const NAV_ICON_NAMES = [
   "Boxes",
   "Layers",
   "LayoutGrid",
+  "Map",
   "Wallet",
   "Truck",
   "UserSquare2",
@@ -79,6 +81,8 @@ export function NavIcon({
       return <Layers className={className} />;
     case "LayoutGrid":
       return <LayoutGrid className={className} />;
+    case "Map":
+      return <Map className={className} />;
     case "Wallet":
       return <Wallet className={className} />;
     case "Truck":

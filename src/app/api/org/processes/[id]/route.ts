@@ -3,7 +3,7 @@ import {
   findProcessById,
   updateProcess,
   deleteProcess,
-} from "@/modules/maintenance/db";
+} from "@/modules/org/db/processes";
 import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -14,7 +14,7 @@ interface UpdateBody {
   is_active?: unknown;
 }
 
-/** PUT /api/maintenance/processes/[id] — update a process (admin). */
+/** PUT /api/org/processes/[id] — update a process (admin panel). */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -49,7 +49,7 @@ export async function PUT(
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
   }
   try {
-    await requirePermission("maintenance.process:update");
+    await requirePermission("org.process:update");
     if (!(await findProcessById(id))) {
       return NextResponse.json({ error: "Proceso no encontrado." }, { status: 404 });
     }
@@ -62,7 +62,7 @@ export async function PUT(
     if (/unique/i.test(msg)) {
       return NextResponse.json({ error: "El código ya existe." }, { status: 409 });
     }
-    console.error("PUT /api/maintenance/processes/[id] failed:", err);
+    console.error("PUT /api/org/processes/[id] failed:", err);
     return NextResponse.json(
       { error: "No se pudo actualizar el proceso." },
       { status: 500 },
@@ -70,7 +70,8 @@ export async function PUT(
   }
 }
 
-/** DELETE /api/maintenance/processes/[id] — hard delete (admin); 409 if assets link it. */
+/** DELETE /api/org/processes/[id] — hard delete (admin); 409 if assets or
+ * plants still link it. */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -80,7 +81,7 @@ export async function DELETE(
     return NextResponse.json({ error: "ID inválido." }, { status: 400 });
   }
   try {
-    await requirePermission("maintenance.process:delete");
+    await requirePermission("org.process:delete");
     if (!(await findProcessById(id))) {
       return NextResponse.json({ error: "Proceso no encontrado." }, { status: 404 });
     }
@@ -89,9 +90,12 @@ export async function DELETE(
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
-    console.error("DELETE /api/maintenance/processes/[id] failed:", err);
+    console.error("DELETE /api/org/processes/[id] failed:", err);
     return NextResponse.json(
-      { error: "No se pudo eliminar el proceso (¿tiene equipos vinculados?)." },
+      {
+        error:
+          "No se pudo eliminar el proceso (¿tiene equipos o plantas vinculados?).",
+      },
       { status: 409 },
     );
   }

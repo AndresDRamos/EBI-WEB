@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listProcesses, createProcess } from "@/modules/maintenance/db";
+import { listProcesses, createProcess } from "@/modules/org/db/processes";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
-/** GET /api/maintenance/processes — list manufacturing processes (any authenticated user). */
+/** GET /api/org/processes — list company processes (any authenticated user). */
 export async function GET() {
   try {
     await requireUser();
@@ -22,7 +22,7 @@ interface CreateBody {
   description?: unknown;
 }
 
-/** POST /api/maintenance/processes — create a process (admin). */
+/** POST /api/org/processes — create a process (admin panel). */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
   try {
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       ? body.description.trim()
       : null;
   try {
-    await requirePermission("maintenance.process:create");
+    await requirePermission("org.process:create");
     const process = await createProcess({ code, name, description });
     return NextResponse.json({ process }, { status: 201 });
   } catch (err) {
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (/unique/i.test(msg)) {
       return NextResponse.json({ error: "El código ya existe." }, { status: 409 });
     }
-    console.error("POST /api/maintenance/processes failed:", err);
+    console.error("POST /api/org/processes failed:", err);
     return NextResponse.json(
       { error: "No se pudo crear el proceso." },
       { status: 500 },

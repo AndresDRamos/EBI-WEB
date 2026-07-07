@@ -22,11 +22,10 @@ export interface ProcessesTablePageProps {
   processes: ProcessesTableRow[];
 }
 
-/** Procesos catalog — manufacturing processes assets can execute. Actions
- * gate per-permission via `useCan` (plan 0006); the API re-checks. */
-export function ProcessesTablePage({
-  processes,
-}: ProcessesTablePageProps) {
+/** Procesos catalog — company-wide processes (`org.process`). Administered from
+ * the admin panel; equipment and plants both link to this catalog. Actions gate
+ * per-permission via `useCan` (the API re-checks). */
+export function ProcessesTablePage({ processes }: ProcessesTablePageProps) {
   const can = useCan();
   const router = useRouter();
   const [modalState, setModalState] = React.useState<{
@@ -69,7 +68,7 @@ export function ProcessesTablePage({
     setBusy(true);
     try {
       const id = modalState.editId;
-      const url = id ? `/api/maintenance/processes/${id}` : "/api/maintenance/processes";
+      const url = id ? `/api/org/processes/${id}` : "/api/org/processes";
       const method = id ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -97,7 +96,7 @@ export function ProcessesTablePage({
   async function onSoftDelete(
     row: ProcessesTableRow,
   ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/maintenance/processes/${row.process_id}`, {
+    const res = await fetch(`/api/org/processes/${row.process_id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: false }),
@@ -113,7 +112,7 @@ export function ProcessesTablePage({
   async function onHardDelete(
     row: ProcessesTableRow,
   ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/maintenance/processes/${row.process_id}`, {
+    const res = await fetch(`/api/org/processes/${row.process_id}`, {
       method: "DELETE",
     });
     if (!res.ok) {
@@ -121,7 +120,8 @@ export function ProcessesTablePage({
       return {
         ok: false,
         error:
-          d.error ?? "No se pudo eliminar el proceso (¿tiene equipos vinculados?).",
+          d.error ??
+          "No se pudo eliminar el proceso (¿tiene equipos o plantas vinculados?).",
       };
     }
     router.refresh();
@@ -131,7 +131,7 @@ export function ProcessesTablePage({
   async function onRestore(
     row: ProcessesTableRow,
   ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/maintenance/processes/${row.process_id}`, {
+    const res = await fetch(`/api/org/processes/${row.process_id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: true }),
@@ -183,16 +183,16 @@ export function ProcessesTablePage({
       <DataTable
         icon={Cog}
         title="Procesos"
-        subtitle="Catálogo de procesos de manufactura. Un equipo puede ejecutar varios procesos."
+        subtitle="Catálogo de procesos de la empresa. Los equipos y las plantas se vinculan a este catálogo."
         rows={processes}
         getRowId={(r) => r.process_id}
         columns={columns}
         isActive={(r) => r.is_active}
-        onAdd={can("maintenance.process:create") ? openCreate : undefined}
-        onEdit={can("maintenance.process:update") ? openEdit : undefined}
-        onSoftDelete={can("maintenance.process:update") ? onSoftDelete : undefined}
-        onHardDelete={can("maintenance.process:delete") ? onHardDelete : undefined}
-        onRestore={can("maintenance.process:update") ? onRestore : undefined}
+        onAdd={can("org.process:create") ? openCreate : undefined}
+        onEdit={can("org.process:update") ? openEdit : undefined}
+        onSoftDelete={can("org.process:update") ? onSoftDelete : undefined}
+        onHardDelete={can("org.process:delete") ? onHardDelete : undefined}
+        onRestore={can("org.process:update") ? onRestore : undefined}
         addLabel="Nuevo proceso"
         onAfterChange={() => router.refresh()}
       />

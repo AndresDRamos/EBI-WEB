@@ -2,18 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Download,
-  FileText,
-  Pencil,
-  Plus,
-  QrCode,
-  Trash2,
-} from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Download, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,32 +12,13 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
 import { useCan } from "@/components/providers/permissions-provider";
-import {
-  MachineFormDialog,
-  type MachineFormAsset,
-  type PlantOption,
-  type TypeOption,
-  type ProcessOption,
-  type ParentOption,
-} from "@/modules/maintenance/components/machine-form-dialog";
-import { StatusBadge } from "@/modules/maintenance/components/machine-badges";
+import type { ProcessOption } from "@/modules/maintenance/components/machine-form-dialog";
 import {
   DOC_TYPES,
   RESTRICTION_TYPES,
   docTypeLabel,
   restrictionTypeLabel,
 } from "@/modules/maintenance/enums";
-import { cn } from "@/lib/utils";
-
-export interface MachineDetailAsset extends MachineFormAsset {
-  plant_name: string;
-  parent_code: string | null;
-  type_name: string;
-  category_name: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 export type { ProcessOption };
 
@@ -80,239 +52,11 @@ export interface AssignmentItem {
   valid_to: string | null;
 }
 
-export interface MachineDetailProps {
-  asset: MachineDetailAsset;
-  assetProcessIds: number[];
-  restrictions: RestrictionItem[];
-  documents: DocumentItem[];
-  assignments: AssignmentItem[];
-  allProcesses: ProcessOption[];
-  plants: PlantOption[];
-  types: TypeOption[];
-  parents: ParentOption[];
-}
-
-type TabId = "datos" | "procesos" | "ubicacion" | "restricciones" | "documentos";
-
-const TABS: { id: TabId; label: string }[] = [
-  { id: "datos", label: "Datos" },
-  { id: "procesos", label: "Procesos" },
-  { id: "ubicacion", label: "Ubicación" },
-  { id: "restricciones", label: "Restricciones" },
-  { id: "documentos", label: "Documentos" },
-];
-
-/** Asset detail page: header + Datos / Procesos / Restricciones / Documentos.
- * Actions gate per-permission via `useCan` (plan 0006); the API re-checks. */
-export function MachineDetail({
-  asset,
-  assetProcessIds,
-  restrictions,
-  documents,
-  assignments,
-  allProcesses,
-  plants,
-  types,
-  parents,
-}: MachineDetailProps) {
-  const can = useCan();
-  const router = useRouter();
-  const [tab, setTab] = React.useState<TabId>("datos");
-  const [editOpen, setEditOpen] = React.useState(false);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/maintenance/machines"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-sm text-muted-foreground hover:bg-gray-100"
-            aria-label="Volver a equipos"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold">{asset.name}</h1>
-              <StatusBadge value={asset.status} />
-              {!asset.is_active ? (
-                <Badge variant="outline" className="border-gray-300 text-gray-500">
-                  Inactivo
-                </Badge>
-              ) : null}
-            </div>
-            <p className="font-mono text-sm text-muted-foreground">{asset.code}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/maintenance/machines/${encodeURIComponent(asset.code)}/label`}
-            target="_blank"
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            <QrCode className="h-4 w-4" />
-            Etiqueta QR
-          </Link>
-          {can("maintenance.asset:update") ? (
-            <Button onClick={() => setEditOpen(true)}>
-              <Pencil className="h-4 w-4" />
-              Editar
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      <div role="tablist" className="flex gap-1 border-b">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "-mb-px border-b-2 px-4 py-2 text-sm transition-colors",
-              tab === t.id
-                ? "border-ezi-orange font-semibold text-ezi-gray"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "datos" ? <DatosTab asset={asset} /> : null}
-      {tab === "procesos" ? (
-        <ProcesosTab
-          assetId={asset.asset_id}
-          assetProcessIds={assetProcessIds}
-          allProcesses={allProcesses}
-          onChanged={() => router.refresh()}
-        />
-      ) : null}
-      {tab === "ubicacion" ? <UbicacionTab assignments={assignments} /> : null}
-      {tab === "restricciones" ? (
-        <RestriccionesTab
-          assetId={asset.asset_id}
-          restrictions={restrictions}
-          onChanged={() => router.refresh()}
-        />
-      ) : null}
-      {tab === "documentos" ? (
-        <DocumentosTab
-          assetId={asset.asset_id}
-          documents={documents}
-          onChanged={() => router.refresh()}
-        />
-      ) : null}
-
-      <MachineFormDialog
-        open={editOpen}
-        asset={asset}
-        plants={plants}
-        types={types}
-        processes={allProcesses}
-        parents={parents}
-        onOpenChange={setEditOpen}
-        onSaved={() => {
-          setEditOpen(false);
-          router.refresh();
-        }}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Datos
-// ---------------------------------------------------------------------------
-
-const MONTHS_ES = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-];
-
-/** `YYYY-MM-…` → "marzo 2021" (the day is a placeholder, always 01). */
-function installationLabel(iso: string | null): string | null {
-  if (!iso) return null;
-  const year = iso.slice(0, 4);
-  const month = Number(iso.slice(5, 7));
-  const name = MONTHS_ES[month - 1];
-  return name ? `${name} ${year}` : year;
-}
-
-function DatosTab({ asset }: { asset: MachineDetailAsset }) {
-  return (
-    <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row">
-      {asset.image_blob_path ? (
-        // eslint-disable-next-line @next/next/no-img-element -- SAS-redirect URL, not optimizable
-        <img
-          src={`/api/maintenance/assets/${asset.asset_id}/image`}
-          alt={`Imagen de ${asset.name}`}
-          className="h-44 w-44 shrink-0 rounded-lg border object-cover"
-        />
-      ) : null}
-      <dl className="grid flex-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Marca" value={asset.brand} />
-        <Field label="Modelo" value={asset.model} />
-        <Field label="Número de serie" value={asset.serial_number} mono />
-        <Field label="Planta" value={asset.plant_name} />
-        <Field label="Tipo de equipo" value={asset.type_name} />
-        <Field label="Categoría" value={asset.category_name} />
-        <Field
-          label="Fecha de instalación"
-          value={installationLabel(asset.installation_date)}
-        />
-        <Field
-          label="Equipo padre"
-          value={asset.parent_code}
-          mono
-        />
-        <Field label="Notas" value={asset.notes} wide />
-      </dl>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  mono,
-  wide,
-}: {
-  label: string;
-  value: string | null;
-  mono?: boolean;
-  wide?: boolean;
-}) {
-  return (
-    <div className={wide ? "sm:col-span-2 lg:col-span-3" : undefined}>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className={cn("mt-0.5 text-sm", mono && "font-mono")}>
-        {value ? value : <span className="text-muted-foreground">—</span>}
-      </dd>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Procesos
 // ---------------------------------------------------------------------------
 
-function ProcesosTab({
+export function ProcesosTab({
   assetId,
   assetProcessIds,
   allProcesses,
@@ -321,7 +65,7 @@ function ProcesosTab({
   assetId: number;
   assetProcessIds: number[];
   allProcesses: ProcessOption[];
-  onChanged: () => void;
+  onChanged: (processIds: number[]) => void;
 }) {
   const can = useCan();
   const [selected, setSelected] = React.useState<number[]>(assetProcessIds);
@@ -344,7 +88,7 @@ function ProcesosTab({
         const d = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(d.error ?? "No se pudieron guardar los procesos.");
       }
-      onChanged();
+      onChanged(selected);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
     } finally {
@@ -436,7 +180,7 @@ function ProcesosTab({
 // Ubicación (asignación a celdas de producción — módulo production)
 // ---------------------------------------------------------------------------
 
-function UbicacionTab({ assignments }: { assignments: AssignmentItem[] }) {
+export function UbicacionTab({ assignments }: { assignments: AssignmentItem[] }) {
   const current = assignments.filter((a) => a.valid_to === null);
   const history = assignments.filter((a) => a.valid_to !== null);
 
@@ -512,7 +256,7 @@ function UbicacionTab({ assignments }: { assignments: AssignmentItem[] }) {
 // Restricciones
 // ---------------------------------------------------------------------------
 
-function RestriccionesTab({
+export function RestriccionesTab({
   assetId,
   restrictions,
   onChanged,
@@ -690,7 +434,7 @@ function RestriccionesTab({
 // Documentos
 // ---------------------------------------------------------------------------
 
-function DocumentosTab({
+export function DocumentosTab({
   assetId,
   documents,
   onChanged,

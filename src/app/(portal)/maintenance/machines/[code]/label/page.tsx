@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
-import { headers } from "next/headers";
-import QRCode from "qrcode";
 import { findAssetByCode } from "@/modules/maintenance/db";
 import { listPlants } from "@/modules/org/db/org";
+import { buildAssetQrDataUrl } from "@/modules/maintenance/qr";
 import { MachineLabel } from "@/modules/maintenance/components/machine-label";
 
 export const dynamic = "force-dynamic";
@@ -17,15 +16,7 @@ export default async function MachineLabelPage({
   const asset = await findAssetByCode(code);
   if (!asset) notFound();
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? (await requestOrigin());
-  const target = `${baseUrl}/maintenance/machines/${encodeURIComponent(asset.code)}`;
-  const qrDataUrl = await QRCode.toDataURL(target, {
-    errorCorrectionLevel: "M",
-    margin: 1,
-    width: 440,
-    color: { dark: "#373a36", light: "#ffffff" },
-  });
-
+  const qrDataUrl = await buildAssetQrDataUrl(asset.code);
   const plants = await listPlants().catch(() => []);
   const plantName =
     plants.find((p) => p.plant_id === asset.plant_id)?.name ?? "";
@@ -38,11 +29,4 @@ export default async function MachineLabelPage({
       qrDataUrl={qrDataUrl}
     />
   );
-}
-
-async function requestOrigin(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3001";
-  return `${proto}://${host}`;
 }

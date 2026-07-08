@@ -7,6 +7,7 @@ import {
   setAssetProcesses,
   ASSET_STATUSES,
 } from "@/modules/maintenance/db";
+import { listHistoryByAsset } from "@/modules/production/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -15,7 +16,9 @@ function parseId(raw: string): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-/** GET /api/maintenance/assets/[id] — full detail (any authenticated user). */
+/** GET /api/maintenance/assets/[id] — full detail incl. production cell
+ * assignment history (any authenticated user) — backs the equipment modal's
+ * tabs (Procesos/Restricciones/Documentos/Ubicación). */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -28,7 +31,8 @@ export async function GET(
     if (!detail) {
       return NextResponse.json({ error: "Equipo no encontrado." }, { status: 404 });
     }
-    return NextResponse.json(detail);
+    const assignments = await listHistoryByAsset(id).catch(() => []);
+    return NextResponse.json({ ...detail, assignments });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;

@@ -172,15 +172,27 @@ the app pages under `src/app/` are thin and compose from here):
   transactional matrícula generator `{prefix}-P{plant}-{NNNN}`; processes
   reads; restrictions; documents), `enums.ts` (status/restriction/doc-type
   CHECKs — pure module, no I/O; category/type labels come from the DB, no
-  static enum), `components/` — `machines-cards-page` (Equipos tab: cards
-  catalog, Filtros popover + Nuevo equipo), `machine-catalogs-page`
-  (Catálogos tab: `GroupedDataTable` Categoría→Tipo), `machines-tabs` (shared
-  `PageTabs` config for both), `machine-cards` (maps rows onto the kit
-  `EntityCard`), `machine-badges` (`StatusBadge`), `machine-detail`
-  (Datos/Procesos/Ubicación/Restricciones/Documentos), `machine-form-dialog`
-  (photo upload, type→category, single-process select, month/year install
-  date, parent search+read-only-preview panel), `machine-label`
-  (printable QR).
+  static enum), `qr.ts` (`buildAssetQrDataUrl`/`resolveBaseUrl`, shared by the
+  printable label page and the in-modal QR endpoint), `components/` —
+  `machines-cards-page` (Equipos tab: cards catalog, Filtros popover + Nuevo
+  equipo; card click/"+"/context-menu "Editar" all open the same
+  `MachineModal` via the kit `ExpandingModal`, no page navigation),
+  `machine-catalogs-page` (Catálogos tab: `GroupedDataTable` Categoría→Tipo),
+  `machines-tabs` (shared `PageTabs` config for both), `machine-cards` (maps
+  rows onto the kit `EntityCard` with `onExpand`, not `href`), `machine-badges`
+  (`StatusBadge`), `machine-modal` (the equipment detail/edit/create surface:
+  an always-visible summary panel toggling read-only ↔ editable in place,
+  header actions incl. Etiqueta QR / Desactivar-Reactivar, tabs below), `machine-tabs`
+  (Procesos/Ubicación/Restricciones/Documentos — real CRUD, unchanged logic,
+  just relocated out of the old page-level `machine-detail`), `machine-form-dialog`
+  (now just the shared types + `ParentSearchPanel` — the dialog chrome itself
+  was retired), `qr-modal` (QR preview stacked over `MachineModal`; "Imprimir
+  etiqueta" still opens the printable `/label` route), `machine-label`
+  (printable QR, the proven print path). `hooks/use-machine-form.ts` (form
+  state/submit, owns a `saved` snapshot updated locally after create/edit —
+  no refetch needed) and `hooks/use-asset-detail.ts` (on-demand fetch of
+  restrictions/documents/assignments for the tabs; the summary panel itself
+  renders instantly from the row that opened the modal).
 
 **Shared UI** (`src/components/`):
 
@@ -192,8 +204,13 @@ the app pages under `src/app/` are thin and compose from here):
   both levels, per-group add-child; no pagination), `page-tabs.tsx`
   (route-aware tab bar), `entity-form-dialog.tsx` (shared modal chrome),
   `entity-card.tsx` (`EntityCard` + `EntityCardGrid`: catalog card grids —
-  code, status dot, badges, detail list, location footer; design source: the
-  "Equipos" card in the Claude Design project), `table-utils.ts` (pure: NFD
+  code, status dot, badges, detail list, location footer; `onExpand` opens a
+  shared-element modal instead of navigating, `href` still supported;
+  currently only `maintenance` uses `onExpand`), `expanding-modal.tsx`
+  (`ExpandingModal`: generic "shared element" shell over raw Radix Dialog
+  primitives — expands from a clicked card/button's rect into a large
+  centered surface across opening→open→closing phases; `useExpandingModal()`
+  exposes `requestClose`/`opened` to children), `table-utils.ts` (pure: NFD
   normalization, comparators, catalog intersection). Future:
   `ResourceTable/Form`, `Calendar`, `KpiCard`.
 - `layout/` — global chrome: `portal-shell.tsx` (composes
@@ -246,8 +263,11 @@ the app pages under `src/app/` are thin and compose from here):
   `modules/navigation`; the old flat routes
   (`users|roles|departments|plants|access|permissions`) are `redirect()`-only.
 - `(portal)/maintenance/*` — `layout.tsx` guard
-  (`requireSectionOrRedirect("maintenance")`) + machines list/detail/label +
-  process catalog.
+  (`requireSectionOrRedirect("maintenance")`) + machines list (detail/edit/
+  create live in a modal, not a route) + label + process catalog.
+  `machines/[code]/page.tsx` is a redirect shim to
+  `machines?asset=<code>` (opens the modal deep-linked) — kept alive because
+  `production/cells` links to it and printed QR labels encode that exact URL.
 - `api/` — core portal routes stay flat (`users`, `roles`, `plants`,
   `departments`, `nav`, `profile`, `invite`, `auth`); business-module routes
   are namespaced: `api/maintenance/{assets,processes}/**`.

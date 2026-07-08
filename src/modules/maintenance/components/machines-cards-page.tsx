@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Boxes,
   ChevronDown,
@@ -40,14 +40,17 @@ import { ActiveInactiveToggle } from "@/components/kit/data-table";
 import { normalizeForMatch } from "@/components/kit/table-utils";
 import { useCan } from "@/components/providers/permissions-provider";
 import {
-  MachineFormDialog,
-  type MachineFormAsset,
+  ExpandingModal,
+  type ExpandingModalRect,
+} from "@/components/kit/expanding-modal";
+import {
   type PlantOption,
   type TypeOption,
   type ProcessOption,
   type ParentOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
 import { MachineCardsGrid } from "@/modules/maintenance/components/machine-cards";
+import { MachineModal } from "@/modules/maintenance/components/machine-modal";
 
 export interface MachineRow {
   asset_id: number;
@@ -107,14 +110,21 @@ export function MachinesCardsPage({
   const can = useCan();
   const router = useRouter();
   const [modal, setModal] = React.useState<{
-    open: boolean;
-    edit: MachineFormAsset | null;
-  }>({ open: false, edit: null });
+    row: MachineRow | null;
+    rect: ExpandingModalRect | null;
+    editing: boolean;
+    isActiveOverride?: boolean;
+  } | null>(null);
   const [filters, setFiltersRaw] = React.useState<Filters>(EMPTY_FILTERS);
   const [showInactive, setShowInactiveRaw] = React.useState(false);
   const [page, setPage] = React.useState(1);
-  // Right-click "Desactivar" confirm flow.
-  const [confirmRow, setConfirmRow] = React.useState<MachineRow | null>(null);
+  // "Desactivar" confirm flow — triggered from the context menu (full row on
+  // hand) or from the modal header (only assetId/code/name known there).
+  const [confirmTarget, setConfirmTarget] = React.useState<{
+    asset_id: number;
+    code: string;
+    name: string;
+  } | null>(null);
   const [confirmBusy, setConfirmBusy] = React.useState(false);
   const [confirmError, setConfirmError] = React.useState<string | null>(null);
 
@@ -127,12 +137,13 @@ export function MachinesCardsPage({
     setPage(1);
   }
 
-  async function deactivate(row: MachineRow) {
+  async function deactivate() {
+    if (!confirmTarget) return;
     setConfirmError(null);
     setConfirmBusy(true);
     let error: string | null = null;
     try {
-      const res = await fetch(`/api/maintenance/assets/${row.asset_id}`, {
+      const res = await fetch(`/api/maintenance/assets/${confirmTarget.asset_id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -147,19 +158,24 @@ export function MachinesCardsPage({
       setConfirmError(error);
       return;
     }
-    setConfirmRow(null);
+    setConfirmTarget(null);
+    // The confirm trigger is either the currently-open modal (referring to
+    // itself) or a closed context menu (no-op here) — never a different
+    // asset's modal, so an unconditional patch is always correct.
+    setModal((prev) => (prev ? { ...prev, isActiveOverride: false } : prev));
     // Let the dialog finish closing (and unlock the body) before the RSC
     // re-render — refreshing in the same tick can strand its scroll lock.
     setTimeout(() => router.refresh(), 0);
   }
 
   /** Reversible, so it runs on direct click without a confirm dialog. */
-  async function restore(row: MachineRow) {
-    await fetch(`/api/maintenance/assets/${row.asset_id}`, {
+  async function restore(assetId: number) {
+    await fetch(`/api/maintenance/assets/${assetId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: true }),
     }).catch(() => undefined);
+    setModal((prev) => (prev ? { ...prev, isActiveOverride: true } : prev));
     router.refresh();
   }
 
@@ -266,8 +282,14 @@ export function MachinesCardsPage({
               <TooltipTrigger asChild>
                 <Button
                   size="sm"
-                  className="w-8 px-0"
-                  onClick={() => setModal({ open: true, edit: null })}
+                  className={cn("w-8 px-0", modal?.row === null && "opacity-0")}
+                  onClick={(e) =>
+                    setModal({
+                      row: null,
+                      rect: e.currentTarget.getBoundingClientRect(),
+                      editing: true,
+                    })
+                  }
                   aria-label="Nuevo equipo"
                 >
                   <Plus className="h-4 w-4" />
@@ -278,6 +300,13 @@ export function MachinesCardsPage({
           ) : null}
         </div>
       </div>
+
+      <React.Suspense fallback={null}>
+        <DeepLinkOpener
+          machines={machines}
+          onFound={(row) => setModal({ row, rect: null, editing: false })}
+        />
+      </React.Suspense>
 
       {/* Filters row — pill + inline applied chips + results count. */}
       <div className="flex flex-shrink-0 flex-wrap items-center gap-3 border-b pb-4">
@@ -364,22 +393,28 @@ export function MachinesCardsPage({
         ) : (
           <MachineCardsGrid
             machines={pageItems}
+            onOpen={(m, rect) => setModal({ row: m, rect, editing: false })}
+            hiddenAssetId={modal?.row?.asset_id ?? null}
             onEdit={
               can("maintenance.asset:update")
-                ? (m) => setModal({ open: true, edit: m })
+                ? (m, rect) => setModal({ row: m, rect, editing: true })
                 : undefined
             }
             onDeactivate={
               can("maintenance.asset:delete")
                 ? (m) => {
                     setConfirmError(null);
-                    setConfirmRow(m);
+                    setConfirmTarget({
+                      asset_id: m.asset_id,
+                      code: m.code,
+                      name: m.name,
+                    });
                   }
                 : undefined
             }
             onRestore={
               can("maintenance.asset:update")
-                ? (m) => void restore(m)
+                ? (m) => void restore(m.asset_id)
                 : undefined
             }
           />
@@ -395,26 +430,41 @@ export function MachinesCardsPage({
         <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
       </div>
 
-      <MachineFormDialog
-        open={modal.open}
-        asset={modal.edit}
-        plants={plants}
-        types={types}
-        processes={processes}
-        parents={parentOptions}
-        onOpenChange={(open) =>
-          setModal((prev) => ({ open, edit: open ? prev.edit : null }))
-        }
-        onSaved={() => {
-          setModal({ open: false, edit: null });
-          router.refresh();
-        }}
-      />
+      <ExpandingModal
+        open={modal !== null}
+        originRect={modal?.rect ?? null}
+        title={modal?.row ? modal.row.name : "Nuevo equipo"}
+        closeDisabled={modal?.editing ?? false}
+        onClosed={() => setModal(null)}
+      >
+        {modal ? (
+          <MachineModal
+            key={modal.row?.asset_id ?? "new"}
+            row={modal.row}
+            plants={plants}
+            types={types}
+            processes={processes}
+            parents={parentOptions}
+            isActive={modal.isActiveOverride ?? modal.row?.is_active ?? true}
+            editing={modal.editing}
+            onEditingChange={(editing) =>
+              setModal((prev) => (prev ? { ...prev, editing } : prev))
+            }
+            onRequestDeactivate={(assetId, code, name) => {
+              setConfirmError(null);
+              setConfirmTarget({ asset_id: assetId, code, name });
+            }}
+            onRestore={(assetId) => void restore(assetId)}
+            onMutated={() => router.refresh()}
+          />
+        ) : null}
+      </ExpandingModal>
+
       <AlertDialog
-        open={confirmRow !== null}
+        open={confirmTarget !== null}
         onOpenChange={(o) => {
           if (!o) {
-            setConfirmRow(null);
+            setConfirmTarget(null);
             setConfirmError(null);
           }
         }}
@@ -423,8 +473,8 @@ export function MachinesCardsPage({
           <AlertDialogHeader>
             <AlertDialogTitle>¿Desactivar el equipo?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmRow
-                ? `${confirmRow.code} — ${confirmRow.name} se marcará como inactivo. Podrás reactivarlo después.`
+              {confirmTarget
+                ? `${confirmTarget.code} — ${confirmTarget.name} se marcará como inactivo. Podrás reactivarlo después.`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -440,7 +490,7 @@ export function MachinesCardsPage({
               disabled={confirmBusy}
               onClick={(e) => {
                 e.preventDefault();
-                if (confirmRow) void deactivate(confirmRow);
+                void deactivate();
               }}
             >
               {confirmBusy ? "Procesando…" : "Desactivar"}
@@ -450,6 +500,39 @@ export function MachinesCardsPage({
       </AlertDialog>
     </div>
   );
+}
+
+/** Reads `?asset=<code>` once on mount to deep-link into the modal (e.g. from
+ * the `[code]/page.tsx` redirect shim or a scanned QR label), then strips it
+ * from the URL. Isolated in its own component because `useSearchParams`
+ * requires a Suspense boundary. */
+function DeepLinkOpener({
+  machines,
+  onFound,
+}: {
+  machines: MachineRow[];
+  onFound: (row: MachineRow) => void;
+}) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const code = searchParams.get("asset");
+
+  React.useEffect(() => {
+    if (!code) return;
+    const found = machines.find((m) => m.code === code);
+    if (found) onFound(found);
+    const params = new URLSearchParams(searchParams);
+    params.delete("asset");
+    const query = params.toString();
+    router.replace(query ? `?${query}` : "/maintenance/machines", {
+      scroll: false,
+    });
+    // Runs once per deep-linked code — `machines`/`onFound` are stable enough
+    // for this session and re-running on every render would loop the replace.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code]);
+
+  return null;
 }
 
 function FiltersButton({

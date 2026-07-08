@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import type { ExpandingModalRect } from "@/components/kit/expanding-modal";
 import { cn } from "@/lib/utils";
 
 export type EntityCardStatusTone = "ok" | "warn" | "off";
@@ -46,6 +47,12 @@ export interface EntityCardProps {
   locations?: EntityCardLocation[];
   /** When set, the whole card is a link. */
   href?: string;
+  /** Alternative to `href`: clicking opens a modal expanding from this
+   * card's rect instead of navigating (shared-element transition). */
+  onExpand?: (rect: ExpandingModalRect) => void;
+  /** Hides this card's own content while its `onExpand` modal is open, so
+   * only the expanding surface is visible in its place. */
+  sourceHidden?: boolean;
   /** Dims the card (soft-deleted rows). */
   inactive?: boolean;
   className?: string;
@@ -65,6 +72,8 @@ export function EntityCard({
   details = [],
   locations = [],
   href,
+  onExpand,
+  sourceHidden = false,
   inactive = false,
   className,
 }: EntityCardProps) {
@@ -72,8 +81,9 @@ export function EntityCard({
     <div
       className={cn(
         "flex h-full flex-col rounded-lg border bg-card p-4 transition-[box-shadow,border-color]",
-        href && "hover:border-gray-300 hover:shadow-md",
+        (href || onExpand) && "hover:border-gray-300 hover:shadow-md",
         inactive && "opacity-60",
+        sourceHidden && "pointer-events-none opacity-0",
         className,
       )}
     >
@@ -141,6 +151,17 @@ export function EntityCard({
       <Link href={href} className="block h-full">
         {body}
       </Link>
+    );
+  }
+  if (onExpand) {
+    return (
+      <button
+        type="button"
+        className="block h-full w-full text-left"
+        onClick={(e) => onExpand(e.currentTarget.getBoundingClientRect())}
+      >
+        {body}
+      </button>
     );
   }
   return body;

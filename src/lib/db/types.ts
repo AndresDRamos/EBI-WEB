@@ -289,6 +289,12 @@ export interface Role {
   role_id: Generated<number>;
 }
 
+export interface RoleNavItem {
+  item_id: number;
+  priority: Generated<number>;
+  role_id: number;
+}
+
 export interface RoleNavSection {
   priority: Generated<number>;
   role_id: number;
@@ -413,6 +419,7 @@ export interface DB {
   process: Process;
   production_line: ProductionLine;
   role: Role;
+  role_nav_item: RoleNavItem;
   role_nav_section: RoleNavSection;
   role_permission: RolePermission;
   run_log: RunLog;

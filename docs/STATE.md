@@ -17,7 +17,7 @@
   (DB-driven nav registry, V7, **committed** 2026-07-02) — all live in
   `EBI_dev` and pushed to `origin/main`.
 - Nav section `maintenance` is active and mapped (V9 seeded its `Máquinas` /
-  `Procesos` items); page access is gated by the section grant (ADR 0005).
+  `Procesos` items); page access is gated per **page** (ADR 0008, `role_nav_item`).
 - Branch convention: `<type>/<slug>` (`feat/`, `fix/`, `chore/`, `docs/` per
   change type). Plans are not numbered: the slug is the plan's identity, unique
   in the ledger (`docs/plans/README.md`).
@@ -86,12 +86,15 @@ RBAC actions precede the next business module.
   the portal (active section from the registry) and for `/admin/*` (the
   code-built `ADMIN_NAV_SECTION`, `components/layout/admin-nav.ts`). No bespoke
   admin rail, no prop-drilling, no double rail.
-- **Section grants authorize pages (ADR 0005).** A route is reachable only if
-  its `nav_section` resolves visible for the user; each module enforces it in
-  `(portal)/<module>/layout.tsx` via `requireSectionOrRedirect("<code>")`
-  (`modules/navigation/guard.ts`, reuses `getCachedNav`). Middleware is
-  default-deny for authn only (no per-prefix allowlist); `/admin/*` stays on
-  `assertAdminOrRedirect`.
+- **Page grants authorize pages (ADR 0008, supersedes 0005).** Nav authority is
+  per **page** (V16 `auth.role_nav_item`): a user reaches a route only if the
+  page owning it resolves visible; a **section is derived-visible** (≥1 visible
+  page) and `role_nav_section` narrows to per-role section *order*. Each module
+  enforces via `requireSectionOrRedirect("<code>")`
+  (`modules/navigation/guard.ts`) — it gates the section *and* the specific
+  page, reading the path from the `x-pathname` header the middleware injects.
+  Middleware is default-deny for authn only (no per-prefix allowlist); `/admin/*`
+  stays on `assertAdminOrRedirect`.
 - **Protected `admin` role is enforced at the app layer.** `RoleProtectedError`
   in `modules/org/db/org.ts`; the guard receives the `current` role loaded by
   the API before mutation. No CHECK constraint — the app is the only barrier.
@@ -118,7 +121,8 @@ the app pages under `src/app/` are thin and compose from here):
     `createInvitation / accept / revoke`.
   - `db/org.ts` — `auth.role | plant | department` + CRUD with the `admin`
     guard. Exports `RoleProtectedError` and `PROTECTED_ROLE = "admin"`.
-    `deleteRole` clears the profile's grants in-transaction (409 only for
+    `deleteRole` clears the profile's grants (`role_permission`,
+    `role_nav_item`, `role_nav_section`) in-transaction (409 only for
     assigned users).
   - `db/permissions.ts` — `auth.permission | role_permission`:
     `getPermissionCodesForRoles` (hot path for `requirePermission`), catalog
@@ -127,28 +131,33 @@ the app pages under `src/app/` are thin and compose from here):
     DataTable pages), `departments-roles-page.tsx` (GroupedDataTable:
     departments as groups, roles — UI label "Roles" — as child rows;
     synthetic "Sin departamento" group only while orphan roles exist),
-    `permission-manager.tsx` (unified Permisos tab: shared role filter
-    driving the `module.resource` × action matrix AND nav-section access +
-    topbar priority, "copiar de otro rol", plus a read-only "Por usuario"
-    mode showing a user's roles and their effective union),
+    `permission-manager.tsx` (unified Permisos tab: one top filter bar
+    (Rol ⇄ Usuario) drives both the `module.resource` × action matrix AND the
+    page-granular nav tree — per-page visibility (`role_nav_item`) + per-role
+    page order + per-role section order; ungranted sections sink to the end),
     `user-form.tsx`, `login-form.tsx`,
     `accept-invite-form.tsx`, `profile-view.tsx`, `change-password-form.tsx`.
 - `navigation/` — DB-driven nav registry (`auth.nav_*`) + portal page authz.
   - `db.ts` — `getNavForUser(roleNames, isAdmin)` resolves topbar + nested
     sidebar (admin sees ALL sections including inactive ones — rendered
-    dimmed/"oculta" by the topbar; non-admins only get active granted
-    sections). Admin
-    reads/writes: `listSections/Items`, `listSectionGrants`, `updateSection`
-    (no `createSection` — sections are seeded by module migrations),
-    `create/update/deleteItem`, `setSectionGrants`, plus the role-centric
-    duals `listRoleSectionGrants`/`setRoleSectionGrants` behind
-    `GET/PUT /api/roles/[id]/sections` (consumed by the Permisos tab).
+    dimmed/"oculta" by the topbar; non-admins get, per **page**, the active
+    items granted via `role_nav_item`, and only sections with ≥1 visible page).
+    Admin reads/writes: `listSections/Items`, `listSectionGrants`,
+    `updateSection` (no `createSection` — sections are seeded by module
+    migrations), `create/update/deleteItem`, `setSectionGrants`, the section
+    duals `listRoleSectionGrants`/`setRoleSectionGrants`
+    (`GET/PUT /api/roles/[id]/sections`, now section order), the page grants
+    `listRoleItemGrants`/`setRoleItemGrants`/`grantItemToSectionRoles`
+    (`GET/PUT /api/roles/[id]/items` + auto-grant on page create), and the
+    guard registry reads `listActiveItemRefs`/`listSectionRefs`.
   - `cache.ts` — `getCachedNav` (`unstable_cache`, tag `"nav"`) + `navRoleKey`
-    (sorted role-set cache key); shared by the portal layout, the home page
-    and the guard.
-  - `guard.ts` — `requireSectionOrRedirect(code)`: page-level authz (ADR 0005).
-    Denied users redirect to `/`; reuses `getCachedNav` so it inherits the
-    exact topbar visibility rules.
+    (sorted role-set cache key) + `getCachedNavRegistry` (role-independent
+    href/section registry for the guard); shared by the portal layout, the
+    home page and the guard.
+  - `guard.ts` — `requireSectionOrRedirect(code)`: page-level authz (ADR 0008).
+    Gates the section and the specific page (path from the `x-pathname` header
+    the middleware injects); denied users redirect to `/`; reuses `getCachedNav`
+    + `getCachedNavRegistry`.
   - `icons.tsx` (curated `lucide-react` map, incl. `Lock`/`KeyRound`),
     `pin-action.ts` / `pin-cookie.ts` (sidebar pin cookie).
   - `components/` — `portal-topbar.tsx`, `portal-sidebar.tsx`. The old
@@ -210,8 +219,8 @@ the app pages under `src/app/` are thin and compose from here):
   argon2id, JWT callbacks (`token_version` re-check for revocation).
 - `middleware.ts` — **default-deny for authentication** (no per-prefix
   allowlist): unauthenticated UI → `/login`, `/api/**` → `401`; authenticated
-  users on public routes → `/`. Page-level authz per section lives in the
-  module layouts (ADR 0005), not here.
+  users on public routes → `/`. Page-level authz lives in the module layouts
+  (ADR 0008), not here; the middleware injects the `x-pathname` header they need.
 
 **Routes** (`src/app/` — thin by rule):
 

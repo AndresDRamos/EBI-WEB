@@ -3,10 +3,10 @@
 > Maintained by the `docs-sync` sub-agent, which runs at the end of every
 > `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-07. Reflects V1–V15 (this sync sourced from the applied
-> migration file `V15` + regenerated Kysely types (`pnpm db:gen`, 36 tables),
-> not live introspection; `flyway_schema_history` in `EBI_dev` reports schema
-> version 15, success).
+> Last synced: 2026-07-08. Reflects V1–V16 (V16 sourced from the applied
+> migration file `V16__role_nav_item.sql` + regenerated Kysely types
+> (`pnpm db:gen`, 37 tables), not live introspection; `flyway_schema_history`
+> in `EBI_dev` reports schema version 16, success).
 >
 > **How to read:** find the table below, then open only its schema page —
 > never read the whole folder. One page per schema, mirroring
@@ -32,7 +32,8 @@ when the feature is rebuilt).
 - `auth.invitation` — one-time tokens to activate pre-created inactive accounts.
 - `auth.nav_section` — topbar sections of the portal nav registry.
 - `auth.nav_item` — sidebar entries per section (one-level nesting).
-- `auth.role_nav_section` — role → section visibility grant with topbar priority.
+- `auth.role_nav_section` — role → section **order** in the topbar (since V16 order only, no longer a grant — ADR 0008).
+- `auth.role_nav_item` — role → **page** visibility grant + intra-section order (V16, ADR 0008; source of truth for nav authorization).
 - `auth.permission` — permission catalog `<module>.<resource>:<action>` (plan 0006).
 - `auth.role_permission` — access profile → permission grant.
 

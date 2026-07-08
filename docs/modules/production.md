@@ -94,7 +94,7 @@ axes:
 - Owns the `(portal)/production/*` UI: `/production` redirects to the cell
   catalog; `Líneas`/`Celdas` list pages and the cell detail (V11). The segment
   `layout.tsx` gates that tree with `requireSectionOrRedirect("production")`
-  (ADR 0005).
+  (per-page nav authz, ADR 0008 supersedes 0005).
 - **The layout UI is dark-parked under `(portal)/test/*`** (re-scope decision
   2026-07-06, V14): `/test/layout` (viewer), `/test/layout/import` (wizard),
   `/test/layout/edit` (editor), `/test/footprints` (reached via a header
@@ -146,7 +146,7 @@ axes:
 
 - [ADR 0002 — Azure Blob for asset documents](../architecture/adr/0002-azure-blob-asset-documents.md) (amended 2026-07-06: container names are code constants; pattern generalized to the `production` container)
 - [ADR 0004 — Role as access profile](../architecture/adr/0004-role-as-access-profile.md) (admin bypass; no `role_permission` seeds)
-- [ADR 0005 — Section grants authorize pages](../architecture/adr/0005-section-grants-authorize-pages.md) (segment guard)
+- [ADR 0008 — Page grants authorize pages](../architecture/adr/0008-page-grants-authorize-pages.md) (per-page segment guard; supersedes 0005)
 - [ADR 0006 — DXF is the source, normalized JSON is the truth](../architecture/adr/0006-dxf-source-normalized-json-truth.md) (import pipeline; immutable layout versions)
 - [CAD layout contract](../architecture/cad-layout-contract.md) (`EBI-*` layers, `EBI_PORT_IN/OUT` blocks, meters, closed polylines, export recipe)
 

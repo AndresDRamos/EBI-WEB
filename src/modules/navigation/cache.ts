@@ -1,6 +1,13 @@
 import "server-only";
 import { unstable_cache } from "next/cache";
-import { getNavForUser, type ResolvedNavSection } from "./db";
+import {
+  getNavForUser,
+  listActiveItemRefs,
+  listSectionRefs,
+  type NavItemRef,
+  type NavSectionRef,
+  type ResolvedNavSection,
+} from "./db";
 
 /**
  * Cached nav resolution shared by the portal layout (shell render), the home
@@ -23,3 +30,18 @@ export const getCachedNav = unstable_cache(
 export function navRoleKey(roles: string[]): string {
   return [...roles].sort().join(",");
 }
+
+/**
+ * Role-independent nav registry (all active item hrefs + all section refs),
+ * cached under the same `"nav"` tag. The page-level guard (ADR 0008) uses it to
+ * tell "this path maps to a registered page the role can't see" (→ deny) apart
+ * from "this path isn't a registered nav item" (→ inherits section visibility).
+ */
+export const getCachedNavRegistry = unstable_cache(
+  async (): Promise<{ items: NavItemRef[]; sections: NavSectionRef[] }> => {
+    const [items, sections] = await Promise.all([listActiveItemRefs(), listSectionRefs()]);
+    return { items, sections };
+  },
+  ["portal-nav-registry"],
+  { tags: ["nav"] },
+);

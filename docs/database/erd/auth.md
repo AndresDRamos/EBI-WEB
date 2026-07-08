@@ -3,10 +3,12 @@
 > Generado desde el esquema vivo (`ebi-sql-dev`, read-only). No editar a mano; lo regenera
 > el sub-agente `docs-sync` al cierre de cada `/build-plan`.
 >
-> Última sincronización: 2026-07-07. Refleja V1 + V2 + V3 + V4 + V7 + V8 + V15
+> Última sincronización: 2026-07-08. Refleja V1 + V2 + V3 + V4 + V7 + V8 + V15 + V16
 > (V5/V6 pertenecen al esquema `maint`, ver `docs/database/erd/maint.md`). V15
 > transfirió `auth.plant` → `org.plant` (ver `docs/database/erd/org.md`);
-> `user_plant` permanece en `auth`.
+> `user_plant` permanece en `auth`. V16 añadió `role_nav_item` (visibilidad de
+> navegación POR PÁGINA, ADR 0008) y redujo la semántica de `role_nav_section`
+> a solo orden de secciones por rol.
 
 ```mermaid
 erDiagram
@@ -110,6 +112,12 @@ erDiagram
         int priority
     }
 
+    role_nav_item {
+        int role_id PK,FK
+        int item_id PK,FK
+        int priority
+    }
+
     %% ── relaciones ──────────────────────────────────────────────────────────
 
     app_user ||--o{ user_role : "assigned"
@@ -127,8 +135,11 @@ erDiagram
     nav_section ||--o{ nav_item : "contains"
     nav_item    ||--o{ nav_item : "parent of (same section)"
 
-    role        ||--o{ role_nav_section : "granted"
-    nav_section ||--o{ role_nav_section : "visible via"
+    role        ||--o{ role_nav_section : "section order per role"
+    nav_section ||--o{ role_nav_section : "ordered via"
+
+    role     ||--o{ role_nav_item : "page visibility (ADR 0008)"
+    nav_item ||--o{ role_nav_item : "visible via"
 
     department ||--o{ role : "scopes (NULL = transversal)"
     role       ||--o{ role_permission : "granted"

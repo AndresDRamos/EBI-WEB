@@ -230,13 +230,10 @@ export function MachinesCardsPage({
   }));
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
-      {/* Header — breadcrumb, title, total count, add action. Not boxed. */}
+    <div className="flex h-full flex-col">
+      {/* Header — title, total count, add action. Not boxed. */}
       <div className="flex flex-shrink-0 flex-wrap items-end justify-between gap-4 pb-4">
         <div>
-          <p className="text-xs font-medium text-muted-foreground">
-            Mantenimiento&nbsp;&nbsp;/&nbsp;&nbsp;Equipos
-          </p>
           <h1 className="text-xl font-semibold tracking-tight text-ezi-gray">
             Equipos
           </h1>

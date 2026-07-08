@@ -15,8 +15,9 @@ export const ASSET_STATUS_LABELS: Record<AssetStatus, string> = {
   retired: "Retirado",
 };
 
-export const ASSET_CRITICALITIES = ["A", "B", "C"] as const;
-export type AssetCriticality = (typeof ASSET_CRITICALITIES)[number];
+// `criticality` (char 1, CHECK A/B/C) stays on `maint.asset` but is no longer
+// captured or shown by the app (plan equipment-maintenance-attributes) — no
+// enum constant here since nothing validates or displays it anymore.
 
 export const RESTRICTION_TYPES = ["limitation", "safety", "operational"] as const;
 export type RestrictionType = (typeof RESTRICTION_TYPES)[number];
@@ -46,17 +47,12 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
   other: "Otro",
 };
 
-// `asset_category` mirrors CK_asset_asset_category on maint.asset (V11, plan
-// production-cell-assignment). The canonical domain lives in the production
-// module (whose migration introduced the CHECK); re-exported here so
-// maintenance UI/API keep one import site. Import direction maintenance →
-// production matches the justified one-way dependency (Ubicación tab).
-export {
-  ASSET_CATEGORIES,
-  ASSET_CATEGORY_LABELS,
-  assetCategoryLabel,
-  type AssetCategory,
-} from "@/modules/production/enums";
+// `asset_category` is no longer a fixed enum. As of V17 (plan
+// equipment-maintenance-attributes) it is a configurable catalog
+// (`maint.asset_category`) plus its child `maint.asset_type`; an asset carries
+// an `asset_type_id` and its category is derived via the type. Category/type
+// labels come from the DB (see `listAssetCategories`/`listAssetTypes` in
+// `db.ts`), not from a static map here.
 
 export function statusLabel(code: string): string {
   return (ASSET_STATUS_LABELS as Record<string, string>)[code] ?? code;

@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   listAssets,
   createAsset,
+  AssetTypeInvalidError,
+  AssetCodeOverflowError,
   ASSET_STATUSES,
-  ASSET_CRITICALITIES,
-  ASSET_CATEGORIES,
 } from "@/modules/maintenance/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
@@ -31,22 +31,24 @@ export async function GET(request: NextRequest) {
 }
 
 interface CreateBody {
-  code?: unknown;
   name?: unknown;
   plant_id?: unknown;
+  asset_type_id?: unknown;
   brand?: unknown;
   model?: unknown;
   serial_number?: unknown;
-  location?: unknown;
-  criticality?: unknown;
   status?: unknown;
-  asset_category?: unknown;
   parent_asset_id?: unknown;
-  acquisition_date?: unknown;
+  installation_date?: unknown;
+  image_blob_path?: unknown;
   notes?: unknown;
 }
 
-/** POST /api/maintenance/assets — create an asset (admin). */
+/**
+ * POST /api/maintenance/assets — create an asset. The matrícula (`code`) is
+ * auto-generated server-side from the type's category prefix + plant; the
+ * client never sends it.
+ */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
   try {
@@ -54,22 +56,20 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
-  const code = typeof body.code === "string" ? body.code.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const plantId = Number(body.plant_id);
-  if (!code || !name || !Number.isInteger(plantId) || plantId <= 0) {
+  const assetTypeId = Number(body.asset_type_id);
+  if (!name || !Number.isInteger(plantId) || plantId <= 0) {
     return NextResponse.json(
-      { error: "Código, nombre y planta son obligatorios." },
+      { error: "Nombre y planta son obligatorios." },
       { status: 422 },
     );
   }
-  const criticality =
-    typeof body.criticality === "string" ? body.criticality : undefined;
-  if (
-    criticality !== undefined &&
-    !(ASSET_CRITICALITIES as readonly string[]).includes(criticality)
-  ) {
-    return NextResponse.json({ error: "Criticidad inválida." }, { status: 422 });
+  if (!Number.isInteger(assetTypeId) || assetTypeId <= 0) {
+    return NextResponse.json(
+      { error: "El tipo de equipo es obligatorio." },
+      { status: 422 },
+    );
   }
   const status = typeof body.status === "string" ? body.status : undefined;
   if (
@@ -78,50 +78,46 @@ export async function POST(request: NextRequest) {
   ) {
     return NextResponse.json({ error: "Estatus inválido." }, { status: 422 });
   }
-  const assetCategory =
-    typeof body.asset_category === "string" ? body.asset_category : undefined;
-  if (
-    assetCategory !== undefined &&
-    !(ASSET_CATEGORIES as readonly string[]).includes(assetCategory)
-  ) {
-    return NextResponse.json({ error: "Categoría inválida." }, { status: 422 });
-  }
   const parentId =
     body.parent_asset_id == null ? null : Number(body.parent_asset_id);
   if (parentId !== null && (!Number.isInteger(parentId) || parentId <= 0)) {
     return NextResponse.json({ error: "Equipo padre inválido." }, { status: 422 });
   }
-  const acquisitionDate = parseDateOrNull(body.acquisition_date);
-  if (acquisitionDate === undefined) {
+  const installationDate = parseDateOrNull(body.installation_date);
+  if (installationDate === undefined) {
     return NextResponse.json(
-      { error: "Fecha de adquisición inválida." },
+      { error: "Fecha de instalación inválida." },
       { status: 422 },
     );
   }
   try {
     await requirePermission("maintenance.asset:create");
     const asset = await createAsset({
-      code,
       name,
       plant_id: plantId,
+      asset_type_id: assetTypeId,
       brand: strOrNull(body.brand),
       model: strOrNull(body.model),
       serial_number: strOrNull(body.serial_number),
-      location: strOrNull(body.location),
-      criticality,
       status,
-      asset_category: assetCategory,
       parent_asset_id: parentId,
-      acquisition_date: acquisitionDate,
+      installation_date: installationDate,
+      image_blob_path: strOrNull(body.image_blob_path),
       notes: strOrNull(body.notes),
     });
     return NextResponse.json({ asset }, { status: 201 });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
+    if (err instanceof AssetTypeInvalidError || err instanceof AssetCodeOverflowError) {
+      return NextResponse.json({ error: err.message }, { status: 422 });
+    }
     const msg = err instanceof Error ? err.message : "";
     if (/unique/i.test(msg)) {
-      return NextResponse.json({ error: "El código ya existe." }, { status: 409 });
+      return NextResponse.json(
+        { error: "El código generado ya existe, reintenta." },
+        { status: 409 },
+      );
     }
     console.error("POST /api/maintenance/assets failed:", err);
     return NextResponse.json(

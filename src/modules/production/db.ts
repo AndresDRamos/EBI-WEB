@@ -510,10 +510,6 @@ export async function reassign(
   });
 }
 
-// Enum domains live in src/modules/production/enums.ts (pure module, shared
-// with the client UI). Re-exported here so API routes keep one import site.
-export { ASSET_CATEGORIES } from "@/modules/production/enums";
-
 function emptyToNull(v: string | null | undefined): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }

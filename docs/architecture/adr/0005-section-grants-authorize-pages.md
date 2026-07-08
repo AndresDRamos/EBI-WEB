@@ -1,7 +1,15 @@
 # ADR 0005 — Section grants authorize pages
 
-- **Status:** Accepted — 2026-07-03
+- **Status:** Superseded by [ADR 0008](0008-page-grants-authorize-pages.md) — 2026-07-08
+  (original: Accepted 2026-07-03)
 - **Context plan:** [Portal home & nav authz](../../plans/portal-home-nav-authz.md)
+
+> **Superseded.** The unit of navigation authorization moved from the *section*
+> to the individual *page* (`nav_item`, V16 `role_nav_item`): a section is now
+> *derived*-visible (≥1 visible page). The `requireSectionOrRedirect` guard
+> still exists and still gates the whole section, but additionally enforces
+> per-page visibility. See ADR 0008 for the current decision; the text below is
+> kept for historical context.
 
 ## Context
 

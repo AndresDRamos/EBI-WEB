@@ -21,45 +21,47 @@ with no grant rows — the bypass keys on the role **name**, never on
   `nav-grants-panel.tsx`, `nav-sections-table-page.tsx` and
   `nav-items-panel.tsx`) — a two-panel screen where **one shared `roleId`
   state** drives both halves:
-  - Left ("Permisos por usuario"): pick a user, click one of that user's
-    roles (rendered as chips) to load it — or the right panel's own role
-    selector can set the same `roleId` directly. Renders the
-    `module.resource:action` catalog as a collapsible accordion per module
-    (sticky header, "X/Y concedidos" counter), each `module.resource` row a
-    pill/chip toggle per action (not checkboxes). "Guardar permisos" PUTs
-    `/api/roles/[id]/permissions`.
+  A single top **filter bar** (mode `Rol ⇄ Usuario`) drives both panels
+  through one shared `roleId`: role mode picks a role directly; user mode
+  picks a user and renders that user's roles as chips → editing acts on the
+  chosen role (grants live on `auth.role`). The right panel no longer has its
+  own "Ver como" select.
+  - Left ("Control de permisos"): renders the `module.resource:action`
+    catalog as a collapsible accordion per module (sticky header,
+    "X/Y concedidos" counter), **collapsed by default**, each
+    `module.resource` row a pill/chip toggle per action (not checkboxes).
+    "Guardar permisos" PUTs `/api/roles/[id]/permissions`. Scrolls
+    internally (bounded panel height).
   - Right ("Estructura del menú"): a drag-and-drop tree (native HTML5 drag
-    events, no DnD library) of nav sections → top-level items → child
-    items, with its own "Ver como" role select writing the same `roleId`.
-    Each section row has an eye/eye-off icon that **toggles** that role's
-    grant (click = revoke/grant, no separate checkbox), and dragging a
-    section reorders that role's topbar `priority` (recomputed as
-    `index * 10` on drop, only for currently-granted sections) — the
-    global `nav_section.sort_order` is untouched by this drag. Dragging
-    top-level items or child items instead edits the global
-    `nav_item.sort_order` (no per-role axis there). Inline pencil / plus /
-    trash icon buttons on every row open dialogs (`EntityFormDialog` /
-    `AlertDialog`) to edit a section's label/icon/global sort_order/active
-    and to create/edit/delete nav items and their children — this inline
-    CRUD is what replaced the deleted Módulos-tab table pages. "Guardar
-    acceso y orden" persists both the section grants/priority (PUT
-    `/api/roles/[id]/sections`) and any changed item/child `sort_order`
-    (one PUT `/api/nav/items/[id]` per changed row).
+    events, no DnD library) of nav sections → top-level items → child items.
+    Navigation authority is **per page** (ADR 0008, `role_nav_item`): each
+    item (and child) row has an eye/eye-off icon that toggles **that page's**
+    visibility for the role, and dragging items/children reorders them for
+    that role (persisted as `role_nav_item.priority`, `index * 10` on save —
+    the global `nav_item.sort_order` is only the default/new-item order). A
+    **section is derived-visible** (≥1 visible page) and its eye toggle is a
+    bulk grant/revoke of all its pages; a section with no visible pages sinks
+    to the end of the tree. Dragging a section reorders that role's topbar
+    `priority` (`role_nav_section`, now section-order only). Inline pencil /
+    plus / trash buttons open dialogs (`EntityFormDialog` / `AlertDialog`) to
+    edit a section's label/icon/global sort_order/active and to
+    create/edit/delete nav pages and children (the icon is rendered next to
+    its selector) — this inline CRUD replaced the deleted Módulos-tab tables.
+    "Guardar visibilidad y orden" PUTs both `/api/roles/[id]/items` (page
+    grants + per-role order) and `/api/roles/[id]/sections` (section order).
 
-  Selecting the protected `admin` role (via either panel) shows an "Acceso
-  total" card in place of the matrix, and the tree shows every section
-  ungated with the eye toggle and section drag disabled (item/child drag
-  and CRUD stay active — that's global structure, not a grant). There is no
-  "copiar de otro rol" or read-only "Por usuario" aggregate view in this
-  iteration — `role_refs` on `AdminUserItem` (`modules/org/db/users.ts`)
-  only feeds the left panel's per-user role chips. Page
-  `(portal)/admin/portal/permissions`, the sole screen under
-  `/admin/portal` (`/admin/portal` redirects there directly — the old
+  Selecting the protected `admin` role shows an "Acceso total" card in place
+  of the matrix, and the tree shows every section/page ungated with the eye
+  toggles and drag disabled. Adding a page auto-grants it (server-side) to
+  every role that already sees its section, so a new page isn't invisible
+  until re-granted. Page `(portal)/admin/portal/permissions`, the sole screen
+  under `/admin/portal` (`/admin/portal` redirects there directly — the old
   Módulos/Permisos tab split and its `layout.tsx` `PageTabs` are gone).
-  API: `/api/permissions`, `/api/roles/[id]/permissions` (replace-set) and
-  `/api/roles/[id]/sections` (replace-set, owned by `modules/navigation`),
-  plus `/api/nav/items/[id]` (PUT for sort_order, PUT/DELETE for the inline
-  CRUD) and `/api/nav/sections/[id]` (PUT for the section edit dialog).
+  API: `/api/permissions`, `/api/roles/[id]/permissions` (replace-set),
+  `/api/roles/[id]/items` (page grants + order, replace-set) and
+  `/api/roles/[id]/sections` (section order, replace-set; both owned by
+  `modules/navigation`), plus `/api/nav/items` + `/api/nav/items/[id]`
+  (PUT/POST/DELETE for the inline CRUD) and `/api/nav/sections/[id]`.
 - Owns the enforcement primitives: `requirePermission(code)` in
   `src/lib/auth/rbac.ts` (server, per-request DB resolution) and `useCan()`
   from `src/components/providers/permissions-provider.tsx` (client, seeded
@@ -89,11 +91,14 @@ auth.role_permission   (admin panel /admin/portal/permissions: replace-set per p
 ```
 
 Mutations that change grants (`PUT /api/roles/[id]/permissions`,
-`DELETE /api/roles/[id]`) call `revalidateTag("permissions")` (role delete also
-revalidates `"nav"` because it clears `role_nav_section`).
+`DELETE /api/roles/[id]`) call `revalidateTag("permissions")`; nav-visibility
+mutations (`PUT /api/roles/[id]/items`, `.../sections`) revalidate `"nav"`, and
+role delete revalidates both (it clears `role_nav_item` + `role_nav_section`).
 
 ## Related ADRs
 
+- [ADR 0008 — page grants authorize pages](../architecture/adr/0008-page-grants-authorize-pages.md)
+  (supersedes 0005; per-page nav visibility, `role_nav_item`)
 - [ADR 0004 — role as access profile](../architecture/adr/0004-role-as-access-profile.md)
 - [ADR 0003 — composition over metadata](../architecture/adr/0003-composition-over-metadata.md) (§action-level permissions)
 
@@ -121,6 +126,8 @@ revalidates `"nav"` because it clears `role_nav_section`).
   per-request resolution (plan 0006, open point 4).
 - **GET routes deliberately stay on `requireUser`/`requireAnyRole(["admin"])`.**
   v1 gates mutations only; read-gating is a future decision, not an oversight.
-- **`deleteRole` clears `role_permission` + `role_nav_section` in-transaction**
-  and the remaining 409 is the `user_role` FK. Don't add a CHECK or cascade in
-  SQL — catalog FKs are NO ACTION by house rule.
+- **`deleteRole` clears `role_permission` + `role_nav_item` +
+  `role_nav_section` in-transaction** and the remaining 409 is the `user_role`
+  FK. All three grant FKs to `role` are NO ACTION by house rule, so each must
+  be deleted here — don't add a CHECK or cascade in SQL, and don't forget a new
+  grant table when one is added (V16's `role_nav_item` FK is NO ACTION too).

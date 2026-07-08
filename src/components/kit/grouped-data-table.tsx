@@ -52,6 +52,8 @@ export interface GroupedDataTableProps<G, C> {
   childColumns: GroupedChildColumn<C>[];
   /** Singular noun for children ("rol") — drives counts and empty text. */
   childNoun: string;
+  /** Plural override; defaults to Spanish rules (vowel → +s, else +es). */
+  childNounPlural?: string;
   onAddGroup?: () => void;
   addGroupLabel?: string;
   onAddChild?: (g: G) => void;
@@ -99,6 +101,7 @@ export function GroupedDataTable<G, C>({
   childIsActive,
   childColumns,
   childNoun,
+  childNounPlural,
   onAddGroup,
   addGroupLabel = "Nuevo",
   onAddChild,
@@ -162,6 +165,10 @@ export function GroupedDataTable<G, C>({
   );
 
   const totalCols = childColumns.length + 1; // + actions column
+
+  const nounPlural =
+    childNounPlural ??
+    (/[aeiouáéíóú]$/i.test(childNoun) ? `${childNoun}s` : `${childNoun}es`);
 
   const anyExpanded = visible.some((v) => !collapsed.has(getGroupId(v.group)));
   function toggleAll() {
@@ -276,8 +283,8 @@ export function GroupedDataTable<G, C>({
                           {renderGroupTitle(group)}
                           {!gActive ? <Badge variant="muted">inactivo</Badge> : null}
                           <span className="text-xs text-muted-foreground">
-                            {children.length} {childNoun}
-                            {children.length === 1 ? "" : "es"}
+                            {children.length}{" "}
+                            {children.length === 1 ? childNoun : nounPlural}
                           </span>
                         </div>
                       </TableCell>
@@ -345,7 +352,7 @@ export function GroupedDataTable<G, C>({
                           colSpan={totalCols}
                           className="pl-10 text-xs text-muted-foreground"
                         >
-                          Sin {childNoun}es en este grupo.
+                          Sin {nounPlural} en este grupo.
                         </TableCell>
                       </TableRow>
                     ) : null}

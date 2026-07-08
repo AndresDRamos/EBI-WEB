@@ -3,10 +3,9 @@
 > Maintained by the `docs-sync` sub-agent, which runs at the end of every
 > `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-08. Reflects V1–V16 (V16 sourced from the applied
-> migration file `V16__role_nav_item.sql` + regenerated Kysely types
-> (`pnpm db:gen`, 37 tables), not live introspection; `flyway_schema_history`
-> in `EBI_dev` reports schema version 16, success).
+> Last synced: 2026-07-08. Reflects V1–V17 (V17 sourced from the applied
+> migration file `V17__maint_asset_catalog_redesign.sql` + regenerated Kysely
+> types (`pnpm db:gen`, 40 tables), not live introspection).
 >
 > **How to read:** find the table below, then open only its schema page —
 > never read the whole folder. One page per schema, mirroring
@@ -48,7 +47,10 @@ Created in V15 by transferring `auth.plant` → `org.plant` and `maint.process`
 
 ## [maint](maint.md)
 
-- `maint.asset` — machine/equipment catalog; `code` is the internal tag (QR payload).
+- `maint.asset` — machine/equipment catalog; `code` is the app-generated matrícula (QR payload) since V17; category derived via `asset_type`.
+- `maint.asset_category` — configurable asset-category catalog with matrícula `code_prefix` (V17; replaces the V11 CHECK).
+- `maint.asset_type` — machine types grouped under a category; `code` unique per category (V17).
+- `maint.asset_code_sequence` — race-safe per (category, plant) counter backing the matrícula (V17).
 - `maint.asset_process` — M:N asset ↔ `org.process` (cross-schema since V15).
 - `maint.asset_restriction` — operational/safety limitations per asset.
 - `maint.asset_document` — document metadata; bytes live in Azure Blob Storage.

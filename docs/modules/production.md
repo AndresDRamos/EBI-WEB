@@ -1,6 +1,6 @@
 # production
 
-**Last synced:** 2026-07-07 · **Synced from:** plan plant-layout-foundation (branch `feat/plant-layout-foundation`, V13) on top of plan production-cell-assignment (V11) + plan production-schema-rename (V12); `currentCellNamesByAssets` added for the maintenance machines cards view (no schema change)
+**Last synced:** 2026-07-08 · **Synced from:** plan plant-layout-foundation (branch `feat/plant-layout-foundation`, V13) on top of plan production-cell-assignment (V11) + plan production-schema-rename (V12); `currentCellNamesByAssets` added for the maintenance machines cards view (no schema change); plan equipment-maintenance-attributes (V17) removed the `ASSET_CATEGORIES` enum from `enums.ts` (asset category is now a `maint` DB catalog)
 
 ## Purpose
 
@@ -11,9 +11,11 @@ axes:
 - **Logical (V11):** line → cell, with a **temporal, historized M:N
   assignment** between assets and cells (`production.asset_cell_assignment`).
   It replaces the free-text `maint.asset.location` as the source of truth for
-  where an asset works (the free-text column still exists until a future
-  decision). V11 also added `maint.asset.asset_category`
-  (`production_equipment` | `material_handling`).
+  where an asset works (that free-text column was dropped in V17). V11 also
+  added `maint.asset.asset_category` as a CHECK enum — **superseded in V17**,
+  which dropped the column and promoted the domain to the configurable
+  catalogs `maint.asset_category` / `maint.asset_type` (owned by the
+  maintenance module; an asset's category is derived via its type).
 - **Physical (V13, plan plant-layout-foundation):** digitized plant floor
   layouts as **versioned, immutable canvases** (`production.plant_layout`)
   imported from DXF per the CAD contract
@@ -48,10 +50,11 @@ axes:
     (`runLayoutImport` / `runFootprintImport`: bytes → `{ geometry, report,
     meta }`). Covered by 33 vitest unit tests in `dxf/__tests__/` (`pnpm
     test`; vitest is the repo's first test runner, added by this plan).
-  - `enums.ts` — **canonical** home of `ASSET_CATEGORIES` (re-exported by
-    `maintenance/enums.ts`) plus the V13 domains `LAYOUT_STATUSES` /
-    `LAYOUT_STATUS_LABELS` / `layoutStatusLabel` and
-    `FOOTPRINT_SOURCE_KINDS`. Still a pure module.
+  - `enums.ts` — the V13 domains `LAYOUT_STATUSES` / `LAYOUT_STATUS_LABELS` /
+    `layoutStatusLabel` and `FOOTPRINT_SOURCE_KINDS`. Still a pure module.
+    `ASSET_CATEGORIES` **no longer lives here** (removed in V17; the file
+    keeps an explanatory note): the asset-category domain is a configurable
+    `maint` catalog owned by the maintenance module.
   - `components/` — module UI, including the V13 pages: `layout-viewer-page`
     (+ `layout-canvas`, an SVG canvas with its own pan/zoom — no d3),
     `layout-editor-page` (+ `layout-palette`: click-to-arm → click-to-place;
@@ -137,8 +140,9 @@ axes:
   cross-schema lookups run as separate per-schema queries merged in JS (typed
   cross-schema joins are not expressible with the flattened codegen keys).
 - Module-code direction with maintenance is **one-way, maintenance →
-  production** for enums and reads (`listHistoryByAsset` for the Ubicación
-  tab, `currentCellNamesByAssets` for the machines cards view); nothing in
+  production** for reads (`listHistoryByAsset` for the Ubicación tab,
+  `currentCellNamesByAssets` for the machines cards view); the former enums
+  re-export (`ASSET_CATEGORIES`) was removed in V17. Nothing in
   `src/modules/production/`
   imports from `src/modules/maintenance/` (only app routes compose both).
 
@@ -178,7 +182,8 @@ axes:
   `contract.ts` mirrors `docs/architecture/cad-layout-contract.md`: change
   the doc first.
 - **`src/modules/production/enums.ts` must stay a pure module**: imported by
-  client components, API validation **and `maintenance/enums.ts`**.
+  client components and API validation. (Since V17 `maintenance/enums.ts` no
+  longer imports from it.)
 - **The filtered unique index `UQ_asset_cell_assignment_current` permits real
   current M:N** — do not tighten it to one cell per asset (shared feed
   towers).

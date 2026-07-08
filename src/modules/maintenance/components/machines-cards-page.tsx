@@ -43,10 +43,11 @@ import {
   MachineFormDialog,
   type MachineFormAsset,
   type PlantOption,
+  type TypeOption,
+  type ProcessOption,
   type ParentOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
 import { MachineCardsGrid } from "@/modules/maintenance/components/machine-cards";
-import { assetCategoryLabel } from "@/modules/maintenance/enums";
 
 export interface MachineRow {
   asset_id: number;
@@ -57,14 +58,16 @@ export interface MachineRow {
   serial_number: string | null;
   plant_id: number;
   plant_name: string;
-  location: string | null;
-  criticality: string;
   status: string;
-  asset_category: string;
+  asset_type_id: number;
+  type_name: string;
+  category_name: string;
   parent_asset_id: number | null;
-  acquisition_date: string | null;
+  installation_date: string | null;
+  image_blob_path: string | null;
   notes: string | null;
   process_names: string[];
+  process_ids: number[];
   cell_names: string[];
   is_active: boolean;
 }
@@ -93,9 +96,13 @@ function concatLabels(values: string[]): string {
 export function MachinesCardsPage({
   machines,
   plants,
+  types,
+  processes,
 }: {
   machines: MachineRow[];
   plants: PlantOption[];
+  types: TypeOption[];
+  processes: ProcessOption[];
 }) {
   const can = useCan();
   const router = useRouter();
@@ -165,9 +172,9 @@ export function MachinesCardsPage({
   const plantOptions = [...new Set(visible.map((m) => m.plant_name))].map(
     (name) => ({ value: name, label: name }),
   );
-  const categoryOptions = [...new Set(visible.map((m) => m.asset_category))].map(
-    (c) => ({ value: c, label: assetCategoryLabel(c) }),
-  );
+  const categoryOptions = [...new Set(visible.map((m) => m.category_name))]
+    .filter(Boolean)
+    .map((c) => ({ value: c, label: c }));
 
   const filtered = React.useMemo(() => {
     let out = visible;
@@ -182,7 +189,7 @@ export function MachinesCardsPage({
       out = out.filter((m) => filters.plants.includes(m.plant_name));
     }
     if (filters.categories.length > 0) {
-      out = out.filter((m) => filters.categories.includes(m.asset_category));
+      out = out.filter((m) => filters.categories.includes(m.category_name));
     }
     return out;
   }, [visible, filters]);
@@ -210,8 +217,8 @@ export function MachinesCardsPage({
     }
     if (filters.categories.length > 0) {
       chips.push({
-        kind: filters.categories.length > 1 ? "Tipos" : "Tipo",
-        label: concatLabels(filters.categories.map(assetCategoryLabel)),
+        kind: filters.categories.length > 1 ? "Categorías" : "Categoría",
+        label: concatLabels(filters.categories),
         clear: () => setFilters({ ...filters, categories: [] }),
       });
     }
@@ -223,11 +230,19 @@ export function MachinesCardsPage({
   const start = filtered.length ? (safePage - 1) * PAGE_SIZE : 0;
   const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
-  const parentOptions: ParentOption[] = machines.map((m) => ({
-    asset_id: m.asset_id,
-    code: m.code,
-    name: m.name,
-  }));
+  const parentOptions: ParentOption[] = machines
+    .filter((m) => m.is_active)
+    .map((m) => ({
+      asset_id: m.asset_id,
+      code: m.code,
+      name: m.name,
+      brand: m.brand,
+      model: m.model,
+      serial_number: m.serial_number,
+      plant_name: m.plant_name,
+      type_name: m.type_name,
+      has_image: m.image_blob_path !== null,
+    }));
 
   return (
     <div className="flex h-full flex-col">
@@ -384,6 +399,8 @@ export function MachinesCardsPage({
         open={modal.open}
         asset={modal.edit}
         plants={plants}
+        types={types}
+        processes={processes}
         parents={parentOptions}
         onOpenChange={(open) =>
           setModal((prev) => ({ open, edit: open ? prev.edit : null }))
@@ -512,7 +529,7 @@ function FiltersButton({
           onChange={(plants) => onChange({ ...filters, plants })}
         />
         <CatalogFilter
-          label="Tipo de equipo"
+          label="Categoría"
           options={categoryOptions}
           selected={filters.categories}
           onChange={(categories) => onChange({ ...filters, categories })}

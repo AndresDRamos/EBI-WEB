@@ -23,15 +23,15 @@ export interface AppUser {
 }
 
 export interface Asset {
-  acquisition_date: Date | null;
-  asset_category: Generated<string>;
   asset_id: Generated<number>;
+  asset_type_id: number;
   brand: string | null;
   code: string;
   created_at: Generated<Date>;
   criticality: Generated<string>;
+  image_blob_path: string | null;
+  installation_date: Date | null;
   is_active: Generated<boolean>;
-  location: string | null;
   model: string | null;
   name: string;
   notes: string | null;
@@ -39,6 +39,16 @@ export interface Asset {
   plant_id: number;
   serial_number: string | null;
   status: Generated<string>;
+  updated_at: Generated<Date>;
+}
+
+export interface AssetCategory {
+  asset_category_id: Generated<number>;
+  code: string;
+  code_prefix: string;
+  created_at: Generated<Date>;
+  is_active: Generated<boolean>;
+  name: string;
   updated_at: Generated<Date>;
 }
 
@@ -52,6 +62,12 @@ export interface AssetCellAssignment {
   role_label: string | null;
   valid_from: Generated<Date>;
   valid_to: Date | null;
+}
+
+export interface AssetCodeSequence {
+  asset_category_id: number;
+  next_seq: Generated<number>;
+  plant_id: number;
 }
 
 export interface AssetDocument {
@@ -107,6 +123,16 @@ export interface AssetRestriction {
   is_active: Generated<boolean>;
   restriction_id: Generated<number>;
   restriction_type: string;
+  updated_at: Generated<Date>;
+}
+
+export interface AssetType {
+  asset_category_id: number;
+  asset_type_id: Generated<number>;
+  code: string;
+  created_at: Generated<Date>;
+  is_active: Generated<boolean>;
+  name: string;
   updated_at: Generated<Date>;
 }
 
@@ -396,12 +422,15 @@ export interface WorkOrderTask {
 export interface DB {
   app_user: AppUser;
   asset: Asset;
+  asset_category: AssetCategory;
   asset_cell_assignment: AssetCellAssignment;
+  asset_code_sequence: AssetCodeSequence;
   asset_document: AssetDocument;
   asset_footprint: AssetFootprint;
   asset_placement: AssetPlacement;
   asset_process: AssetProcess;
   asset_restriction: AssetRestriction;
+  asset_type: AssetType;
   cell: Cell;
   database_firewall_rules: DatabaseFirewallRules;
   department: Department;

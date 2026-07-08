@@ -6,8 +6,6 @@ import {
   softDeleteAsset,
   setAssetProcesses,
   ASSET_STATUSES,
-  ASSET_CRITICALITIES,
-  ASSET_CATEGORIES,
 } from "@/modules/maintenance/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
@@ -39,18 +37,16 @@ export async function GET(
 }
 
 interface PatchBody {
-  code?: unknown;
   name?: unknown;
   plant_id?: unknown;
+  asset_type_id?: unknown;
   brand?: unknown;
   model?: unknown;
   serial_number?: unknown;
-  location?: unknown;
-  criticality?: unknown;
   status?: unknown;
-  asset_category?: unknown;
   parent_asset_id?: unknown;
-  acquisition_date?: unknown;
+  installation_date?: unknown;
+  image_blob_path?: unknown;
   notes?: unknown;
   is_active?: unknown;
   /** Full replacement of the asset ↔ process M:N when present. */
@@ -72,7 +68,6 @@ export async function PATCH(
   }
 
   const changes: Parameters<typeof updateAsset>[1] = {};
-  if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
   if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
   if (body.plant_id !== undefined) {
     const plantId = Number(body.plant_id);
@@ -81,20 +76,18 @@ export async function PATCH(
     }
     changes.plant_id = plantId;
   }
-  for (const key of ["brand", "model", "serial_number", "location", "notes"] as const) {
+  if (body.asset_type_id !== undefined) {
+    const typeId = Number(body.asset_type_id);
+    if (!Number.isInteger(typeId) || typeId <= 0) {
+      return NextResponse.json({ error: "Tipo de equipo inválido." }, { status: 422 });
+    }
+    changes.asset_type_id = typeId;
+  }
+  for (const key of ["brand", "model", "serial_number", "image_blob_path", "notes"] as const) {
     const v = body[key];
     if (v === null || typeof v === "string") {
       changes[key] = typeof v === "string" && v.trim() ? v.trim() : null;
     }
-  }
-  if (body.criticality !== undefined) {
-    if (
-      typeof body.criticality !== "string" ||
-      !(ASSET_CRITICALITIES as readonly string[]).includes(body.criticality)
-    ) {
-      return NextResponse.json({ error: "Criticidad inválida." }, { status: 422 });
-    }
-    changes.criticality = body.criticality;
   }
   if (body.status !== undefined) {
     if (
@@ -105,15 +98,6 @@ export async function PATCH(
     }
     changes.status = body.status;
   }
-  if (body.asset_category !== undefined) {
-    if (
-      typeof body.asset_category !== "string" ||
-      !(ASSET_CATEGORIES as readonly string[]).includes(body.asset_category)
-    ) {
-      return NextResponse.json({ error: "Categoría inválida." }, { status: 422 });
-    }
-    changes.asset_category = body.asset_category;
-  }
   if (body.parent_asset_id !== undefined) {
     const parentId = body.parent_asset_id == null ? null : Number(body.parent_asset_id);
     if (parentId !== null && (!Number.isInteger(parentId) || parentId <= 0 || parentId === id)) {
@@ -121,21 +105,21 @@ export async function PATCH(
     }
     changes.parent_asset_id = parentId;
   }
-  if (body.acquisition_date !== undefined) {
-    if (body.acquisition_date == null || body.acquisition_date === "") {
-      changes.acquisition_date = null;
-    } else if (typeof body.acquisition_date === "string") {
-      const d = new Date(body.acquisition_date);
+  if (body.installation_date !== undefined) {
+    if (body.installation_date == null || body.installation_date === "") {
+      changes.installation_date = null;
+    } else if (typeof body.installation_date === "string") {
+      const d = new Date(body.installation_date);
       if (Number.isNaN(d.getTime())) {
         return NextResponse.json(
-          { error: "Fecha de adquisición inválida." },
+          { error: "Fecha de instalación inválida." },
           { status: 422 },
         );
       }
-      changes.acquisition_date = d;
+      changes.installation_date = d;
     } else {
       return NextResponse.json(
-        { error: "Fecha de adquisición inválida." },
+        { error: "Fecha de instalación inválida." },
         { status: 422 },
       );
     }
@@ -167,10 +151,6 @@ export async function PATCH(
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
-    const msg = err instanceof Error ? err.message : "";
-    if (/unique/i.test(msg)) {
-      return NextResponse.json({ error: "El código ya existe." }, { status: 409 });
-    }
     console.error("PATCH /api/maintenance/assets/[id] failed:", err);
     return NextResponse.json(
       { error: "No se pudo actualizar el equipo." },

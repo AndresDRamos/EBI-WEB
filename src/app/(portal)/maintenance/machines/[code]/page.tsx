@@ -3,6 +3,8 @@ import {
   findAssetByCode,
   getAssetDetail,
   listAssets,
+  listAssetCategories,
+  listAssetTypes,
   listProcesses,
 } from "@/modules/maintenance/db";
 import { listPlants } from "@/modules/org/db/org";
@@ -11,6 +13,7 @@ import {
   MachineDetail,
   type MachineDetailAsset,
 } from "@/modules/maintenance/components/machine-detail";
+import type { TypeOption } from "@/modules/maintenance/components/machine-form-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -24,15 +27,29 @@ export default async function MachineDetailPage({
   const asset = await findAssetByCode(code);
   if (!asset) notFound();
 
-  const [detail, allProcesses, plants, allAssets, assignments] =
+  const [detail, allProcesses, plants, categories, types, allAssets, assignments] =
     await Promise.all([
       getAssetDetail(asset.asset_id),
       listProcesses(true).catch(() => []),
       listPlants(true).catch(() => []),
+      listAssetCategories(true).catch(() => []),
+      listAssetTypes(true).catch(() => []),
       listAssets({ activeOnly: true }).catch(() => []),
       listHistoryByAsset(asset.asset_id).catch(() => []),
     ]);
   if (!detail) notFound();
+
+  const categoryName = new Map(
+    categories.map((c) => [c.asset_category_id, c.name]),
+  );
+  const typeOptions: TypeOption[] = types
+    .filter((t) => categoryName.has(t.asset_category_id))
+    .map((t) => ({
+      asset_type_id: t.asset_type_id,
+      name: t.name,
+      asset_category_id: t.asset_category_id,
+      category_name: categoryName.get(t.asset_category_id) ?? "",
+    }));
 
   const a = detail.asset;
   const serialized: MachineDetailAsset = {
@@ -44,16 +61,18 @@ export default async function MachineDetailPage({
     serial_number: a.serial_number,
     plant_id: a.plant_id,
     plant_name: a.plant_name,
-    location: a.location,
-    criticality: a.criticality,
     status: a.status,
-    asset_category: a.asset_category,
+    asset_type_id: a.asset_type_id,
+    type_name: a.type_name,
+    category_name: a.category_name,
     parent_asset_id: a.parent_asset_id,
     parent_code: a.parent_code,
-    acquisition_date: a.acquisition_date
-      ? a.acquisition_date.toISOString()
+    installation_date: a.installation_date
+      ? a.installation_date.toISOString()
       : null,
+    image_blob_path: a.image_blob_path,
     notes: a.notes,
+    process_ids: detail.processes.map((p) => p.process_id),
     is_active: a.is_active,
     created_at: a.created_at.toISOString(),
     updated_at: a.updated_at.toISOString(),
@@ -94,11 +113,20 @@ export default async function MachineDetailPage({
         name: p.name,
       }))}
       plants={plants.map((p) => ({ plant_id: p.plant_id, name: p.name }))}
-      parents={allAssets.map((m) => ({
-        asset_id: m.asset_id,
-        code: m.code,
-        name: m.name,
-      }))}
+      types={typeOptions}
+      parents={allAssets
+        .filter((m) => m.asset_id !== asset.asset_id)
+        .map((m) => ({
+          asset_id: m.asset_id,
+          code: m.code,
+          name: m.name,
+          brand: m.brand,
+          model: m.model,
+          serial_number: m.serial_number,
+          plant_name: m.plant_name,
+          type_name: m.type_name,
+          has_image: m.image_blob_path !== null,
+        }))}
     />
   );
 }

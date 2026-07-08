@@ -18,17 +18,3 @@ export function StatusBadge({ value }: { value: string }) {
     </Badge>
   );
 }
-
-export function CriticalityBadge({ value }: { value: string }) {
-  const tone =
-    value === "A"
-      ? "border-red-200 bg-red-50 text-red-700"
-      : value === "B"
-        ? "border-orange-200 bg-orange-50 text-ezi-orange"
-        : "border-gray-200 bg-gray-50 text-gray-600";
-  return (
-    <Badge variant="outline" className={tone}>
-      {value}
-    </Badge>
-  );
-}

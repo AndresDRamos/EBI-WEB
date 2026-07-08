@@ -25,16 +25,14 @@ import {
   MachineFormDialog,
   type MachineFormAsset,
   type PlantOption,
+  type TypeOption,
+  type ProcessOption,
   type ParentOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
-import {
-  StatusBadge,
-  CriticalityBadge,
-} from "@/modules/maintenance/components/machine-badges";
+import { StatusBadge } from "@/modules/maintenance/components/machine-badges";
 import {
   DOC_TYPES,
   RESTRICTION_TYPES,
-  assetCategoryLabel,
   docTypeLabel,
   restrictionTypeLabel,
 } from "@/modules/maintenance/enums";
@@ -43,16 +41,14 @@ import { cn } from "@/lib/utils";
 export interface MachineDetailAsset extends MachineFormAsset {
   plant_name: string;
   parent_code: string | null;
+  type_name: string;
+  category_name: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface ProcessOption {
-  process_id: number;
-  code: string;
-  name: string;
-}
+export type { ProcessOption };
 
 export interface RestrictionItem {
   restriction_id: number;
@@ -92,6 +88,7 @@ export interface MachineDetailProps {
   assignments: AssignmentItem[];
   allProcesses: ProcessOption[];
   plants: PlantOption[];
+  types: TypeOption[];
   parents: ParentOption[];
 }
 
@@ -115,6 +112,7 @@ export function MachineDetail({
   assignments,
   allProcesses,
   plants,
+  types,
   parents,
 }: MachineDetailProps) {
   const can = useCan();
@@ -213,6 +211,8 @@ export function MachineDetail({
         open={editOpen}
         asset={asset}
         plants={plants}
+        types={types}
+        processes={allProcesses}
         parents={parents}
         onOpenChange={setEditOpen}
         onSaved={() => {
@@ -228,30 +228,51 @@ export function MachineDetail({
 // Datos
 // ---------------------------------------------------------------------------
 
+const MONTHS_ES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+/** `YYYY-MM-…` → "marzo 2021" (the day is a placeholder, always 01). */
+function installationLabel(iso: string | null): string | null {
+  if (!iso) return null;
+  const year = iso.slice(0, 4);
+  const month = Number(iso.slice(5, 7));
+  const name = MONTHS_ES[month - 1];
+  return name ? `${name} ${year}` : year;
+}
+
 function DatosTab({ asset }: { asset: MachineDetailAsset }) {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 sm:flex-row">
+      {asset.image_blob_path ? (
+        // eslint-disable-next-line @next/next/no-img-element -- SAS-redirect URL, not optimizable
+        <img
+          src={`/api/maintenance/assets/${asset.asset_id}/image`}
+          alt={`Imagen de ${asset.name}`}
+          className="h-44 w-44 shrink-0 rounded-lg border object-cover"
+        />
+      ) : null}
+      <dl className="grid flex-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Marca" value={asset.brand} />
         <Field label="Modelo" value={asset.model} />
         <Field label="Número de serie" value={asset.serial_number} mono />
         <Field label="Planta" value={asset.plant_name} />
-        <Field label="Ubicación" value={asset.location} />
+        <Field label="Tipo de equipo" value={asset.type_name} />
+        <Field label="Categoría" value={asset.category_name} />
         <Field
-          label="Categoría"
-          value={assetCategoryLabel(asset.asset_category)}
-        />
-        <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Criticidad
-          </dt>
-          <dd className="mt-0.5">
-            <CriticalityBadge value={asset.criticality} />
-          </dd>
-        </div>
-        <Field
-          label="Fecha de adquisición"
-          value={asset.acquisition_date ? asset.acquisition_date.slice(0, 10) : null}
+          label="Fecha de instalación"
+          value={installationLabel(asset.installation_date)}
         />
         <Field
           label="Equipo padre"

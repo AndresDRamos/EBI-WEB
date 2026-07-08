@@ -9,7 +9,6 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { assetCategoryLabel } from "@/modules/maintenance/enums";
 import type { MachineRow } from "@/modules/maintenance/components/machines-cards-page";
 
 export interface MachineCardsGridProps {
@@ -59,10 +58,15 @@ export function MachineCardsGrid({
             href={`/maintenance/machines/${encodeURIComponent(m.code)}`}
             status={{ label: "Sin conexión", tone: "off" }}
             badges={[
-              {
-                label: assetCategoryLabel(m.asset_category),
-                className: "border-orange-200 bg-orange-50 text-ezi-orange",
-              },
+              ...(m.type_name
+                ? [
+                    {
+                      label: m.type_name,
+                      className: "border-orange-200 bg-orange-50 text-ezi-orange",
+                    },
+                  ]
+                : []),
+              ...(m.category_name ? [{ label: m.category_name }] : []),
             ]}
             details={[
               { label: "Marca", value: m.brand },

@@ -10,6 +10,10 @@ import type { DB, AppUser, Invitation } from "@/lib/db/types";
 // Server resolves the bare names under the default schema (dbo) and fails with
 // "Invalid object name 'app_user'" (error 208). Transactions inherit the schema.
 const db = rootDb.withSchema("auth");
+// `plant` moved to the `org` schema in V15 (see org.ts); `user_plant` stays in
+// `auth`, so plant names are fetched from this schema separately and joined
+// in JS instead of a single cross-schema SQL join.
+const orgDb = rootDb.withSchema("org");
 
 export type AuthUserRow = Selectable<AppUser>;
 
@@ -183,13 +187,11 @@ export async function listUsersWithNames(): Promise<AdminUserItemWithNames[]> {
 
   const ids = users.map((u) => u.user_id);
 
-  const [plantRows, deptRows] = await Promise.all([
+  const [userPlantRows, deptRows] = await Promise.all([
     db
       .selectFrom("user_plant")
-      .innerJoin("plant", "plant.plant_id", "user_plant.plant_id")
-      .select(["user_plant.user_id", "plant.plant_id", "plant.name", "plant.code"])
-      .where("user_plant.user_id", "in", ids)
-      .orderBy("plant.name", "asc")
+      .select(["user_id", "plant_id"])
+      .where("user_id", "in", ids)
       .execute(),
     db
       .selectFrom("user_department")
@@ -200,12 +202,26 @@ export async function listUsersWithNames(): Promise<AdminUserItemWithNames[]> {
       .execute(),
   ]);
 
+  const plantIds = [...new Set(userPlantRows.map((r) => r.plant_id))];
+  const plants =
+    plantIds.length === 0
+      ? []
+      : await orgDb
+          .selectFrom("plant")
+          .select(["plant_id", "name", "code"])
+          .where("plant_id", "in", plantIds)
+          .execute();
+  const plantById = new Map(plants.map((p) => [p.plant_id, p]));
+
   const plantsByUser = new Map<number, { plant_id: number; name: string; code: string }[]>();
-  for (const r of plantRows) {
+  for (const r of userPlantRows) {
+    const plant = plantById.get(r.plant_id);
+    if (!plant) continue;
     const arr = plantsByUser.get(r.user_id) ?? [];
-    arr.push({ plant_id: r.plant_id, name: r.name, code: r.code });
+    arr.push({ plant_id: plant.plant_id, name: plant.name, code: plant.code });
     plantsByUser.set(r.user_id, arr);
   }
+  for (const arr of plantsByUser.values()) arr.sort((a, b) => a.name.localeCompare(b.name));
   const deptsByUser = new Map<number, { department_id: number; name: string }[]>();
   for (const r of deptRows) {
     const arr = deptsByUser.get(r.user_id) ?? [];
@@ -316,7 +332,7 @@ export async function getUserDetail(userId: number): Promise<UserDetail | undefi
     .executeTakeFirst();
   if (!user) return undefined;
 
-  const [roles, plants, departments] = await Promise.all([
+  const [roles, userPlants, departments] = await Promise.all([
     db
       .selectFrom("user_role")
       .innerJoin("role", "role.role_id", "user_role.role_id")
@@ -326,10 +342,8 @@ export async function getUserDetail(userId: number): Promise<UserDetail | undefi
       .execute(),
     db
       .selectFrom("user_plant")
-      .innerJoin("plant", "plant.plant_id", "user_plant.plant_id")
-      .select(["plant.plant_id", "plant.code", "plant.name"])
-      .where("user_plant.user_id", "=", userId)
-      .orderBy("plant.name", "asc")
+      .select(["plant_id"])
+      .where("user_id", "=", userId)
       .execute(),
     db
       .selectFrom("user_department")
@@ -339,6 +353,17 @@ export async function getUserDetail(userId: number): Promise<UserDetail | undefi
       .orderBy("department.name", "asc")
       .execute(),
   ]);
+
+  const plantIds = userPlants.map((p) => p.plant_id);
+  const plants =
+    plantIds.length === 0
+      ? []
+      : await orgDb
+          .selectFrom("plant")
+          .select(["plant_id", "code", "name"])
+          .where("plant_id", "in", plantIds)
+          .orderBy("name", "asc")
+          .execute();
 
   const { password_hash, ...rest } = user;
   return {

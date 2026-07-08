@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
-import { createItem, findSectionById, listItems } from "@/modules/navigation/db";
+import {
+  createItem,
+  findSectionById,
+  grantItemToSectionRoles,
+  listItems,
+} from "@/modules/navigation/db";
 import { requireAnyRole, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
@@ -85,6 +90,10 @@ export async function POST(request: NextRequest) {
       href,
       sort_order: sortOrder,
     });
+    // Page-granular visibility (ADR 0008): a new page would otherwise be
+    // invisible to everyone until re-granted. Grant it to every role that
+    // already sees this section, so it shows up where the section already does.
+    await grantItemToSectionRoles(sectionId, item.item_id, sortOrder);
     revalidateTag("nav", { expire: 0 });
     return NextResponse.json({ item }, { status: 201 });
   } catch (err) {

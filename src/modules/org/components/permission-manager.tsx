@@ -14,6 +14,7 @@ import {
   Plus,
   Shield,
   Trash2,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -103,15 +104,18 @@ function reorder<T>(arr: T[], fromId: T, toId: T): T[] {
 }
 
 /**
- * Unified permission manager (Permisos tab): one shared role filter drives
- * both the `module.resource:action` matrix (left) and the nav-section
- * access + order tree (right), reached either directly (right panel's role
- * select) or via a user's role chips (left panel) — both write the same
- * `roleId`. Section drag order edits that role's topbar `priority`; item and
- * sub-item drag order edits the global `sort_order` (no per-role axis there).
- * The protected `admin` role bypasses at the app layer: it never holds grant
- * rows, sees every section ordered by the global `sort_order`, and shows an
- * "Acceso total" card instead of the matrix.
+ * Unified permission manager (Permisos tab). One shared filter bar at the top
+ * (mode Rol ⇄ Usuario) drives both panels through a single `roleId`: the
+ * `module.resource:action` matrix (left) and the page-granular nav tree
+ * (right). In Usuario mode the user's roles appear as chips → editing acts on
+ * the chosen role (grants live on `auth.role`).
+ *
+ * Nav authority is per PAGE (ADR 0008, `role_nav_item`): the tree toggles each
+ * page's visibility for the role and drag-orders pages within their section
+ * (per-role `priority`); a section is DERIVED-visible (≥1 visible page) and
+ * sinks to the end when it has none. Section drag order edits the per-role
+ * `role_nav_section.priority` (topbar order only). The protected `admin` role
+ * bypasses everywhere: no grant rows, sees every page, shows "Acceso total".
  */
 export function PermissionManager({
   roles,
@@ -127,17 +131,17 @@ export function PermissionManager({
   items: ItemRow[];
 }) {
   const adminRole = roles.find((r) => r.name === "admin") ?? null;
+  const firstNonAdmin = roles.find((r) => r.name !== "admin") ?? roles[0] ?? null;
+
+  const [mode, setMode] = React.useState<"role" | "user">("role");
   const [selectedUserId, setSelectedUserId] = React.useState<number | null>(
     users[0]?.user_id ?? null,
   );
-  const [roleId, setRoleId] = React.useState<number | null>(() => {
-    const firstUserRole = users[0]?.roles[0]?.role_id;
-    if (firstUserRole !== undefined) return firstUserRole;
-    return roles.find((r) => r.name !== "admin")?.role_id ?? roles[0]?.role_id ?? null;
-  });
+  const [roleId, setRoleId] = React.useState<number | null>(firstNonAdmin?.role_id ?? null);
 
   const selectedUser = users.find((u) => u.user_id === selectedUserId) ?? null;
   const isAdminRole = roleId !== null && roleId === adminRole?.role_id;
+  const roleName = roles.find((r) => r.role_id === roleId)?.name ?? null;
 
   function onUserChange(id: number) {
     setSelectedUserId(id);
@@ -145,52 +149,196 @@ export function PermissionManager({
     if (user?.roles[0]) setRoleId(user.roles[0].role_id);
   }
 
+  function onModeChange(next: "role" | "user") {
+    setMode(next);
+    if (next === "user" && selectedUser?.roles[0]) setRoleId(selectedUser.roles[0].role_id);
+    if (next === "role" && roleId === null) setRoleId(firstNonAdmin?.role_id ?? null);
+  }
+
   return (
-    <div className="grid min-h-[calc(100vh-14rem)] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-      <PermissionsPanel
-        permissions={permissions}
+    <div className="flex h-[calc(100vh-10rem)] flex-col gap-4">
+      <FilterBar
+        mode={mode}
+        onModeChange={onModeChange}
+        roles={roles}
+        roleId={roleId}
+        onRoleChange={setRoleId}
+        roleName={roleName}
         users={users}
         selectedUser={selectedUser}
         onUserChange={onUserChange}
-        roleId={roleId}
-        onRoleChange={setRoleId}
-        isAdminRole={isAdminRole}
       />
-      <NavAccessTree
-        roles={roles}
-        sections={sections}
-        items={items}
-        roleId={roleId}
-        onRoleChange={setRoleId}
-        isAdminRole={isAdminRole}
-      />
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+        <PermissionsPanel permissions={permissions} roleId={roleId} isAdminRole={isAdminRole} />
+        <NavAccessTree
+          sections={sections}
+          items={items}
+          roleId={roleId}
+          roleName={roleName}
+          isAdminRole={isAdminRole}
+        />
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Left panel: user → role chips → permission matrix
+// Shared top filter bar: mode Rol ⇄ Usuario, driving a single roleId.
+// ---------------------------------------------------------------------------
+
+function FilterBar({
+  mode,
+  onModeChange,
+  roles,
+  roleId,
+  onRoleChange,
+  roleName,
+  users,
+  selectedUser,
+  onUserChange,
+}: {
+  mode: "role" | "user";
+  onModeChange: (m: "role" | "user") => void;
+  roles: RoleOption[];
+  roleId: number | null;
+  onRoleChange: (id: number) => void;
+  roleName: string | null;
+  users: UserOption[];
+  selectedUser: UserOption | null;
+  onUserChange: (id: number) => void;
+}) {
+  return (
+    <section className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border bg-card p-3 shadow-sm">
+      <div className="flex items-center gap-0.5 rounded-md border bg-gray-50 p-0.5">
+        <ModeButton active={mode === "role"} onClick={() => onModeChange("role")} icon={<Shield className="h-3.5 w-3.5" />}>
+          Por rol
+        </ModeButton>
+        <ModeButton active={mode === "user"} onClick={() => onModeChange("user")} icon={<UserRound className="h-3.5 w-3.5" />}>
+          Por usuario
+        </ModeButton>
+      </div>
+
+      {mode === "role" ? (
+        <div className="flex items-center gap-2">
+          <Label className="text-xs font-semibold text-gray-600">Rol</Label>
+          <Select
+            className="h-[34px] min-w-[180px] text-sm"
+            value={roleId ?? ""}
+            onChange={(e) => onRoleChange(Number(e.target.value))}
+          >
+            {roles.map((r) => (
+              <option key={r.role_id} value={r.role_id}>
+                {r.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-semibold text-gray-600">Usuario</Label>
+            {users.length === 0 ? (
+              <span className="text-xs text-muted-foreground">
+                No hay usuarios. Créalos en Organización → Usuarios.
+              </span>
+            ) : (
+              <>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ezi-gray text-[10px] font-bold text-white">
+                  {initialsOf(selectedUser?.display_name ?? selectedUser?.username ?? "?")}
+                </span>
+                <Select
+                  className="h-[34px] min-w-[180px] text-sm"
+                  value={selectedUser?.user_id ?? ""}
+                  onChange={(e) => onUserChange(Number(e.target.value))}
+                >
+                  {users.map((u) => (
+                    <option key={u.user_id} value={u.user_id}>
+                      {u.display_name ?? u.username}
+                    </option>
+                  ))}
+                </Select>
+              </>
+            )}
+          </div>
+          {selectedUser ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-gray-400">roles:</span>
+              {selectedUser.roles.length === 0 ? (
+                <span className="text-xs text-muted-foreground">Sin roles asignados.</span>
+              ) : (
+                selectedUser.roles.map((r) => {
+                  const sel = r.role_id === roleId;
+                  return (
+                    <button
+                      key={r.role_id}
+                      onClick={() => onRoleChange(r.role_id)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs transition-colors",
+                        sel
+                          ? "border-ezi-gray bg-ezi-gray text-white"
+                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-400",
+                      )}
+                    >
+                      <span className={cn("h-1.5 w-1.5 rounded-full", sel ? "bg-ezi-orange" : "bg-gray-300")} />
+                      {r.name}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground">
+        Editando el rol{" "}
+        <span className="font-mono font-semibold text-gray-700">{roleName ?? "—"}</span>
+      </span>
+    </section>
+  );
+}
+
+function ModeButton({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition-colors",
+        active ? "bg-white text-ezi-gray shadow-sm" : "text-gray-500 hover:text-gray-800",
+      )}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Left panel: permission matrix for the selected role (module.resource:action)
 // ---------------------------------------------------------------------------
 
 function PermissionsPanel({
   permissions,
-  users,
-  selectedUser,
-  onUserChange,
   roleId,
-  onRoleChange,
   isAdminRole,
 }: {
   permissions: PermissionOption[];
-  users: UserOption[];
-  selectedUser: UserOption | null;
-  onUserChange: (id: number) => void;
   roleId: number | null;
-  onRoleChange: (id: number) => void;
   isAdminRole: boolean;
 }) {
   const [granted, setGranted] = React.useState<Set<number>>(new Set());
-  const [collapsedModules, setCollapsedModules] = React.useState<Set<string>>(new Set());
+  // Modules start COLLAPSED by default (only expanded ones are tracked here).
+  const [expandedModules, setExpandedModules] = React.useState<Set<string>>(new Set());
   const [loading, setLoading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [dirty, setDirty] = React.useState(false);
@@ -262,7 +410,7 @@ function PermissionsPanel({
   }, [permissions]);
 
   function toggleModule(mod: string) {
-    setCollapsedModules((prev) => {
+    setExpandedModules((prev) => {
       const next = new Set(prev);
       if (next.has(mod)) next.delete(mod);
       else next.add(mod);
@@ -306,76 +454,14 @@ function PermissionsPanel({
 
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-sm">
-      <div className="flex items-start justify-between gap-3 border-b p-4">
-        <div className="flex min-w-0 gap-2.5">
-          <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-ezi-orange" />
-          <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold leading-tight">Permisos por usuario</h2>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Elige un usuario y uno de sus roles para revisar y editar qué acciones puede
-              ejecutar.
-            </p>
-          </div>
+      <div className="flex items-start gap-2.5 border-b p-4">
+        <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-ezi-orange" />
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold leading-tight">Control de permisos</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Qué acciones (`módulo.recurso:acción`) puede ejecutar el rol seleccionado.
+          </p>
         </div>
-      </div>
-
-      <div className="flex flex-col gap-3 border-b bg-gray-50 p-3.5">
-        <div className="flex items-center gap-3">
-          <Label className="w-14 shrink-0 text-xs font-semibold text-gray-600">Usuario</Label>
-          {users.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              No hay usuarios. Créalos en Organización → Usuarios.
-            </p>
-          ) : (
-            <>
-              <Select
-                className="flex-1"
-                value={selectedUser?.user_id ?? ""}
-                onChange={(e) => onUserChange(Number(e.target.value))}
-              >
-                {users.map((u) => (
-                  <option key={u.user_id} value={u.user_id}>
-                    {u.display_name ?? u.username}
-                  </option>
-                ))}
-              </Select>
-              <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-ezi-gray text-[11px] font-bold text-white">
-                {initialsOf(selectedUser?.display_name ?? selectedUser?.username ?? "?")}
-              </span>
-            </>
-          )}
-        </div>
-        {selectedUser ? (
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Label className="w-14 shrink-0 text-xs font-semibold text-gray-600">Rol</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {selectedUser.roles.length === 0 ? (
-                <span className="text-xs text-muted-foreground">Sin roles asignados.</span>
-              ) : (
-                selectedUser.roles.map((r) => {
-                  const sel = r.role_id === roleId;
-                  return (
-                    <button
-                      key={r.role_id}
-                      onClick={() => onRoleChange(r.role_id)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs transition-colors",
-                        sel
-                          ? "border-ezi-gray bg-ezi-gray text-white"
-                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-400",
-                      )}
-                    >
-                      <span
-                        className={cn("h-1.5 w-1.5 rounded-full", sel ? "bg-ezi-orange" : "bg-gray-300")}
-                      />
-                      {r.name}
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
@@ -388,7 +474,7 @@ function PermissionsPanel({
               <p className="text-[13px] font-semibold">Acceso total</p>
               <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                 El rol <span className="font-mono font-semibold text-gray-700">admin</span> siempre
-                tiene todos los permisos y ve todas las secciones. No se edita aquí; el servidor lo
+                tiene todos los permisos y ve todas las páginas. No se edita aquí; el servidor lo
                 omite del catálogo.
               </p>
             </div>
@@ -397,7 +483,7 @@ function PermissionsPanel({
           <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
         ) : (
           [...modules.entries()].map(([moduleName, rows]) => {
-            const expanded = !collapsedModules.has(moduleName);
+            const expanded = expandedModules.has(moduleName);
             const total = rows.reduce((n, r) => n + r.byAction.size, 0);
             const grantedCount = rows.reduce(
               (n, r) => n + [...r.byAction.values()].filter((p) => granted.has(p.permission_id)).length,
@@ -490,26 +576,20 @@ function PermissionsPanel({
 }
 
 // ---------------------------------------------------------------------------
-// Right panel: nav-section access + order tree
+// Right panel: page-granular nav access + order tree (role_nav_item, ADR 0008)
 // ---------------------------------------------------------------------------
 
-interface SectionDraft {
-  granted: boolean;
-}
-
 function NavAccessTree({
-  roles,
   sections,
   items,
   roleId,
-  onRoleChange,
+  roleName,
   isAdminRole,
 }: {
-  roles: RoleOption[];
   sections: SectionRow[];
   items: ItemRow[];
   roleId: number | null;
-  onRoleChange: (id: number) => void;
+  roleName: string | null;
   isAdminRole: boolean;
 }) {
   const router = useRouter();
@@ -523,54 +603,15 @@ function NavAccessTree({
   );
   const [drag, setDrag] = React.useState<{ scope: DragScope; id: number } | null>(null);
 
+  // Per-page visibility for the role (item_id -> priority). Presence = visible.
+  const [itemGrants, setItemGrants] = React.useState<Map<number, number>>(new Map());
+  // Per-role section order (topbar priority) as an ordered list of section ids.
   const [sectionOrder, setSectionOrder] = React.useState<number[]>(() =>
     [...sections].sort((a, b) => a.sort_order - b.sort_order).map((s) => s.section_id),
   );
-  const [sectionDrafts, setSectionDrafts] = React.useState<Map<number, SectionDraft>>(new Map());
-
-  const itemsBySectionInit = React.useMemo(() => {
-    const map = new Map<number, number[]>();
-    for (const it of items.filter((i) => i.parent_item_id === null)) {
-      const arr = map.get(it.section_id) ?? [];
-      arr.push(it.item_id);
-      map.set(it.section_id, arr);
-    }
-    for (const [sid, arr] of map) {
-      arr.sort((a, b) => {
-        const ia = items.find((i) => i.item_id === a)!.sort_order;
-        const ib = items.find((i) => i.item_id === b)!.sort_order;
-        return ia - ib;
-      });
-      map.set(sid, arr);
-    }
-    return map;
-  }, [items]);
-  const childrenByItemInit = React.useMemo(() => {
-    const map = new Map<number, number[]>();
-    for (const it of items.filter((i) => i.parent_item_id !== null)) {
-      const arr = map.get(it.parent_item_id!) ?? [];
-      arr.push(it.item_id);
-      map.set(it.parent_item_id!, arr);
-    }
-    for (const [pid, arr] of map) {
-      arr.sort((a, b) => {
-        const ia = items.find((i) => i.item_id === a)!.sort_order;
-        const ib = items.find((i) => i.item_id === b)!.sort_order;
-        return ia - ib;
-      });
-      map.set(pid, arr);
-    }
-    return map;
-  }, [items]);
-
-  const [itemsBySection, setItemsBySection] = React.useState<Map<number, number[]>>(itemsBySectionInit);
-  const [childrenByItem, setChildrenByItem] = React.useState<Map<number, number[]>>(childrenByItemInit);
-  React.useEffect(() => {
-    void (async () => {
-      setItemsBySection(itemsBySectionInit);
-      setChildrenByItem(childrenByItemInit);
-    })();
-  }, [itemsBySectionInit, childrenByItemInit]);
+  // Display/drag order of items (all items, visible-first), per section / parent.
+  const [itemsBySection, setItemsBySection] = React.useState<Map<number, number[]>>(new Map());
+  const [childrenByItem, setChildrenByItem] = React.useState<Map<number, number[]>>(new Map());
 
   const itemsById = React.useMemo(() => new Map(items.map((i) => [i.item_id, i])), [items]);
   const sectionsById = React.useMemo(
@@ -578,12 +619,57 @@ function NavAccessTree({
     [sections],
   );
 
+  const topItemsRaw = React.useMemo(
+    () => items.filter((i) => i.parent_item_id === null),
+    [items],
+  );
+  const childItemsRaw = React.useMemo(
+    () => items.filter((i) => i.parent_item_id !== null),
+    [items],
+  );
+
+  // Build the display order maps from the loaded grants: visible items first
+  // (by their per-role priority), hidden items after (by global sort_order).
+  const buildOrder = React.useCallback(
+    (grants: Map<number, number>) => {
+      const rank = (id: number) => {
+        const p = grants.get(id);
+        const it = itemsById.get(id)!;
+        return p !== undefined ? p : 1_000_000 + it.sort_order;
+      };
+      const bySection = new Map<number, number[]>();
+      for (const s of sections) {
+        const ids = topItemsRaw
+          .filter((i) => i.section_id === s.section_id)
+          .map((i) => i.item_id)
+          .sort((a, b) => rank(a) - rank(b));
+        bySection.set(s.section_id, ids);
+      }
+      const byParent = new Map<number, number[]>();
+      for (const parent of topItemsRaw) {
+        const ids = childItemsRaw
+          .filter((c) => c.parent_item_id === parent.item_id)
+          .map((c) => c.item_id)
+          .sort((a, b) => rank(a) - rank(b));
+        if (ids.length > 0) byParent.set(parent.item_id, ids);
+      }
+      return { bySection, byParent };
+    },
+    [sections, topItemsRaw, childItemsRaw, itemsById],
+  );
+
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
-      if (roleId === null || isAdminRole) {
-        setSectionDrafts(new Map());
+      const defaultOrder = () => {
+        const { bySection, byParent } = buildOrder(new Map());
+        setItemsBySection(bySection);
+        setChildrenByItem(byParent);
         setSectionOrder([...sections].sort((a, b) => a.sort_order - b.sort_order).map((s) => s.section_id));
+      };
+      if (roleId === null || isAdminRole) {
+        setItemGrants(new Map());
+        defaultOrder();
         return;
       }
       setLoading(true);
@@ -591,25 +677,36 @@ function NavAccessTree({
       setDirty(false);
       setSaved(false);
       try {
-        const res = await fetch(`/api/roles/${roleId}/sections`);
-        if (!res.ok) throw new Error();
-        const d = (await res.json()) as { grants?: { section_id: number; priority: number }[] };
+        const [itemsRes, sectionsRes] = await Promise.all([
+          fetch(`/api/roles/${roleId}/items`),
+          fetch(`/api/roles/${roleId}/sections`),
+        ]);
+        if (!itemsRes.ok || !sectionsRes.ok) throw new Error();
+        const itemsData = (await itemsRes.json()) as { grants?: { item_id: number; priority: number }[] };
+        const sectionsData = (await sectionsRes.json()) as {
+          grants?: { section_id: number; priority: number }[];
+        };
         if (cancelled) return;
-        const grants = d.grants ?? [];
-        const grantedIds = new Set(grants.map((g) => g.section_id));
-        const byPriority = new Map(grants.map((g) => [g.section_id, g.priority]));
-        const ordered = [...sections].sort((a, b) => {
-          const pa = byPriority.get(a.section_id);
-          const pb = byPriority.get(b.section_id);
-          if (pa !== undefined && pb !== undefined) return pa - pb;
-          if (pa !== undefined) return -1;
-          if (pb !== undefined) return 1;
-          return a.sort_order - b.sort_order;
-        });
-        setSectionOrder(ordered.map((s) => s.section_id));
-        setSectionDrafts(new Map(sections.map((s) => [s.section_id, { granted: grantedIds.has(s.section_id) }])));
+        const grants = new Map((itemsData.grants ?? []).map((g) => [g.item_id, g.priority]));
+        const secPrio = new Map((sectionsData.grants ?? []).map((g) => [g.section_id, g.priority]));
+        setItemGrants(grants);
+        const { bySection, byParent } = buildOrder(grants);
+        setItemsBySection(bySection);
+        setChildrenByItem(byParent);
+        setSectionOrder(
+          [...sections]
+            .sort((a, b) => {
+              const pa = secPrio.get(a.section_id);
+              const pb = secPrio.get(b.section_id);
+              if (pa !== undefined && pb !== undefined) return pa - pb;
+              if (pa !== undefined) return -1;
+              if (pb !== undefined) return 1;
+              return a.sort_order - b.sort_order;
+            })
+            .map((s) => s.section_id),
+        );
       } catch {
-        if (!cancelled) setError("No se pudieron cargar los accesos del rol.");
+        if (!cancelled) setError("No se pudo cargar la visibilidad del rol.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -620,16 +717,88 @@ function NavAccessTree({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleId, isAdminRole]);
 
-  function toggleSectionAccess(sectionId: number) {
-    if (isAdminRole) return;
-    setSectionDrafts((prev) => {
-      const next = new Map(prev);
-      const current = next.get(sectionId) ?? { granted: false };
-      next.set(sectionId, { granted: !current.granted });
-      return next;
+  // A page is visible if it's granted (admin sees everything).
+  const isItemVisible = React.useCallback(
+    (itemId: number) => isAdminRole || itemGrants.has(itemId),
+    [isAdminRole, itemGrants],
+  );
+
+  // A section is DERIVED-visible: ≥1 of its (active) pages is visible.
+  const sectionItemIds = React.useMemo(() => {
+    const map = new Map<number, number[]>();
+    for (const it of items) {
+      const arr = map.get(it.section_id) ?? [];
+      arr.push(it.item_id);
+      map.set(it.section_id, arr);
+    }
+    return map;
+  }, [items]);
+
+  const isSectionVisible = React.useCallback(
+    (sectionId: number) =>
+      isAdminRole || (sectionItemIds.get(sectionId) ?? []).some((id) => itemGrants.has(id)),
+    [isAdminRole, itemGrants, sectionItemIds],
+  );
+
+  // Display order of sections: visible first (in sectionOrder), ungranted last.
+  const displaySectionOrder = React.useMemo(() => {
+    return [...sectionOrder].sort((a, b) => {
+      const va = isSectionVisible(a) ? 0 : 1;
+      const vb = isSectionVisible(b) ? 0 : 1;
+      if (va !== vb) return va - vb;
+      return sectionOrder.indexOf(a) - sectionOrder.indexOf(b);
     });
+  }, [sectionOrder, isSectionVisible]);
+
+  function markDirty() {
     setDirty(true);
     setSaved(false);
+  }
+
+  function toggleItemVisible(itemId: number) {
+    if (isAdminRole) return;
+    setItemGrants((prev) => {
+      const next = new Map(prev);
+      if (next.has(itemId)) next.delete(itemId);
+      else {
+        // Append after the currently-highest priority so new grants sort last.
+        const max = next.size === 0 ? -10 : Math.max(...next.values());
+        next.set(itemId, max + 10);
+      }
+      return next;
+    });
+    markDirty();
+  }
+
+  // Toggle a whole section = grant/revoke ALL its pages for the role.
+  function toggleSectionVisible(sectionId: number) {
+    if (isAdminRole) return;
+    const ids = sectionItemIds.get(sectionId) ?? [];
+    const anyVisible = ids.some((id) => itemGrants.has(id));
+    setItemGrants((prev) => {
+      const next = new Map(prev);
+      if (anyVisible) {
+        for (const id of ids) next.delete(id);
+      } else {
+        let max = next.size === 0 ? -10 : Math.max(...next.values());
+        // Preserve the section's display order when bulk-granting (top items
+        // interleaved with their children), falling back to raw id order.
+        const idSet = new Set(ids);
+        const ordered: number[] = [];
+        for (const topId of itemsBySection.get(sectionId) ?? []) {
+          if (idSet.has(topId)) ordered.push(topId);
+          for (const childId of childrenByItem.get(topId) ?? []) {
+            if (idSet.has(childId)) ordered.push(childId);
+          }
+        }
+        for (const id of ordered.length ? ordered : ids) {
+          max += 10;
+          next.set(id, max);
+        }
+      }
+      return next;
+    });
+    markDirty();
   }
 
   function onDragStart(scope: DragScope, id: number) {
@@ -654,66 +823,47 @@ function NavAccessTree({
         return next;
       });
     }
-    setDirty(true);
-    setSaved(false);
+    markDirty();
   }
   function onDragEndRow() {
     setDrag(null);
   }
 
   async function onSave() {
+    if (roleId === null || isAdminRole) return;
     setBusy(true);
     setError(null);
     try {
-      const calls: Promise<Response>[] = [];
-      if (!isAdminRole && roleId !== null) {
-        const grants = sectionOrder
-          .map((id, idx) => ({ id, idx }))
-          .filter(({ id }) => sectionDrafts.get(id)?.granted)
-          .map(({ id, idx }) => ({ section_id: id, priority: idx * 10 }));
-        calls.push(
-          fetch(`/api/roles/${roleId}/sections`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ grants }),
-          }),
-        );
-      }
-      for (const [sectionId, order] of itemsBySection) {
-        order.forEach((id, idx) => {
-          const original = itemsById.get(id);
-          if (!original) return;
-          const sortOrder = idx * 10;
-          if (original.sort_order !== sortOrder) {
-            calls.push(
-              fetch(`/api/nav/items/${id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sort_order: sortOrder }),
-              }),
-            );
+      // Page grants: for each visible item, priority = its rank in the display
+      // order (top items then their children), so per-role order round-trips.
+      const grants: { item_id: number; priority: number }[] = [];
+      let seq = 0;
+      for (const sectionId of sectionOrder) {
+        for (const topId of itemsBySection.get(sectionId) ?? []) {
+          if (itemGrants.has(topId)) grants.push({ item_id: topId, priority: seq++ * 10 });
+          for (const childId of childrenByItem.get(topId) ?? []) {
+            if (itemGrants.has(childId)) grants.push({ item_id: childId, priority: seq++ * 10 });
           }
-        });
-        void sectionId;
+        }
       }
-      for (const [, order] of childrenByItem) {
-        order.forEach((id, idx) => {
-          const original = itemsById.get(id);
-          if (!original) return;
-          const sortOrder = idx * 10;
-          if (original.sort_order !== sortOrder) {
-            calls.push(
-              fetch(`/api/nav/items/${id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sort_order: sortOrder }),
-              }),
-            );
-          }
-        });
-      }
-      const results = await Promise.all(calls);
-      const failed = results.find((r) => !r.ok);
+      // Section order: only granted (derived-visible) sections, in display order.
+      const sectionGrants = displaySectionOrder
+        .filter((id) => isSectionVisible(id))
+        .map((id, idx) => ({ section_id: id, priority: idx * 10 }));
+
+      const [itemsRes, sectionsRes] = await Promise.all([
+        fetch(`/api/roles/${roleId}/items`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ grants }),
+        }),
+        fetch(`/api/roles/${roleId}/sections`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ grants: sectionGrants }),
+        }),
+      ]);
+      const failed = [itemsRes, sectionsRes].find((r) => !r.ok);
       if (failed) {
         const d = (await failed.json().catch(() => ({}))) as { error?: string };
         throw new Error(d.error ?? "No se pudo guardar el acceso/orden.");
@@ -736,52 +886,36 @@ function NavAccessTree({
   } | null>(null);
   const [deleteItemId, setDeleteItemId] = React.useState<number | null>(null);
 
+  const visibleSectionCount = displaySectionOrder.filter((id) => isSectionVisible(id)).length;
+
   return (
     <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-sm">
-      <div className="flex items-start justify-between gap-3 border-b p-4">
-        <div className="flex min-w-0 gap-2.5">
-          <ListTree className="mt-0.5 h-5 w-5 shrink-0 text-ezi-orange" />
-          <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold leading-tight">Estructura del menú</h2>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Menú de navegación por rol de usuario
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-2 rounded-md border bg-gray-50 py-1 pl-2.5 pr-1.5">
-          <Eye className="h-4 w-4 text-ezi-orange" />
-          <Label className="text-xs font-semibold text-gray-600">Ver como</Label>
-          <Select
-            className="h-[30px] max-w-[200px] text-xs"
-            value={roleId ?? ""}
-            onChange={(e) => onRoleChange(Number(e.target.value))}
-          >
-            {roles.map((r) => (
-              <option key={r.role_id} value={r.role_id}>
-                {r.name}
-              </option>
-            ))}
-          </Select>
+      <div className="flex items-start gap-2.5 border-b p-4">
+        <ListTree className="mt-0.5 h-5 w-5 shrink-0 text-ezi-orange" />
+        <div className="min-w-0">
+          <h2 className="text-[15px] font-semibold leading-tight">Estructura del menú</h2>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Qué páginas ve el rol y en qué orden. Una sección sin páginas visibles se manda al
+            final.
+          </p>
         </div>
       </div>
 
       <div className="flex items-center gap-4 border-b bg-gray-50 px-4 py-2 text-[11.5px] text-gray-500">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-ezi-orange" />
-          Sección visible
+          Página visible
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-gray-300 opacity-50" />
-          Sin acceso para este rol
+          Oculta para este rol
         </span>
         <span className="ml-auto font-mono">
           {roleId === null
             ? "—"
             : isAdminRole
               ? `admin · ve ${sections.length} secciones`
-              : `${roles.find((r) => r.role_id === roleId)?.name ?? ""} · ve ${
-                  [...sectionDrafts.values()].filter((d) => d.granted).length
-                }/${sections.length}`}
+              : `${roleName ?? ""} · ve ${visibleSectionCount}/${sections.length} secciones`}
         </span>
       </div>
 
@@ -789,10 +923,10 @@ function NavAccessTree({
         {loading ? (
           <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
         ) : (
-          sectionOrder.map((sectionId) => {
+          displaySectionOrder.map((sectionId) => {
             const section = sectionsById.get(sectionId);
             if (!section) return null;
-            const granted = isAdminRole || (sectionDrafts.get(sectionId)?.granted ?? false);
+            const sectionVisible = isSectionVisible(sectionId);
             const expanded = expandedSectionId === sectionId;
             const topItems = itemsBySection.get(sectionId) ?? [];
             return (
@@ -809,7 +943,7 @@ function NavAccessTree({
                   className={cn(
                     "flex items-center gap-2.5 border-b px-3.5 py-2.5",
                     expanded ? "bg-gray-50" : "bg-white",
-                    !granted && "opacity-[0.38]",
+                    !sectionVisible && "opacity-[0.42]",
                   )}
                 >
                   {!isAdminRole ? (
@@ -822,20 +956,16 @@ function NavAccessTree({
                     className="flex shrink-0 items-center justify-center rounded p-0.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
                     aria-label="Expandir"
                   >
-                    {expanded ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
+                    {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   </button>
                   <NavIcon name={section.icon} className="h-[18px] w-[18px] shrink-0 text-ezi-orange" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold leading-tight">{section.label}</div>
                     <div className="font-mono text-[11px] text-gray-400">{section.base_path}</div>
                   </div>
-                  {granted ? (
+                  {sectionVisible ? (
                     <Badge variant="muted" className="whitespace-nowrap font-mono text-[11px] font-semibold">
-                      P{sectionOrder.indexOf(sectionId) + 1}
+                      P{displaySectionOrder.filter((id) => isSectionVisible(id)).indexOf(sectionId) + 1}
                     </Badge>
                   ) : null}
                   <button
@@ -849,11 +979,12 @@ function NavAccessTree({
                     <Eye className="h-[15px] w-[15px] shrink-0 text-gray-300" />
                   ) : (
                     <button
-                      onClick={() => toggleSectionAccess(sectionId)}
+                      onClick={() => toggleSectionVisible(sectionId)}
                       className="flex shrink-0 items-center"
-                      aria-label={granted ? "Revocar acceso" : "Conceder acceso"}
+                      aria-label={sectionVisible ? "Ocultar toda la sección" : "Mostrar toda la sección"}
+                      title={sectionVisible ? "Ocultar todas las páginas" : "Mostrar todas las páginas"}
                     >
-                      {granted ? (
+                      {sectionVisible ? (
                         <Eye className="h-[15px] w-[15px] text-gray-300" />
                       ) : (
                         <EyeOff className="h-[15px] w-[15px] text-ezi-orange" />
@@ -866,13 +997,14 @@ function NavAccessTree({
                   <div className="border-b bg-gray-50">
                     {topItems.length === 0 ? (
                       <p className="py-3 pl-[46px] pr-3.5 text-xs italic text-gray-400">
-                        Sin ítems de sidebar en esta sección.
+                        Sin páginas de sidebar en esta sección.
                       </p>
                     ) : (
                       topItems.map((itemId) => {
                         const item = itemsById.get(itemId);
                         if (!item) return null;
                         const children = childrenByItem.get(itemId) ?? [];
+                        const itemVisible = isItemVisible(itemId);
                         return (
                           <div key={itemId}>
                             <div
@@ -884,7 +1016,10 @@ function NavAccessTree({
                               }}
                               onDrop={(e) => e.preventDefault()}
                               onDragEnd={onDragEndRow}
-                              className="flex items-center gap-2 border-t py-2 pl-[46px] pr-3.5"
+                              className={cn(
+                                "flex items-center gap-2 border-t py-2 pl-[46px] pr-3.5",
+                                !itemVisible && "opacity-[0.45]",
+                              )}
                             >
                               <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-gray-300" />
                               <NavIcon name={item.icon} className="h-4 w-4 shrink-0 text-gray-500" />
@@ -894,9 +1029,20 @@ function NavAccessTree({
                                 </div>
                                 <div className="font-mono text-[10.5px] text-gray-400">{item.href}</div>
                               </div>
-                              <span className="whitespace-nowrap font-mono text-[10.5px] text-gray-400">
-                                #{topItems.indexOf(itemId) + 1}
-                              </span>
+                              {!isAdminRole ? (
+                                <button
+                                  onClick={() => toggleItemVisible(itemId)}
+                                  className="flex shrink-0 items-center"
+                                  aria-label={itemVisible ? "Ocultar página" : "Mostrar página"}
+                                  title={itemVisible ? "Ocultar página" : "Mostrar página"}
+                                >
+                                  {itemVisible ? (
+                                    <Eye className="h-[15px] w-[15px] text-gray-300" />
+                                  ) : (
+                                    <EyeOff className="h-[15px] w-[15px] text-ezi-orange" />
+                                  )}
+                                </button>
+                              ) : null}
                               <button
                                 onClick={() => setItemDialog({ sectionId, parentItemId: null, editId: itemId })}
                                 className="flex shrink-0 items-center justify-center rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-800"
@@ -922,6 +1068,7 @@ function NavAccessTree({
                             {children.map((childId) => {
                               const child = itemsById.get(childId);
                               if (!child) return null;
+                              const childVisible = isItemVisible(childId);
                               return (
                                 <div
                                   key={childId}
@@ -933,16 +1080,30 @@ function NavAccessTree({
                                   }}
                                   onDrop={(e) => e.preventDefault()}
                                   onDragEnd={onDragEndRow}
-                                  className="flex items-center gap-2 border-t py-1.5 pl-[72px] pr-3.5"
+                                  className={cn(
+                                    "flex items-center gap-2 border-t py-1.5 pl-[72px] pr-3.5",
+                                    !childVisible && "opacity-[0.45]",
+                                  )}
                                 >
                                   <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-gray-300" />
                                   <span className="h-[5px] w-[5px] shrink-0 rounded-full bg-gray-300" />
                                   <span className="min-w-0 flex-1 text-[12.5px] text-gray-700">
                                     {child.label}
                                   </span>
-                                  <span className="whitespace-nowrap font-mono text-[10.5px] text-gray-400">
-                                    {child.href}
-                                  </span>
+                                  {!isAdminRole ? (
+                                    <button
+                                      onClick={() => toggleItemVisible(childId)}
+                                      className="flex shrink-0 items-center"
+                                      aria-label={childVisible ? "Ocultar página" : "Mostrar página"}
+                                      title={childVisible ? "Ocultar página" : "Mostrar página"}
+                                    >
+                                      {childVisible ? (
+                                        <Eye className="h-[14px] w-[14px] text-gray-300" />
+                                      ) : (
+                                        <EyeOff className="h-[14px] w-[14px] text-ezi-orange" />
+                                      )}
+                                    </button>
+                                  ) : null}
                                   <button
                                     onClick={() =>
                                       setItemDialog({ sectionId, parentItemId: itemId, editId: childId })
@@ -973,7 +1134,7 @@ function NavAccessTree({
                         onClick={() => setItemDialog({ sectionId, parentItemId: null, editId: null })}
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        Nuevo ítem
+                        Nueva página
                       </Button>
                     </div>
                   </div>
@@ -993,15 +1154,15 @@ function NavAccessTree({
           ) : dirty ? (
             <span className="text-warning">Cambios sin guardar</span>
           ) : saved ? (
-            <span className="text-success">Acceso y orden guardados.</span>
+            <span className="text-success">Visibilidad y orden guardados.</span>
           ) : (
             <span className="text-muted-foreground">
-              Menor prioridad = aparece antes en el topbar.
+              Oculta páginas o secciones; sin páginas visibles, la sección se manda al final.
             </span>
           )}
         </div>
-        <Button variant="outline" onClick={() => void onSave()} disabled={busy || loading}>
-          {busy ? "Guardando…" : "Guardar acceso y orden"}
+        <Button variant="outline" onClick={() => void onSave()} disabled={busy || loading || isAdminRole}>
+          {busy ? "Guardando…" : "Guardar visibilidad y orden"}
         </Button>
       </div>
 
@@ -1036,7 +1197,7 @@ function NavAccessTree({
       <AlertDialog open={deleteItemId !== null} onOpenChange={(open) => !open && setDeleteItemId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar ítem</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar página</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Se eliminará
               {deleteItemId !== null ? ` "${itemsById.get(deleteItemId)?.label ?? ""}"` : ""} del menú.
@@ -1064,6 +1225,43 @@ function NavAccessTree({
 // ---------------------------------------------------------------------------
 // Structure CRUD dialogs (inline replacement for the retired Módulos tab)
 // ---------------------------------------------------------------------------
+
+function IconPickerField({
+  id,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>Ícono</Label>
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-gray-50 text-ezi-orange">
+          <NavIcon name={value || null} className="h-5 w-5" />
+        </span>
+        <Select
+          id={id}
+          className="flex-1"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+        >
+          <option value="">Sin ícono</option>
+          {NAV_ICON_NAMES.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </div>
+  );
+}
 
 function SectionEditDialog({
   section,
@@ -1128,17 +1326,7 @@ function SectionEditDialog({
           <Label htmlFor="tree-section-label">Etiqueta *</Label>
           <Input id="tree-section-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} disabled={busy} />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="tree-section-icon">Ícono</Label>
-          <Select id="tree-section-icon" value={icon} onChange={(e) => setIcon(e.target.value)} disabled={busy}>
-            <option value="">Sin ícono</option>
-            {NAV_ICON_NAMES.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </Select>
-        </div>
+        <IconPickerField id="tree-section-icon" value={icon} onChange={setIcon} disabled={busy} />
         <div className="space-y-2">
           <Label htmlFor="tree-section-order">Orden global (empate de prioridad)</Label>
           <Input
@@ -1213,7 +1401,7 @@ function ItemEditDialog({
       });
       if (!res.ok) {
         const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar el ítem.");
+        throw new Error(d.error ?? "No se pudo guardar la página.");
       }
       onSaved();
     } catch (err) {
@@ -1227,7 +1415,7 @@ function ItemEditDialog({
     <EntityFormDialog
       open
       onOpenChange={onOpenChange}
-      title={item ? "Editar ítem" : isChildCreate ? "Nuevo sub-ítem" : "Nuevo ítem"}
+      title={item ? "Editar página" : isChildCreate ? "Nueva sub-página" : "Nueva página"}
       busy={busy}
       error={error}
       onSubmit={onSubmit}
@@ -1249,17 +1437,7 @@ function ItemEditDialog({
             placeholder={section ? `${section.base_path}/...` : undefined}
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="tree-item-icon">Ícono</Label>
-          <Select id="tree-item-icon" value={icon} onChange={(e) => setIcon(e.target.value)} disabled={busy}>
-            <option value="">Sin ícono</option>
-            {NAV_ICON_NAMES.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </Select>
-        </div>
+        <IconPickerField id="tree-item-icon" value={icon} onChange={setIcon} disabled={busy} />
         {item ? (
           <div className="flex items-center gap-2">
             <Checkbox id="tree-item-active" checked={isActive} onCheckedChange={(c) => setIsActive(Boolean(c))} disabled={busy} />

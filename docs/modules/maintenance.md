@@ -74,8 +74,8 @@ is no dedicated `maintenance.process:*` permission — those were retired in V15
   read-only**: it shows the asset's current cell assignments + history read
   from `production/db.listHistoryByAsset`; all assignment actions live in the
   production cell detail. The segment `layout.tsx` gates the whole tree with
-  `requireSectionOrRedirect("maintenance")` (page authz by section grant, ADR
-  0005); the `Máquinas` nav item is seeded by V9.
+  `requireSectionOrRedirect("maintenance")` (per-page nav authz, ADR 0008
+  supersedes 0005); the `Máquinas` nav item is seeded by V9.
 - `maint.asset.asset_category` (`production_equipment` | `material_handling`,
   added V11): the machine form exposes an **explicit required select** —
   data loading must not rely on the DB default, which only suits manufacturing

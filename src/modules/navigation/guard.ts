@@ -1,33 +1,70 @@
 import "server-only";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { getCachedNav, navRoleKey } from "./cache";
+import { getCachedNav, getCachedNavRegistry, navRoleKey } from "./cache";
+import type { ResolvedNavItem } from "./db";
 
 /**
- * Page-level authorization for a portal module: a user may reach a route only
- * if the nav section that owns it (`nav_section.code`) resolves visible for
- * them. This is the enforcement counterpart to the topbar/sidebar — *what is
- * shown = what is reachable* — closing the gap where a granted-only section
- * was still hit by direct URL (plan 0007, ADR 0005).
+ * Page-level authorization for a portal module (ADR 0008, supersedes 0005).
+ * Navigation authority moved from the *section* to the individual *page*
+ * (`nav_item`, V16 `role_nav_item`): a user may reach a route only if the page
+ * that owns it resolves visible for them — *what is shown = what is reachable*,
+ * now at page granularity. A section still gates its whole subtree (if the
+ * section isn't visible, none of its pages are), and a section is itself
+ * derived-visible only when ≥1 of its pages is.
  *
- * Resolution reuses `getCachedNav`, so it inherits exactly the visibility
- * rules: the protected `admin` role bypasses (sees every section, active or
- * not), inactive sections are unreachable for everyone else, and the result
- * is served from the `"nav"`-tagged cache. Call it from a module's segment
- * layout (e.g. `(portal)/maintenance/layout.tsx`) with the section `code`.
+ * Resolution reuses `getCachedNav` (per-role visible tree) plus
+ * `getCachedNavRegistry` (all registered active hrefs), both `"nav"`-tagged.
+ * The `admin` role bypasses. The current path comes from the `x-pathname`
+ * header injected by the middleware (Next.js layouts don't receive the
+ * pathname on the server).
  *
- * Denied users are redirected to `/` (the home landing), not shown a 403
- * page: the section simply doesn't exist for them.
+ * Rule, given the caller's section `code`:
+ *  - Section not visible → redirect `/`.
+ *  - Path matches a **registered** active item (exact or nested under its
+ *    `href`) that the role can't see → redirect `/`.
+ *  - Path matches no registered item (e.g. a detail route with no nav entry) →
+ *    it inherits the section grant (already visible) → allow.
+ *
+ * Denied users are redirected to `/` (home), not shown a 403.
  */
 export async function requireSectionOrRedirect(code: string): Promise<void> {
   const session = await auth();
   if (!session?.user?.userId) redirect("/login");
 
   const roles = session.user.roles ?? [];
-  const isAdmin = roles.includes("admin");
-  const sections = await getCachedNav(navRoleKey(roles), isAdmin);
+  if (roles.includes("admin")) return; // admin sees/reaches everything
 
-  if (!sections.some((s) => s.code === code)) {
-    redirect("/");
+  const [nav, registry, hdrs] = await Promise.all([
+    getCachedNav(navRoleKey(roles), false),
+    getCachedNavRegistry(),
+    headers(),
+  ]);
+
+  // Section-level gate first (a hidden section hides its whole subtree).
+  if (!nav.some((s) => s.code === code)) redirect("/");
+
+  const pathname = hdrs.get("x-pathname") ?? "";
+  if (!pathname) return; // no path info: section gate already passed
+
+  // Longest-prefix match against the registered active items.
+  let matched: { item_id: number; href: string } | null = null;
+  for (const it of registry.items) {
+    if (pathname === it.href || pathname.startsWith(it.href + "/")) {
+      if (!matched || it.href.length > matched.href.length) matched = it;
+    }
+  }
+  if (!matched) return; // not a registered page → inherits section visibility
+
+  const visible = new Set<number>();
+  for (const s of nav) collectItemIds(s.items, visible);
+  if (!visible.has(matched.item_id)) redirect("/");
+}
+
+function collectItemIds(items: ResolvedNavItem[], into: Set<number>): void {
+  for (const it of items) {
+    into.add(it.item_id);
+    if (it.children.length > 0) collectItemIds(it.children, into);
   }
 }

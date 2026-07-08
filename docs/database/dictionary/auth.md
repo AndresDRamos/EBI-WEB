@@ -1,7 +1,7 @@
 # Data dictionary — schema `auth`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-07 (V1–V15). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-08 (V1–V16). Index: [`_index.md`](_index.md).
 
 Portal-owned authentication and RBAC. JWT sessions (no session table).
 See ADR `docs/architecture/adr/0001-portal-owned-auth.md`.
@@ -29,7 +29,7 @@ RBAC role catalog. Seeded with `admin` and `viewer`. Since V8 a role means
 **access profile** (ADR 0004): optionally scoped to a department via
 `department_id` (NULL = cross-department/transversal profile). The protected
 `admin` profile bypasses grants at the app layer — it has no rows in
-`role_permission` nor `role_nav_section`, ever.
+`role_permission`, `role_nav_section` nor `role_nav_item`, ever.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
@@ -153,18 +153,51 @@ Indexes: `IX_nav_item_parent (section_id, parent_item_id) WHERE parent_item_id I
 
 ## `auth.role_nav_section`
 
-Role → section visibility grant with topbar priority. Lower `priority` wins;
-a user's effective order is `MIN(priority)` across their roles, then
-`nav_section.sort_order`. The protected `admin` role needs no rows — it sees
-every active section at the app layer (same pattern as `RoleProtectedError`).
+Role → **section order** in the topbar (per role). Since V16 (ADR 0008) this
+table **no longer grants** a section: navigation visibility is authorized per
+page via `role_nav_item`, and a section is derived-visible ⇔ the role can see
+≥1 of its active pages. What survives here is only ordering — lower `priority`
+wins; a user's effective section order is `MIN(priority)` across their roles,
+then `nav_section.sort_order`. Structurally unchanged by V16 (no columns
+dropped/renamed). The protected `admin` role needs no rows — it sees every
+active section at the app layer (same pattern as `RoleProtectedError`).
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
 | role_id | int | no | PK, FK → auth.role (no cascade) | Role reference |
 | section_id | int | no | PK, FK → auth.nav_section (CASCADE DELETE) | Section reference |
-| priority | int | no | DEFAULT 100 | Lower wins; topbar tie-break order across a user's roles |
+| priority | int | no | DEFAULT 100 | Lower wins; topbar section-order tie-break across a user's roles (order only since V16, no longer a grant) |
 
 Indexes: `IX_role_nav_section_section (section_id)`.
+
+## `auth.role_nav_item`
+
+Role → **page visibility** grant with intra-section order (added V16, ADR
+0008). This is the **source of truth** for whether a role can see/reach a nav
+page (`nav_item`): the nav resolver (`getGrantedNav`) and the page guard
+(`requireSectionOrRedirect`) both key off it. `priority` orders the pages
+*within their section* for that role (lower = earlier; ties break on
+`nav_item.sort_order`). A section shows to a role ⇔ the role has ≥1 row here
+for an active `nav_item` of that section (derived, app-layer rule — not SQL).
+Backfilled at migration time from every existing `role_nav_section` grant
+(one row per active item of the granted section, `priority = nav_item.sort_order`).
+The protected `admin` role holds no rows — it sees every active page at the
+app layer (same bypass as `role_nav_section` / `role_permission`).
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| role_id | int | no | PK, FK → auth.role (no cascade; app 409s on role delete) | Role reference |
+| item_id | int | no | PK, FK → auth.nav_item (CASCADE DELETE) | Page reference; grants die with their page |
+| priority | int | no | DEFAULT 100 | Lower wins; intra-section page order for this role |
+
+Indexes: `IX_role_nav_item_item (item_id)`.
+
+> **Permission `navigation.grants:update`.** The `code` is unchanged by V16,
+> but its meaning widened: it previously gated assigning **section**
+> visibility (`PUT /api/roles/[id]/sections` over `role_nav_section`); since
+> ADR 0008 it also gates assigning **page** visibility + per-role page order
+> (`PUT /api/roles/[id]/items` over `role_nav_item`). Same permission, now
+> page-granular.
 
 ## `auth.permission`
 

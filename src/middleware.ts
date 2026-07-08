@@ -11,8 +11,10 @@ import { authConfig } from "@/auth.config";
  *   (`PUBLIC_PATHS`) and the Auth.js handlers under `/api/auth/*`. There is
  *   no per-prefix allowlist: authentication is default-deny (the matcher
  *   already excludes static assets), so new modules are protected without
- *   editing this file. Per-*section* authorization lives in each module's
- *   segment layout (`requireSectionOrRedirect`), not here.
+ *   editing this file. Per-*page* authorization lives in each module's segment
+ *   layout (`requireSectionOrRedirect`, ADR 0008), not here — but that guard
+ *   needs the current pathname, which Next.js doesn't hand server layouts, so
+ *   this middleware injects it as the `x-pathname` request header.
  * - Unauthenticated UI requests redirect to `/login`; API requests get `401`.
  * - Authenticated users hitting a public UI route are bounced to `/` (home).
  */
@@ -49,6 +51,12 @@ export default auth((req) => {
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
   }
+
+  // Authenticated pass-through: expose the pathname to server layouts so the
+  // page-level guard (`requireSectionOrRedirect`, ADR 0008) can resolve it.
+  const headers = new Headers(req.headers);
+  headers.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers } });
 });
 
 export const config = {

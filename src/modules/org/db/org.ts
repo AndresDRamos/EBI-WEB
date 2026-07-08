@@ -147,13 +147,16 @@ export async function softDeleteRole(
 /**
  * Hard delete: removes the role row. Caller is responsible for the
  * protected-role check at the API layer too, so a delete can never cross the
- * FK silently. Grant rows (`role_permission`, `role_nav_section`) are config
- * OF the profile, so they are cleared in the same transaction; the remaining
- * NO ACTION FK (`user_role`) still 409s when users are assigned — by design.
+ * FK silently. Grant rows (`role_permission`, `role_nav_section`,
+ * `role_nav_item`) are config OF the profile, so they are cleared in the same
+ * transaction; the remaining NO ACTION FK (`user_role`) still 409s when users
+ * are assigned — by design. `role_nav_item`'s FK to `role` is NO ACTION (V16),
+ * so it must be cleared here or deleting a role with page grants fails.
  */
 export async function deleteRole(id: number): Promise<void> {
   await db.transaction().execute(async (trx) => {
     await trx.deleteFrom("role_permission").where("role_id", "=", id).execute();
+    await trx.deleteFrom("role_nav_item").where("role_id", "=", id).execute();
     await trx.deleteFrom("role_nav_section").where("role_id", "=", id).execute();
     await trx.deleteFrom("role").where("role_id", "=", id).execute();
   });

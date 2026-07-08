@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-/** `/admin/portal` lands on its first tab. */
+/** `/admin/portal` lands on the unified permission manager. */
 export default function AdminPortalIndexPage() {
-  redirect("/admin/portal/modules");
+  redirect("/admin/portal/permissions");
 }

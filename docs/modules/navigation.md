@@ -1,16 +1,19 @@
 # Navigation (portal layout & DB-driven nav registry)
 
-**Last synced:** 2026-07-03 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005) + plan admin-panel-regroup (admin routes regrouped)
+**Last synced:** 2026-07-07 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005) + plan admin-panel-regroup + unified permission manager redesign (nav structure CRUD + role grants folded into `PermissionManager`'s "Estructura del menú" panel, replacing the Módulos tab entirely)
 
 ## Purpose
 
 Resolves and renders the authenticated portal's topbar sections and per-section
 sidebar from a DB-backed registry (`auth.nav_section`, `auth.nav_item`,
-`auth.role_nav_section`), instead of a hardcoded nav list. Admins control
-label, icon, order, active flag, and role-based visibility/priority from
-`/admin/portal/modules` (the *Módulos* tab; legacy `/admin/access` redirects
-there); they cannot invent routes — sections are seeded by the migration of
-the module that introduces them.
+`auth.role_nav_section`), instead of a hardcoded nav list. `/admin/portal`
+is now a single screen (`/admin/portal/permissions`, org's
+`PermissionManager`): its right panel ("Estructura del menú") owns
+everything admins used to do from the separate *Módulos* tab — label, icon,
+global order and active flag via inline edit dialogs, plus per-role
+section visibility and topbar priority via a drag-and-drop tree. Admins
+cannot invent routes — sections are seeded by the migration of the module
+that introduces them.
 
 ## Responsibilities
 
@@ -18,13 +21,27 @@ the module that introduces them.
   nav resolution + ordering (`getNavForUser`), the cached resolver (`cache.ts`:
   `getCachedNav` / `navRoleKey`, shared by the shell, the home page and the
   guard), the per-section page guard (`guard.ts`:
-  `requireSectionOrRedirect`), the topbar/sidebar components and the nav
-  registry admin panels (`components/`: `nav-sections-table-page`,
-  `nav-items-panel`, `nav-grants-panel`, composed by the *Módulos* tab at
-  `/admin/portal/modules`), the sidebar pin cookie
+  `requireSectionOrRedirect`), the topbar/sidebar components (`components/`:
+  `portal-topbar.tsx`, `portal-sidebar.tsx`), the sidebar pin cookie
   (`pin-action.ts` / `pin-cookie.ts`) and the curated icon map (`icons.tsx`).
-  `src/components/layout/portal-shell.tsx` (global chrome) composes these
-  pieces — the layer allowed to import from this module.
+  The module no longer has its own admin structure panels — the former
+  `nav-sections-table-page.tsx` / `nav-items-panel.tsx` (Módulos tab) and,
+  before them, `nav-grants-panel.tsx` were all retired. Structure editing
+  (section label/icon/global `sort_order`/active, nav item and child CRUD)
+  and role → section grants + per-role topbar priority now live entirely in
+  `src/modules/org/components/permission-manager.tsx`'s right panel
+  ("Estructura del menú" — a drag-and-drop tree with inline pencil/plus/trash
+  dialogs), backed by this module's data functions: `listSections`/`listItems`
+  (read), `updateSection`, `create/update/deleteItem` (structure, via
+  `/api/nav/sections/[id]` and `/api/nav/items[/id]`), and
+  `listRoleSectionGrants` / `setRoleSectionGrants` (grants, via
+  `GET/PUT /api/roles/[id]/sections` — the role-centric dual of
+  `/api/nav/sections/[id]/grants` over the same `auth.role_nav_section`
+  table: PUT gated by `navigation.grants:update`, 409 for the protected
+  `admin` role, revalidates tag `"nav"`). `src/components/layout/portal-shell.tsx`
+  (global chrome) composes the topbar/sidebar pieces — the layer allowed to
+  import from this module for rendering; `modules/org` imports this module's
+  `db.ts` functions and types directly for the permission manager's tree.
 - **Owns page authorization by section** (plan portal-home-nav-authz, ADR 0005):
   `requireSectionOrRedirect(code)` lets a route be reached only if its section
   resolves visible for the user — *what is shown = what is reachable*. Each
@@ -38,10 +55,13 @@ the module that introduces them.
   rail. `PortalShell` renders `PortalSidebar` for both the portal and `/admin/*`.
   Since plan admin-panel-regroup the section has **two grouped entries** —
   Organización (`/admin/organization`: Usuarios · Departamentos y roles ·
-  Plantas) and Portal (`/admin/portal`: Módulos · Permisos); each group's tabs
-  are real routes rendered by the kit `PageTabs` in its layout, and the old
-  flat `/admin/*` routes are `redirect()`-only legacy pages
-  (`/admin` → `/admin/organization/users`).
+  Plantas, still tabbed with the kit `PageTabs`) and Portal (`/admin/portal`).
+  Portal is **no longer tabbed**: `/admin/portal/layout.tsx` renders a single
+  header over `{children}`, and `/admin/portal/page.tsx` redirects straight to
+  `/admin/portal/permissions` — the `modules`/`permissions` two-tab split (and
+  the `/admin/portal/modules` route/folder) is gone. The old flat `/admin/*`
+  routes remain `redirect()`-only legacy pages (`/admin` →
+  `/admin/organization/users`).
 
 ## Dependency flow
 
@@ -49,7 +69,7 @@ the module that introduces them.
 module migration (Vn) → seeds auth.nav_section (+ auth.nav_item)
       │
       ▼
-auth.role_nav_section  (admin panel: label/icon/order/active + grants)
+auth.role_nav_section  (PermissionManager "Estructura del menú": label/icon/order/active + grants)
       │
       ▼
 getNavForUser(roleNames, isAdmin)  — src/modules/navigation/db.ts
@@ -62,8 +82,9 @@ getCachedNav (cache.ts — unstable_cache, tags:["nav"]) ← layout / home / gua
 PortalShell → PortalTopbar (sections) + PortalSidebar (active section's items)
 ```
 
-Every `/api/nav/*` mutation calls `revalidateTag("nav")` so the next shell
-render picks up the change without a manual cache-bust.
+Every `/api/nav/*` mutation — and `PUT /api/roles/[id]/sections` — calls
+`revalidateTag("nav")` so the next shell render picks up the change without
+a manual cache-bust.
 
 ## Related ADRs
 
@@ -87,17 +108,23 @@ into an ADR. This module doc carries the live truth.
   is `MIN(priority)` across all the user's granted roles, then
   `nav_section.sort_order` as the tiebreaker.
 - **The `admin` role never gets grant rows.** It sees EVERY section —
-  including inactive ones, rendered dimmed with an "oculta" badge in the
-  topbar (0006 amendment: the admin never loses the portal map and can
-  reactivate from `/admin/portal/modules`) — by an app-layer rule in `getNavForUser`
-  (same pattern as the protected-role guard in `modules/org/db/org.ts`).
-  Non-admins never receive inactive sections; `requireSectionOrRedirect`
-  (plan portal-home-nav-authz) reuses that rule for page authorization — keep it intact. Adding an explicit grant row for
+  including inactive ones — by an app-layer rule in `getNavForUser` (same
+  pattern as the protected-role guard in `modules/org/db/org.ts`). The old
+  Módulos-tab `DataTable` rendered inactive rows dimmed with an "oculta"
+  badge and a restore action; the redesigned tree doesn't visually
+  distinguish `is_active` sections from active ones in the same way — it
+  dims by *grant* (opacity when the current `roleId` lacks access), not by
+  `is_active`. Non-admins never receive inactive sections regardless;
+  `requireSectionOrRedirect` (plan portal-home-nav-authz) reuses that rule
+  for page authorization — keep it intact. Adding an explicit grant row for
   `admin` is a no-op — don't "fix" a missing admin grant, it's intentional.
-- **Reactivation goes through the kit's `onRestore`** (`DataTable` prop,
-  0006 amendment): sections and items PUT `{ is_active: true }` from
-  `/admin/portal/modules`. Don't re-add an `is_active` field to the edit dialogs —
-  the active flag is a row action, not form state.
+- **Reactivation is now form state, not a row action.** The redesign's
+  `SectionEditDialog` (in `permission-manager.tsx`) puts `is_active` back as
+  a plain checkbox in the edit form (PUT `/api/nav/sections/[id]`) — this
+  supersedes the 0006-era `onRestore`/`DataTable` pattern, which no longer
+  applies now that the Módulos tab's table pages are gone. `ItemEditDialog`
+  only shows the `is_active` checkbox when editing an existing item (not on
+  create).
 - **Hard-deleting a `nav_section` cascades its items and grants** (V7 FK). If
   a module's section disappears from the admin screen unexpectedly, check for
   a hard delete before assuming a migration didn't run.

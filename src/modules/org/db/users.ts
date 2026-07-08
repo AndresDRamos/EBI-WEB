@@ -39,6 +39,7 @@ export interface AdminUserItem {
   is_active: boolean;
   token_version: number;
   roles: string[];
+  role_refs: { role_id: number; name: string }[];
   plant_ids: number[];
   department_ids: number[];
   created_at: Date;
@@ -243,7 +244,7 @@ export async function listUsers(): Promise<AdminUserItem[]> {
     db
       .selectFrom("user_role")
       .innerJoin("role", "role.role_id", "user_role.role_id")
-      .select(["user_role.user_id", "role.name"])
+      .select(["user_role.user_id", "role.role_id", "role.name"])
       .where("user_role.user_id", "in", ids)
       .execute(),
     db
@@ -259,10 +260,14 @@ export async function listUsers(): Promise<AdminUserItem[]> {
   ]);
 
   const rolesByUser = new Map<number, string[]>();
+  const roleRefsByUser = new Map<number, { role_id: number; name: string }[]>();
   for (const r of roleRows) {
     const arr = rolesByUser.get(r.user_id) ?? [];
     arr.push(r.name);
     rolesByUser.set(r.user_id, arr);
+    const refs = roleRefsByUser.get(r.user_id) ?? [];
+    refs.push({ role_id: r.role_id, name: r.name });
+    roleRefsByUser.set(r.user_id, refs);
   }
   const plantsByUser = new Map<number, number[]>();
   for (const p of plantRows) {
@@ -286,6 +291,7 @@ export async function listUsers(): Promise<AdminUserItem[]> {
     is_active: u.is_active,
     token_version: u.token_version,
     roles: rolesByUser.get(u.user_id) ?? [],
+    role_refs: roleRefsByUser.get(u.user_id) ?? [],
     plant_ids: plantsByUser.get(u.user_id) ?? [],
     department_ids: deptsByUser.get(u.user_id) ?? [],
     created_at: u.created_at,

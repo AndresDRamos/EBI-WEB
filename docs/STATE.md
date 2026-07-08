@@ -166,14 +166,21 @@ the app pages under `src/app/` are thin and compose from here):
     screen (`admin/portal/permissions`, `permission-manager.tsx`) covering
     permissions, section access/order and nav structure CRUD (inline
     dialogs on a drag-and-drop tree) via one shared role filter.
-- `maintenance/` — CMMS (`maint` schema). `db.ts` (assets, processes,
-  restrictions, documents), `enums.ts` (mirrors the V5/V6 CHECKs — pure
-  module, no I/O), `components/` — `machines-cards-page` (cards-only catalog:
-  Filtros popover + Nuevo equipo), `machine-cards` (maps rows onto the kit
-  `EntityCard`), `machine-badges` (`StatusBadge`/`CriticalityBadge`),
-  `machine-detail` (Datos/Procesos/Restricciones/Documentos),
-  `machine-form-dialog`, `machine-label` (printable QR),
-  `processes-table-page`.
+- `maintenance/` — CMMS (`maint` schema). `db.ts` (assets, the
+  `asset_category`/`asset_type` configurable catalogs since V17 — category is
+  derived via the asset's type, never stored redundantly — with a
+  transactional matrícula generator `{prefix}-P{plant}-{NNNN}`; processes
+  reads; restrictions; documents), `enums.ts` (status/restriction/doc-type
+  CHECKs — pure module, no I/O; category/type labels come from the DB, no
+  static enum), `components/` — `machines-cards-page` (Equipos tab: cards
+  catalog, Filtros popover + Nuevo equipo), `machine-catalogs-page`
+  (Catálogos tab: `GroupedDataTable` Categoría→Tipo), `machines-tabs` (shared
+  `PageTabs` config for both), `machine-cards` (maps rows onto the kit
+  `EntityCard`), `machine-badges` (`StatusBadge`), `machine-detail`
+  (Datos/Procesos/Ubicación/Restricciones/Documentos), `machine-form-dialog`
+  (photo upload, type→category, single-process select, month/year install
+  date, parent search+read-only-preview panel), `machine-label`
+  (printable QR).
 
 **Shared UI** (`src/components/`):
 

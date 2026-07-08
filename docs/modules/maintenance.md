@@ -1,6 +1,6 @@
 # maintenance
 
-**Last synced:** 2026-07-07 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11) + plan org-schema-plant-process (process catalog moved to `org`, V15)
+**Last synced:** 2026-07-07 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11) + plan org-schema-plant-process (process catalog moved to `org`, V15) + machines cards view (kit `EntityCard`, no schema change) + `design/Equipos.dc.html` fidelity pass (full-page layout, no schema change)
 
 ## Purpose
 
@@ -35,9 +35,37 @@ is no dedicated `maintenance.process:*` permission — those were retired in V15
   `requirePermission("maintenance.<resource>:<action>")` (plan 0006 — this
   module was the pilot; the `admin` profile bypasses at the app layer). The
   permission codes are seeded in V8; see `docs/modules/rbac.md`.
-- Owns the `(portal)/maintenance/*` UI: machines list (generic `DataTable`
-  from `src/components/kit/`, with a Categoría column + catalog filter since
-  V11), machine detail (Datos / Procesos / Restricciones / Documentos /
+- Owns the `(portal)/maintenance/*` UI: machines list as a **full-page,
+  unboxed cards catalog** (`machines-cards-page.tsx`, design source
+  `design/Equipos.dc.html`) — `flex h-[calc(100vh-4rem)] flex-col` with three
+  stacked regions (header+filters fixed, cards grid `flex-1 overflow-y-auto`,
+  pagination fixed), no bordered card wrapper, matching the
+  `layout-editor-page.tsx` full-page idiom. Header: breadcrumb, title, total
+  active count, per-permission "Nuevo equipo". Filters row: kit
+  `ActiveInactiveToggle`, a **Filtros pill** (funnel icon with an
+  overlapping count badge, rotating chevron, controlled `Popover` — text
+  search over code/name/brand/model/serial plus Planta and Tipo de equipo
+  catalog checkboxes), inline **removable filter chips** grouping up to 3
+  values per attribute (else "Sin filtros activos"), and on the far right a
+  "Limpiar" action + live result count. Cards paginate client-side
+  (`PAGE_SIZE = 24`, prev/next + numbered buttons with ellipsis) with a
+  design-matching empty state ("No se encontraron equipos" + "Limpiar
+  filtros") when filters yield zero rows. Editar / Desactivar / Reactivar
+  live in a **right-click context menu** per card (shadcn `ContextMenu`),
+  each item gated by its permission, Desactivar confirmed via `AlertDialog`
+  and Reactivar direct (reversible). Menu actions defer to the next tick
+  before opening dialogs — opening one synchronously from `onSelect` races
+  the Radix menu close and strands `pointer-events: none` on the body,
+  freezing the page). The cards are `machine-cards.tsx` (`MachineCardsGrid`),
+  which maps rows onto the **generic kit `EntityCard`/`EntityCardGrid`**
+  (`src/components/kit/entity-card.tsx`, design source: the "Equipos" card
+  in the Claude Design project, `design/Equipos.dc.html`): a mono code chip,
+  a **fixed "Sin conexión" status dot until asset telemetry exists**, name,
+  brand/model/serial details, an asset-category badge, and a location footer
+  with the plant and the current production cells (`cell_names: string[]` on
+  `MachineRow`, "Sin celda asignada" when empty). `StatusBadge` /
+  `CriticalityBadge` live in `machine-badges.tsx` (shared with the detail).
+  Machine detail (Datos / Procesos / Restricciones / Documentos /
   Ubicación tabs), printable QR label. There is **no** `/maintenance/process`
   page anymore — the process catalog page (and its `Procesos` nav item, V9)
   were retired in V15; the machine-detail Procesos tab still links/saves the
@@ -68,7 +96,9 @@ is no dedicated `maintenance.process:*` permission — those were retired in V15
 ## Dependency flow
 
 - `(portal)/maintenance/*` pages → `src/modules/maintenance/db.ts` +
-  `src/modules/org/db/org.ts` (plant options). Pages no longer compute a
+  `src/modules/org/db/org.ts` (plant options); the machines list page also →
+  `modules/production/db.currentCellNamesByAssets` (batched current cell
+  names for the cards footer — app-layer composition). Pages no longer compute a
   `canManage`/`isAdmin` prop: action visibility is gated client-side by
   `useCan()` from `PermissionsProvider` (seeded in `(portal)/layout.tsx`);
   the API re-checks with `requirePermission` per request.
@@ -90,9 +120,11 @@ is no dedicated `maintenance.process:*` permission — those were retired in V15
   `plantNamesById`).
 - **maintenance → production (one-way, justified):**
   `modules/maintenance/enums.ts` re-exports the canonical asset-category
-  domain from `modules/production/enums.ts` (V11 owns the CHECK), and the
+  domain from `modules/production/enums.ts` (V11 owns the CHECK), the
   machine detail page (`(portal)/maintenance/machines/[code]/page.tsx`) reads
-  `listHistoryByAsset` from `modules/production/db.ts` for the Ubicación tab.
+  `listHistoryByAsset` from `modules/production/db.ts` for the Ubicación tab,
+  and the machines list page (`(portal)/maintenance/machines/page.tsx`) reads
+  `currentCellNamesByAssets` from the same file for the cards view.
   Nothing in `src/modules/production/` imports from
   `src/modules/maintenance/` (only app routes compose both).
 

@@ -1,0 +1,36 @@
+<!-- @dsCard group="EBI Portal / Components" -->
+<style>
+  .ds { font-family: Montserrat, system-ui, sans-serif; padding: 24px; background: #f6f7f6; color: #2a2c28; }
+  .ds h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #787b76; margin: 18px 0 10px; }
+  .ds .tabs { display: flex; gap: 4px; border-bottom: 1px solid #dfe0df; background: #fff; padding: 0 8px; border-radius: 8px 8px 0 0; }
+  .ds .tab { font-size: 13px; font-weight: 500; padding: 10px 14px; color: #787b76; border-bottom: 2px solid transparent; }
+  .ds .tab.active { color: #2a2c28; border-bottom-color: #ff5c35; }
+  .ds .dialog { background: #fff; border: 1px solid #dfe0df; border-radius: 8px; padding: 20px; max-width: 380px; box-shadow: 0 8px 24px rgba(26,28,25,.12); }
+  .ds .dialog .title { font-size: 16px; font-weight: 600; }
+  .ds .dialog .desc { font-size: 13px; color: #787b76; margin: 6px 0 16px; }
+  .ds .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .ds button { font-family: inherit; font-size: 14px; font-weight: 500; height: 36px; padding: 0 16px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; }
+  .ds .primary { background: #ff5c35; color: #fff; }
+  .ds .danger { background: #d62828; color: #fff; }
+  .ds .outline { background: #fff; color: #2a2c28; border-color: #dfe0df; }
+</style>
+<div class="ds">
+  <h2>Page tabs — kit/page-tabs.tsx (active = orange underline)</h2>
+  <div class="tabs">
+    <div class="tab active">Equipos</div>
+    <div class="tab">Órdenes de trabajo</div>
+    <div class="tab">Historial</div>
+  </div>
+  <h2>Dialog — ui/dialog.tsx (entity-form-dialog pattern)</h2>
+  <div class="dialog">
+    <div class="title">Editar equipo</div>
+    <div class="desc">Modifica los datos del equipo PRE-001.</div>
+    <div class="actions"><button class="outline">Cancelar</button><button class="primary">Guardar</button></div>
+  </div>
+  <h2>Alert dialog — ui/alert-dialog.tsx (destructive confirm)</h2>
+  <div class="dialog">
+    <div class="title">¿Eliminar equipo?</div>
+    <div class="desc">Esta acción no se puede deshacer.</div>
+    <div class="actions"><button class="outline">Cancelar</button><button class="danger">Eliminar</button></div>
+  </div>
+</div>

@@ -157,6 +157,21 @@ export async function listSectionGrants(sectionId: number): Promise<SectionGrant
     .execute();
 }
 
+export interface RoleSectionGrant {
+  section_id: number;
+  priority: number;
+}
+
+/** Role-centric read of `role_nav_section` (the permission manager filters by
+ * role, so grants are loaded per role rather than per section). */
+export async function listRoleSectionGrants(roleId: number): Promise<RoleSectionGrant[]> {
+  return db
+    .selectFrom("role_nav_section")
+    .select(["section_id", "priority"])
+    .where("role_id", "=", roleId)
+    .execute();
+}
+
 export async function findSectionById(id: number): Promise<NavSectionRow | undefined> {
   return (
     (await db
@@ -267,6 +282,28 @@ export async function updateItem(id: number, input: UpdateItemInput): Promise<vo
 
 export async function deleteItem(id: number): Promise<void> {
   await db.deleteFrom("nav_item").where("item_id", "=", id).execute();
+}
+
+/** Replace the full section grant set for a role in one transaction (dual of
+ * `setSectionGrants` — same table, role-centric axis). */
+export async function setRoleSectionGrants(
+  roleId: number,
+  grants: RoleSectionGrant[],
+): Promise<void> {
+  await db.transaction().execute(async (trx) => {
+    await trx.deleteFrom("role_nav_section").where("role_id", "=", roleId).execute();
+    if (grants.length === 0) return;
+    await trx
+      .insertInto("role_nav_section")
+      .values(
+        grants.map((g) => ({
+          role_id: roleId,
+          section_id: g.section_id,
+          priority: g.priority,
+        })),
+      )
+      .execute();
+  });
 }
 
 /** Replace the full grant set for a section in one transaction. */

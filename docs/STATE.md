@@ -32,7 +32,7 @@ organization from identity: `plant` moved from `auth`, `process` unified from
 (Organización tabs). `user_plant`/`department`/`role` stay in `auth`.
 
 The `production` nav section remains dark-launched: activation in
-`/admin/portal/modules` is a pending human step
+`/admin/portal/permissions` is a pending human step
 (production-cell-assignment was committed 2026-07-03).
 
 Next up (direction fixed 2026-07-02 — see
@@ -51,7 +51,7 @@ RBAC actions precede the next business module.
 | Migrations | **Flyway** pure SQL in `db/migrations/` (`V{n}__` / `R__`). Written by the `dba` sub-agent; a human runs `flyway migrate`. |
 | Schemas | Medallion: `staging` (ETL landing) → `core` / `planeacion` (consumption). |
 | ETL | EPS is **read-only**. Never write to EPS. |
-| Admin UI | **Generic kit tables** (`src/components/kit/`: `data-table.tsx`, `grouped-data-table.tsx`, `page-tabs.tsx`); per-entity modals; the `/admin` panel = 2 tabbed groups (Organización / Portal, tabs as real routes) behind the shared `PortalSidebar` fed the code-built `ADMIN_NAV_SECTION` (no bespoke rail). |
+| Admin UI | **Generic kit tables** (`src/components/kit/`: `data-table.tsx`, `grouped-data-table.tsx`, `page-tabs.tsx`, `entity-card.tsx`); per-entity modals; the `/admin` panel = 2 tabbed groups (Organización / Portal, tabs as real routes) behind the shared `PortalSidebar` fed the code-built `ADMIN_NAV_SECTION` (no bespoke rail). |
 | Repo layout | **Modules-first** (2026-07-02): `app/` = thin routing only; `modules/<m>/` owns each domain (db + components); `components/kit|ui|layout` shared UI; `lib/` domain-blind infra. Business-module APIs namespaced (`/api/maintenance/...`). |
 | Unproven modules | `(portal)/test/*` (founded 2026-07-06): admin-only proving ground, outside the nav registry, for modules whose portal-fit isn't settled yet. First tenant: plant-layout (`docs/modules/production.md`). Promote by moving pages back + re-seeding the nav item. |
 
@@ -127,8 +127,11 @@ the app pages under `src/app/` are thin and compose from here):
     DataTable pages), `departments-roles-page.tsx` (GroupedDataTable:
     departments as groups, roles — UI label "Roles" — as child rows;
     synthetic "Sin departamento" group only while orphan roles exist),
-    `permission-matrix-panel.tsx` (matrix `module.resource` × action per
-    role, "copiar de otro rol"), `user-form.tsx`, `login-form.tsx`,
+    `permission-manager.tsx` (unified Permisos tab: shared role filter
+    driving the `module.resource` × action matrix AND nav-section access +
+    topbar priority, "copiar de otro rol", plus a read-only "Por usuario"
+    mode showing a user's roles and their effective union),
+    `user-form.tsx`, `login-form.tsx`,
     `accept-invite-form.tsx`, `profile-view.tsx`, `change-password-form.tsx`.
 - `navigation/` — DB-driven nav registry (`auth.nav_*`) + portal page authz.
   - `db.ts` — `getNavForUser(roleNames, isAdmin)` resolves topbar + nested
@@ -137,7 +140,9 @@ the app pages under `src/app/` are thin and compose from here):
     sections). Admin
     reads/writes: `listSections/Items`, `listSectionGrants`, `updateSection`
     (no `createSection` — sections are seeded by module migrations),
-    `create/update/deleteItem`, `setSectionGrants`.
+    `create/update/deleteItem`, `setSectionGrants`, plus the role-centric
+    duals `listRoleSectionGrants`/`setRoleSectionGrants` behind
+    `GET/PUT /api/roles/[id]/sections` (consumed by the Permisos tab).
   - `cache.ts` — `getCachedNav` (`unstable_cache`, tag `"nav"`) + `navRoleKey`
     (sorted role-set cache key); shared by the portal layout, the home page
     and the guard.
@@ -146,14 +151,20 @@ the app pages under `src/app/` are thin and compose from here):
     exact topbar visibility rules.
   - `icons.tsx` (curated `lucide-react` map, incl. `Lock`/`KeyRound`),
     `pin-action.ts` / `pin-cookie.ts` (sidebar pin cookie).
-  - `components/` — `portal-topbar.tsx`, `portal-sidebar.tsx`, and the
-    Módulos tab panels (`/admin/portal/modules`):
-    `nav-{sections-table-page,items-panel,grants-panel}.tsx`.
+  - `components/` — `portal-topbar.tsx`, `portal-sidebar.tsx`. The old
+    Módulos-tab structure panels (`nav-sections-table-page.tsx`,
+    `nav-items-panel.tsx`) are retired: `/admin/portal` is now a single
+    screen (`admin/portal/permissions`, `permission-manager.tsx`) covering
+    permissions, section access/order and nav structure CRUD (inline
+    dialogs on a drag-and-drop tree) via one shared role filter.
 - `maintenance/` — CMMS (`maint` schema). `db.ts` (assets, processes,
   restrictions, documents), `enums.ts` (mirrors the V5/V6 CHECKs — pure
-  module, no I/O), `components/` — `machines-table-page`, `machine-detail`
-  (Datos/Procesos/Restricciones/Documentos), `machine-form-dialog`,
-  `machine-label` (printable QR), `processes-table-page`.
+  module, no I/O), `components/` — `machines-cards-page` (cards-only catalog:
+  Filtros popover + Nuevo equipo), `machine-cards` (maps rows onto the kit
+  `EntityCard`), `machine-badges` (`StatusBadge`/`CriticalityBadge`),
+  `machine-detail` (Datos/Procesos/Restricciones/Documentos),
+  `machine-form-dialog`, `machine-label` (printable QR),
+  `processes-table-page`.
 
 **Shared UI** (`src/components/`):
 
@@ -164,8 +175,11 @@ the app pages under `src/app/` are thin and compose from here):
   (`GroupedDataTable<G,C>`: collapsible parent groups + child rows, CRUD on
   both levels, per-group add-child; no pagination), `page-tabs.tsx`
   (route-aware tab bar), `entity-form-dialog.tsx` (shared modal chrome),
-  `table-utils.ts` (pure: NFD normalization, comparators, catalog
-  intersection). Future: `ResourceTable/Form`, `Calendar`, `KpiCard`.
+  `entity-card.tsx` (`EntityCard` + `EntityCardGrid`: catalog card grids —
+  code, status dot, badges, detail list, location footer; design source: the
+  "Equipos" card in the Claude Design project), `table-utils.ts` (pure: NFD
+  normalization, comparators, catalog intersection). Future:
+  `ResourceTable/Form`, `Calendar`, `KpiCard`.
 - `layout/` — global chrome: `portal-shell.tsx` (composes
   `modules/navigation` topbar + sidebar, rendering `PortalSidebar` for the
   portal *and* under `/admin/*` — fed `ADMIN_NAV_SECTION`; no longer hides the

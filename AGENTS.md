@@ -13,11 +13,16 @@ internal data control). Current truth: `docs/STATE.md`; module recipe:
 
 ## Agent roles
 
-Two lanes:
+Three tiers:
 
+- **Patch tier** (inside `/ship-module`) — no schema changes, small blast radius
+  (roughly ≤5 files, no new module): verbal plan in chat → approval → build + verify →
+  `/commit-plan` (accepts plan-less diffs under those conditions with
+  `pnpm lint && pnpm build` as the gate). No plan file, no ledger row.
 - **Fast lane (`/ship-module`)** — one session plans, and on approval builds and
   verifies in a single continuous pass. Default for small-to-medium changes; no
-  `prompts/` file needed (the chat ask is the input).
+  `prompts/` file needed (the chat ask is the input). `--commit` chains
+  `/commit-plan` after a verified, user-approved result.
 - **Full lane (planner/executor split)** — for large plans, destructive migrations, or
   session handoff:
   - **Planner** (Claude Code). Designs architecture, modules, ERD and migrations (in
@@ -78,6 +83,33 @@ Two lanes:
 
 - `ebi-sql-dev` → Azure SQL `EBI_dev` with `ebi_agent_ro` (read-only). Used by the DBA.
 - `sqlserver-eps` → EPS SQL Server (read-only). Used by the ETL sub-agent as the source.
+
+## Parallel work (worktrees)
+
+- Every plan works in an **isolated git worktree** under `.claude/worktrees/` on branch
+  `<type>/<slug>` (Claude Code: EnterWorktree tool; OpenCode: `git worktree add`). The
+  main checkout stays on a clean `main`. Run `pnpm install` per worktree; parallel dev
+  servers need distinct ports.
+- **Hard rule: only one migration-bearing plan in flight at a time** — `EBI_dev` is
+  shared across all worktrees/sessions. Plans without schema changes parallelize freely.
+- To avoid merge conflicts between parallel branches, the ledger row
+  (`docs/plans/README.md`) and `docs/STATE.md` updates are written by `/commit-plan` at
+  close-out, not at plan approval. While in flight, `docs/plans/<slug>.md`'s `status:`
+  is the record; in-flight detection = plan files with `status: approved|built|verified`
+  plus open PRs.
+
+## Design workflow (Claude Design)
+
+- Designs exported from Claude Design live in `design/<plan-slug>.dc.html` — kebab-case,
+  matching the plan that implements them (rename on export; no spaces).
+- Agents must **not** read a `.dc.html` whole (they are huge). The planner distills it
+  into a `## Design spec` section of the plan: layout, which existing
+  `src/components/{kit,ui}` components to reuse, tokens/states, and what is genuinely
+  new. During the build, consult the file only via targeted Grep.
+- The EZI component kit is mirrored to a claude.ai/design **design-system project** via
+  DesignSync (`design/design-system/` holds the preview bundle), so Claude Design
+  generates on top of the portal's real components. Re-sync when `src/components/kit`
+  or `ui` gains/changes components.
 
 ## Standard workflow
 

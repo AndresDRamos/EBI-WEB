@@ -1,0 +1,43 @@
+<!-- @dsCard group="EBI Portal / Components" -->
+<style>
+  .ds { font-family: Montserrat, system-ui, sans-serif; padding: 24px; background: #fff; color: #2a2c28; max-width: 420px; }
+  .ds h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #787b76; margin: 18px 0 10px; }
+  .ds label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+  .ds .field { margin-bottom: 14px; }
+  .ds input[type=text], .ds textarea, .ds select { font-family: inherit; font-size: 14px; width: 100%; border: 1px solid #dfe0df; border-radius: 6px; padding: 8px 12px; background: #fff; color: #2a2c28; box-sizing: border-box; }
+  .ds .focus { outline: 2px solid #ff5c35; outline-offset: 2px; }
+  .ds ::placeholder { color: #9b9d99; }
+  .ds .check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .ds .check input { accent-color: #ff5c35; width: 16px; height: 16px; }
+  .ds .hint { font-size: 12px; color: #787b76; margin-top: 4px; }
+  .ds .error input { border-color: #d62828; }
+  .ds .error .hint { color: #d62828; }
+</style>
+<div class="ds">
+  <h2>Form primitives — ui/input · label · textarea · select · checkbox</h2>
+  <div class="field">
+    <label>Código del equipo</label>
+    <input type="text" placeholder="p. ej. PRE-001" />
+  </div>
+  <div class="field">
+    <label>Descripción</label>
+    <textarea rows="2" placeholder="Descripción breve del equipo"></textarea>
+  </div>
+  <div class="field">
+    <label>Planta</label>
+    <select><option>Planta Monterrey</option><option>Planta Saltillo</option></select>
+  </div>
+  <div class="field check">
+    <input type="checkbox" checked /> <span>Equipo crítico</span>
+  </div>
+  <h2>States</h2>
+  <div class="field">
+    <label>Focus — ring naranja (--ring)</label>
+    <input type="text" class="focus" value="PRE-001" />
+  </div>
+  <div class="field error">
+    <label>Error</label>
+    <input type="text" value="" />
+    <div class="hint">El código es obligatorio.</div>
+  </div>
+</div>

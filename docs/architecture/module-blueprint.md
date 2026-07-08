@@ -50,7 +50,9 @@
 ## 5. Navigation + page authorization (✅ nav in plan 0005 · page authz in plan portal-home-nav-authz — ADR 0005)
 
 - Section **and its items** seeded by the module migration (V9 backfilled `maintenance`);
-  admin edits label/icon/order/active/grants in `/admin/portal/modules`, never creates routes.
+  admins edit label/icon/order/active *and* role grants + topbar priority from the
+  single unified screen `/admin/portal/permissions` (`PermissionManager`'s "Estructura
+  del menú" panel — the separate Módulos tab/route was retired), never creating routes.
 - **Every module adds a segment guard** `src/app/(portal)/<module>/layout.tsx` calling
   `requireSectionOrRedirect("<section-code>")` (`src/modules/navigation/guard.ts`). This
   makes the section grant *authorize the page*, not just paint the rail (ADR 0005): a
@@ -75,4 +77,4 @@
    `src/modules/<module>/` (db → resources → components) + thin routes in `src/app/` +
    namespaced API (`/api/<module>/...`) → custom screens. Ends with the verification
    phase (tests + amendments).
-3. `/commit-plan`. Activate the section in `/admin/portal/modules` when ready.
+3. `/commit-plan`. Activate the section from `/admin/portal/permissions` when ready.

@@ -1,0 +1,31 @@
+<!-- @dsCard group="EBI Portal / Components" -->
+<style>
+  .ds { font-family: Montserrat, system-ui, sans-serif; padding: 24px; background: #f6f7f6; color: #2a2c28; }
+  .ds h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #787b76; margin: 18px 0 10px; }
+  .ds .card { background: #fff; border: 1px solid #dfe0df; border-radius: 8px; padding: 16px; max-width: 300px; }
+  .ds .card .title { font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+  .ds .card .meta { font-size: 12px; color: #787b76; margin-top: 4px; }
+  .ds .badge { display: inline-flex; border-radius: 9999px; padding: 2px 10px; font-size: 11px; font-weight: 500; }
+  .ds table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid #dfe0df; border-radius: 8px; overflow: hidden; font-size: 13px; }
+  .ds th { text-align: left; font-size: 12px; font-weight: 500; color: #5e615c; padding: 10px 14px; border-bottom: 1px solid #dfe0df; background: #f6f7f6; }
+  .ds td { padding: 10px 14px; border-bottom: 1px solid #eef0ee; }
+  .ds tr:last-child td { border-bottom: none; }
+  .ds tr.hover td { background: #f6f7f6; }
+</style>
+<div class="ds">
+  <h2>Entity card — kit/entity-card.tsx (card grid pages, e.g. machines)</h2>
+  <div class="card">
+    <div class="title">PRE-001 <span class="badge" style="background:#2d8a39;color:#fff">Operativa</span></div>
+    <div class="meta">Prensa hidráulica · Planta Monterrey</div>
+    <div class="meta">Último mantenimiento: 2026-06-12</div>
+  </div>
+  <h2>Data table — kit/data-table.tsx (sortable header, hover row)</h2>
+  <table>
+    <thead><tr><th>Código</th><th>Descripción</th><th>Estado</th></tr></thead>
+    <tbody>
+      <tr><td>PRE-001</td><td>Prensa hidráulica</td><td><span class="badge" style="background:#2d8a39;color:#fff">Operativa</span></td></tr>
+      <tr class="hover"><td>SOL-014</td><td>Soldadora MIG (hover)</td><td><span class="badge" style="background:#d4870a;color:#fff">Mantenimiento</span></td></tr>
+      <tr><td>COR-007</td><td>Cortadora láser</td><td><span class="badge" style="background:#f6f7f6;color:#787b76">Inactiva</span></td></tr>
+    </tbody>
+  </table>
+</div>

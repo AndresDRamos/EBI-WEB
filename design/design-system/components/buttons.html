@@ -1,0 +1,40 @@
+<!-- @dsCard group="EBI Portal / Components" -->
+<style>
+  .ds { font-family: Montserrat, system-ui, sans-serif; padding: 24px; background: #fff; }
+  .ds h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #787b76; margin: 18px 0 10px; }
+  .ds .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .ds button { font-family: inherit; font-size: 14px; font-weight: 500; height: 36px; padding: 0 16px; border-radius: 6px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .ds .default { background: #ff5c35; color: #fff; }
+  .ds .destructive { background: #d62828; color: #fff; }
+  .ds .outline { background: #fff; color: #2a2c28; border-color: #dfe0df; }
+  .ds .secondary { background: #eef0ee; color: #2a2c28; }
+  .ds .ghost { background: transparent; color: #2a2c28; }
+  .ds .link { background: transparent; color: #ff5c35; text-decoration: underline; text-underline-offset: 4px; border: none; padding: 0; }
+  .ds .sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 4px; }
+  .ds .lg { height: 44px; padding: 0 24px; }
+  .ds .icon { width: 36px; padding: 0; justify-content: center; }
+  .ds .disabled { opacity: .4; pointer-events: none; }
+</style>
+<div class="ds">
+  <h2>Variants — ui/button.tsx (default · destructive · outline · secondary · ghost · link)</h2>
+  <div class="row">
+    <button class="default">Guardar</button>
+    <button class="destructive">Eliminar</button>
+    <button class="outline">Cancelar</button>
+    <button class="secondary">Secundario</button>
+    <button class="ghost">Ghost</button>
+    <button class="link">Ver detalle</button>
+  </div>
+  <h2>Sizes (sm · default · lg · icon)</h2>
+  <div class="row">
+    <button class="default sm">Pequeño</button>
+    <button class="default">Normal</button>
+    <button class="default lg">Grande</button>
+    <button class="outline icon">✎</button>
+  </div>
+  <h2>Disabled — opacity 40%</h2>
+  <div class="row">
+    <button class="default disabled">Guardar</button>
+    <button class="outline disabled">Cancelar</button>
+  </div>
+</div>

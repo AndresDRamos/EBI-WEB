@@ -1,45 +1,105 @@
 # Data dictionary — schema `maint`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-07 (V1–V15). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-08 (V1–V17; V17 sourced from the applied migration file
+> `V17__maint_asset_catalog_redesign.sql` + regenerated Kysely types, not live
+> introspection). Index: [`_index.md`](_index.md).
 
-Mantenimiento module (CMMS): asset catalog, documents, spare parts with an
-append-only stock ledger, preventive/autonomous maintenance plans and work
-orders (calendar source). Enumerations are enforced with named CHECK
-constraints (no lookup tables). Soft-delete via `is_active`; `updated_at` is
-app-maintained (no triggers). See plan `docs/plans/0004-*` and
+Mantenimiento module (CMMS): asset catalog with configurable category/type
+catalogs (V17), documents, spare parts with an append-only stock ledger,
+preventive/autonomous maintenance plans and work orders (calendar source).
+Fixed enumerations (criticality, status, doc types, WO types…) are enforced
+with named CHECK constraints; since V17 the asset category/type hierarchy is
+the first `maint` dimension modeled as **configurable catalog tables** instead
+(user-defined values + matrícula prefix). Soft-delete via `is_active`;
+`updated_at` is app-maintained (no triggers). See plan `docs/plans/0004-*` and
 `docs/modules/maintenance.md`.
 
 > **`process` moved out in V15.** The process catalog is now `org.process`
 > (company-wide) — see [`org.md`](org.md). `maint.asset_process` stays here;
 > its `process_id` is now a cross-schema FK to `org.process`.
 
+## `maint.asset_category`
+
+Configurable asset-category catalog (V17; replaces the V11 CHECK on
+`asset.asset_category`). `code_prefix` builds the asset matrícula
+(`PRD-P1-0001`); it is UNIQUE so two categories can never collide on the same
+prefix. Seeded with the two values migrated from the V11 CHECK:
+`production_equipment` (`PRD`) and `material_handling` (`MMH`).
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| asset_category_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
+| code | nvarchar(40) | no | UQ | Stable machine key |
+| name | nvarchar(120) | no | | Spanish UI label |
+| code_prefix | nvarchar(8) | no | UQ | Matrícula prefix (e.g. `PRD`) |
+| is_active | bit | no | DEFAULT 1 | Soft-delete flag |
+| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
+| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
+
+## `maint.asset_type`
+
+Machine types grouped under a category (category → type hierarchy). `code` is
+unique **within** a category; the composite unique constraint doubles as the
+FK-support index for `asset_category_id`. No seed — users create types.
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| asset_type_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
+| asset_category_id | int | no | FK → maint.asset_category (no cascade), UQ with code | Owning category |
+| code | nvarchar(40) | no | UQ with asset_category_id | Stable key, unique per category |
+| name | nvarchar(120) | no | | Spanish UI label |
+| is_active | bit | no | DEFAULT 1 | Soft-delete flag |
+| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
+| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
+
+## `maint.asset_code_sequence`
+
+Race-safe per (category, plant) counter that backs the app-generated matrícula
+`{code_prefix}-P{plant_id}-{NNNN}`. `next_seq` is the NEXT value to hand out;
+the app locks and increments the row (`UPDLOCK + SERIALIZABLE`) inside the
+asset-insert transaction (`createAsset` in `modules/maintenance/db.ts`). No
+triggers, no DB default on `asset.code`.
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| asset_category_id | int | no | PK (with plant_id), FK → maint.asset_category (no cascade) | Category reference |
+| plant_id | int | no | PK (with asset_category_id), FK → org.plant (no cascade; cross-schema) | Plant reference |
+| next_seq | int | no | DEFAULT 1, CHECK ≥ 1 | Next sequence value to hand out |
+
 ## `maint.asset`
 
-Machine/equipment catalog. `code` is the internal tag (QR payload).
-`parent_asset_id` models sub-assemblies (self-referencing hierarchy; the app decides depth).
+Machine/equipment catalog. `code` is the internal matrícula (QR payload),
+**app-generated since V17** (`{prefix}-P{plant_id}-{NNNN}`, never user input).
+The asset's category is **derived** via `asset_type → asset_category` (never
+stored on the asset). `parent_asset_id` models sub-assemblies
+(self-referencing hierarchy; the app decides depth).
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
 | asset_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
-| code | nvarchar(32) | no | UQ | Internal tag, QR payload |
+| code | nvarchar(32) | no | UQ | Matrícula, QR payload; generated inside `createAsset`'s transaction from `asset_code_sequence` |
 | name | nvarchar(200) | no | | Asset name |
 | brand | nvarchar(120) | yes | | Manufacturer brand |
 | model | nvarchar(120) | yes | | Model |
 | serial_number | nvarchar(120) | yes | | Serial number |
 | plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15) | Plant where the asset lives |
-| location | nvarchar(160) | yes | | Free-text area/cell (v1). Physical location is now historized in `production.asset_cell_assignment`; this column survives until a future decision |
-| criticality | char(1) | no | DEFAULT 'C', CHECK IN ('A','B','C') | Criticality class |
+| asset_type_id | int | no | FK → maint.asset_type (no cascade) (added V17) | Machine type; the category is derived through it |
+| criticality | char(1) | no | DEFAULT 'C', CHECK IN ('A','B','C') | Criticality class (still exists; not captured by the current machine form) |
 | status | nvarchar(20) | no | DEFAULT `active`, CHECK IN (`active`,`in_repair`,`standby`,`retired`) | Operational status |
-| asset_category | nvarchar(20) | no | DEFAULT `production_equipment`, CHECK IN (`production_equipment`,`material_handling`) | Asset kind (added V11). Material-handling equipment (forklifts, hoists) shares the catalog but usually has no fixed cell; loaders must set it explicitly — the silent default only suits manufacturing machinery |
 | parent_asset_id | int | yes | FK → maint.asset (no cascade), CHECK ≠ asset_id | Parent asset (sub-assembly of) |
-| acquisition_date | date | yes | | Acquisition date |
+| installation_date | date | yes | | Installation date (renamed from `acquisition_date` in V17; the app stores day = 01 for approximate month/year) |
+| image_blob_path | nvarchar(400) | yes | | Primary photo key in the Azure Blob `maintenance` container (added V17) |
 | notes | nvarchar(2000) | yes | | Free notes |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
 
-Indexes: `IX_asset_plant (plant_id, is_active)`, `IX_asset_parent (parent_asset_id) WHERE parent_asset_id IS NOT NULL`, `IX_asset_category (asset_category)` (added V11).
+Dropped in V17: `asset_category` (nvarchar(20) CHECK + default + `IX_asset_category`,
+added V11 — now the derived catalog dimension) and `location` (nvarchar(160)
+free text — physical location is historized in `production.asset_cell_assignment`).
+
+Indexes: `IX_asset_plant (plant_id, is_active)`, `IX_asset_parent (parent_asset_id) WHERE parent_asset_id IS NOT NULL`, `IX_asset_type (asset_type_id)` (added V17).
 
 ## `maint.asset_process`
 
@@ -252,4 +312,5 @@ Indexes: `IX_stock_movement_part (spare_part_id, moved_at) INCLUDE (quantity, mo
 ## Grants (schema scope)
 
 `GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::maint TO ebi_app`;
-`GRANT SELECT ON SCHEMA::maint TO ebi_agent_ro` (issued idempotently in V5 and V6).
+`GRANT SELECT ON SCHEMA::maint TO ebi_agent_ro` (issued idempotently in V5, V6
+and V17; the schema-scope grants already cover the three V17 tables).

@@ -30,7 +30,7 @@ import {
 import {
   StatusBadge,
   CriticalityBadge,
-} from "@/modules/maintenance/components/machines-table-page";
+} from "@/modules/maintenance/components/machine-badges";
 import {
   DOC_TYPES,
   RESTRICTION_TYPES,

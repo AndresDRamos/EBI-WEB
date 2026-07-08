@@ -349,6 +349,31 @@ export async function listCurrentByAsset(
   );
 }
 
+/**
+ * Current cell names per asset, batched (machines cards view). Same-schema
+ * join, so unlike the plant/asset lookups this one is a single query.
+ */
+export async function currentCellNamesByAssets(
+  assetIds: number[],
+): Promise<Map<number, string[]>> {
+  if (assetIds.length === 0) return new Map();
+  const rows = await db
+    .selectFrom("asset_cell_assignment")
+    .innerJoin("cell", "cell.cell_id", "asset_cell_assignment.cell_id")
+    .select(["asset_cell_assignment.asset_id", "cell.name"])
+    .where("asset_cell_assignment.valid_to", "is", null)
+    .where("asset_cell_assignment.asset_id", "in", assetIds)
+    .orderBy("cell.name", "asc")
+    .execute();
+  const map = new Map<number, string[]>();
+  for (const r of rows) {
+    const arr = map.get(r.asset_id) ?? [];
+    arr.push(r.name);
+    map.set(r.asset_id, arr);
+  }
+  return map;
+}
+
 /** Full assignment history of one asset (closed rows included), newest first. */
 export async function listHistoryByAsset(
   assetId: number,

@@ -1,6 +1,6 @@
 # production
 
-**Last synced:** 2026-07-06 · **Synced from:** plan plant-layout-foundation (branch `feat/plant-layout-foundation`, V13) on top of plan production-cell-assignment (V11) + plan production-schema-rename (V12)
+**Last synced:** 2026-07-07 · **Synced from:** plan plant-layout-foundation (branch `feat/plant-layout-foundation`, V13) on top of plan production-cell-assignment (V11) + plan production-schema-rename (V12); `currentCellNamesByAssets` added for the maintenance machines cards view (no schema change)
 
 ## Purpose
 
@@ -27,8 +27,12 @@ axes:
 ## Responsibilities
 
 - Owns the module slice `src/modules/production/`:
-  - `db.ts` (V11 tables — untouched by V13; maintenance consumes its exports)
-    plus the V13 data layer `db/{shared,layout,footprint,placement}.ts`. Both
+  - `db.ts` (V11 tables; maintenance consumes its exports — including
+    `currentCellNamesByAssets(assetIds)`, a batched single-query lookup of
+    current cell names per asset from `asset_cell_assignment` where
+    `valid_to IS NULL`, returned as `Map<number, string[]>`, consumed by the
+    maintenance machines cards view) plus the V13 data layer
+    `db/{shared,layout,footprint,placement}.ts`. Both
     bind the client with `withSchema("production")`; cross-schema display
     names (`org.plant` since V15, `maint.asset`) resolve as separate per-schema
     queries merged in JS (`db/shared.ts` helpers).
@@ -133,7 +137,9 @@ axes:
   cross-schema lookups run as separate per-schema queries merged in JS (typed
   cross-schema joins are not expressible with the flattened codegen keys).
 - Module-code direction with maintenance is **one-way, maintenance →
-  production** for enums/history reads; nothing in `src/modules/production/`
+  production** for enums and reads (`listHistoryByAsset` for the Ubicación
+  tab, `currentCellNamesByAssets` for the machines cards view); nothing in
+  `src/modules/production/`
   imports from `src/modules/maintenance/` (only app routes compose both).
 
 ## Related ADRs

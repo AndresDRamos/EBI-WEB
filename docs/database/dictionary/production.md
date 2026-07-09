@@ -1,9 +1,12 @@
 # Data dictionary — schema `production`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-07 (V1–V15). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-08 (V1–V18; V18 sourced from the adopted-from-live
+> migration file `V18__org_locations_type_processes.sql` + regenerated Kysely
+> types, not direct introspection). Index: [`_index.md`](_index.md).
 > V15 left `production`'s tables unchanged but transferred `auth.plant` →
-> `org.plant`, so the `plant_id` FKs below now cross to `org.plant`.
+> `org.plant`, so the `plant_id` FKs below now cross to `org.plant`. V18 added
+> `cell.location_id` (NULLable FK to the new `org.location`).
 
 Production module (created as `produccion` by V11, plan
 production-cell-assignment; renamed to `production` by V12, plan
@@ -39,7 +42,9 @@ Indexes: `IX_production_line_plant (plant_id, is_active)`.
 ## `production.cell`
 
 Logical production post/function. `line_id` is nullable: standalone cells
-(e.g. "Laser 1", "Laser 2") belong to no line.
+(e.g. "Laser 1", "Laser 2") belong to no line. Since V18 a cell may also sit
+inside a named plant location (`location_id`, NULLable); the API validates
+that the location belongs to the cell's plant (422).
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
@@ -49,12 +54,15 @@ Logical production post/function. `line_id` is nullable: standalone cells
 | plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15) | Plant the cell belongs to |
 | line_id | int | yes | FK → production.production_line (no cascade) | Owning line; NULL = standalone cell |
 | sequence_in_line | int | yes | CHECK > 0 (or NULL); CHECK requires line_id set (`CK_cell_sequence_requires_line`) | Position within the line (Op order) |
+| location_id | int | yes | FK → org.location (no cascade; cross-schema) (added V18) | Named location the cell sits in; NULL = not linked |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
 
 Indexes: `IX_cell_plant (plant_id, is_active)`,
 `IX_cell_line (line_id) WHERE line_id IS NOT NULL`,
+`IX_cell_location (location_id) WHERE location_id IS NOT NULL` (V18, filtered
+— only linked rows pay),
 `UQ_cell_line_sequence (line_id, sequence_in_line) UNIQUE WHERE line_id IS NOT NULL`
 (no duplicate "Op 20" within a line; cells without a line stay unconstrained).
 
@@ -66,6 +74,12 @@ by "Laser 1" and "Laser 2"). Rows are **immutable once written except for
 closing `valid_to`**: a reassignment = close the current row + insert a new one,
 never an in-place UPDATE of `asset_id`/`cell_id`. There is **no `updated_at` on
 purpose** — it would invite the in-place rewrite this design prevents.
+
+Since V18 the create/reassign APIs enforce the cross-schema invariant
+`cell.location_id = maint.asset.location_id` (the cell must be linked to a
+location and it must be the asset's own — 422 otherwise; app-enforced, no
+triggers). When an asset moves to another location, the maintenance asset
+PATCH auto-closes its current assignments (historized close, never a delete).
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
@@ -150,8 +164,10 @@ family as `asset_cell_assignment`: a reposition = **close the current row
 (`valid_to`) + insert a new one**, never an in-place UPDATE of
 `x_m`/`y_m`/`rotation_deg`. **No `updated_at` on purpose.** Pose semantic
 (app-level): `x_m`/`y_m` = **center of the footprint bbox**, rotation about
-that center. The cross-schema invariant `maint.asset.plant_id =
-plant_layout.plant_id` is enforced by the app on create (no triggers).
+that center. The cross-schema invariant "the asset's plant =
+`plant_layout.plant_id`" is enforced by the app on create (no triggers);
+since V18 the asset's plant is derived via `maint.asset.location_id →
+org.location.plant_id`.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|

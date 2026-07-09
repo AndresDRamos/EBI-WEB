@@ -1,6 +1,6 @@
 # production
 
-**Last synced:** 2026-07-08 · **Synced from:** plan plant-layout-foundation (branch `feat/plant-layout-foundation`, V13) on top of plan production-cell-assignment (V11) + plan production-schema-rename (V12); `currentCellNamesByAssets` added for the maintenance machines cards view (no schema change); plan equipment-maintenance-attributes (V17) removed the `ASSET_CATEGORIES` enum from `enums.ts` (asset category is now a `maint` DB catalog)
+**Last synced:** 2026-07-08 · **Synced from:** plan plant-layout-foundation (branch `feat/plant-layout-foundation`, V13) on top of plan production-cell-assignment (V11) + plan production-schema-rename (V12); `currentCellNamesByAssets` added for the maintenance machines cards view (no schema change); plan equipment-maintenance-attributes (V17) removed the `ASSET_CATEGORIES` enum from `enums.ts` (asset category is now a `maint` DB catalog); plan machines-locations-view (V18) added `cell.location_id` → `org.location` and the app-enforced cell/asset location invariant on assignments
 
 ## Purpose
 
@@ -15,7 +15,10 @@ axes:
   added `maint.asset.asset_category` as a CHECK enum — **superseded in V17**,
   which dropped the column and promoted the domain to the configurable
   catalogs `maint.asset_category` / `maint.asset_type` (owned by the
-  maintenance module; an asset's category is derived via its type).
+  maintenance module; an asset's category is derived via its type). Since
+  V18 a cell may sit inside a **named plant location** (`cell.location_id`,
+  NULLable FK to `org.location`, owned by the `org` module), and assignments
+  are constrained to cells sharing the asset's location (app-enforced).
 - **Physical (V13, plan plant-layout-foundation):** digitized plant floor
   layouts as **versioned, immutable canvases** (`production.plant_layout`)
   imported from DXF per the CAD contract
@@ -64,7 +67,20 @@ axes:
   (`requireUser`); mutations are gated by
   `requirePermission("production.<resource>:<action>")`. V11 routes:
   `lines[/[id]]`, `cells[/[id]]`, `cells/[id]/assignments`,
-  `assignments/[id]/{close,reassign}`. V13 routes:
+  `assignments/[id]/{close,reassign}`. V18 amendments to those routes:
+  - Cell create/PATCH carry a nullable `location_id`; the API validates the
+    location exists, is active and **belongs to the cell's plant** (422). The
+    cells UI (`cells-table-page.tsx`) filters the location select by the
+    chosen plant and clears it when the plant changes; `listCells` resolves
+    `location_name` via an `org`-bound lookup.
+  - Assignment **create and reassign enforce the cross-schema invariant
+    `cell.location_id === maint.asset.location_id`** (the cell must be linked
+    to a location and it must be the asset's own) — 422 otherwise,
+    app-enforced, no triggers. The complementary side lives in maintenance:
+    its asset PATCH auto-closes current assignments when the asset's location
+    changes.
+
+  V13 routes:
   - `GET /layouts` — versions per plant, **excluding the `geometry` LOB**
     (list discipline); `GET /layouts/[id]` returns the parsed geometry.
   - `POST /layouts/import` (`layout:create`) — multipart DXF (max 50 MB →
@@ -82,10 +98,11 @@ axes:
   - `POST /layouts/[id]/archive` (`layout:archive`) — retire the active
     layout without a successor; its open placements close.
   - `GET/POST /layouts/[id]/placements` (`placement:create`) — create
-    validates `maint.asset.plant_id = plant_layout.plant_id` (the
-    cross-schema invariant the DB cannot enforce without triggers) and that
-    the position falls inside the canvas → 422; duplicate current placement →
-    409 (`UQ_asset_placement_current`).
+    validates that the asset's plant (derived since V18 via
+    `maint.asset.location_id → org.location.plant_id`) matches
+    `plant_layout.plant_id` (the cross-schema invariant the DB cannot enforce
+    without triggers) and that the position falls inside the canvas → 422;
+    duplicate current placement → 409 (`UQ_asset_placement_current`).
   - `POST /placements/[id]/move` — requires **both** `placement:close` and
     `placement:create` (it closes AND creates, mirroring `reassign`);
     close+insert in one transaction. `POST /placements/[id]/close` — 409 if
@@ -121,9 +138,11 @@ axes:
   `AZURE_STORAGE_CONTAINER_MAINT` was removed and maintenance call sites
   updated). Uploads go through `uploadBlob(container, key, …)` +
   `buildBlobKey(prefix, filename)`.
-- Does **not** own assets (`maint.asset`) or plants (`org.plant` since V15) —
-  placements/footprints/assignments reference them; `findAssetById` from
-  `maintenance/db.ts` validates asset existence/plant in the API layer.
+- Does **not** own assets (`maint.asset`), plants (`org.plant` since V15) or
+  locations (`org.location`, V18) — placements/footprints/assignments/cells
+  reference them; `findAssetById` from `maintenance/db.ts` and
+  `findLocationById` from `org/db/locations.ts` back the API layer's 422
+  validations.
 
 ## Dependency flow
 
@@ -132,7 +151,9 @@ axes:
   (asset pickers — app-layer composition, allowed by the blueprint).
 - `/api/production/**` → `modules/production/db{.ts,/}` +
   `modules/production/dxf` (import routes) + `lib/storage/blob.ts` (blob
-  archiving) + `maintenance/db.findAssetById` (422 validation).
+  archiving) + `maintenance/db.findAssetById` and `org/db/locations
+  .findLocationById` (422 validations — asset existence, location∈plant,
+  cell/asset location match).
 - `modules/production/dxf/` is pure and side-effect-free: imported by API
   routes, UI copy and tests alike; blob archiving and DB rows are strictly
   the API layer's job (ADR 0006).
@@ -187,6 +208,12 @@ axes:
 - **The filtered unique index `UQ_asset_cell_assignment_current` permits real
   current M:N** — do not tighten it to one cell per asset (shared feed
   towers).
+- **The cell/asset location invariant is app-enforced in exactly two places**
+  (V18): assignment create (`cells/[id]/assignments`) and `reassign` both
+  422 unless `cell.location_id === asset.location_id`; the maintenance asset
+  PATCH auto-closes assignments when the asset moves. Adding a new assignment
+  code path without that check silently breaks the invariant — there are no
+  triggers backing it.
 - **Nav-cache gotcha after migrations that seed nav rows** (applies to the
   V13 `Layout` item exactly as to V11): seeded rows do **not** invalidate the
   persisted `unstable_cache` tagged `"nav"` — trigger any `/api/nav/*`

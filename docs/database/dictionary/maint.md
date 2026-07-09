@@ -1,9 +1,9 @@
 # Data dictionary — schema `maint`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-08 (V1–V17; V17 sourced from the applied migration file
-> `V17__maint_asset_catalog_redesign.sql` + regenerated Kysely types, not live
-> introspection). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-08 (V1–V18; V18 sourced from the adopted-from-live
+> migration file `V18__org_locations_type_processes.sql` + regenerated Kysely
+> types, not direct introspection). Index: [`_index.md`](_index.md).
 
 Mantenimiento module (CMMS): asset catalog with configurable category/type
 catalogs (V17), documents, spare parts with an append-only stock ledger,
@@ -11,37 +11,50 @@ preventive/autonomous maintenance plans and work orders (calendar source).
 Fixed enumerations (criticality, status, doc types, WO types…) are enforced
 with named CHECK constraints; since V17 the asset category/type hierarchy is
 the first `maint` dimension modeled as **configurable catalog tables** instead
-(user-defined values + matrícula prefix). Soft-delete via `is_active`;
-`updated_at` is app-maintained (no triggers). See plan `docs/plans/0004-*` and
+(user-defined values; since V18 the matrícula prefix and the process links
+live on the **type**). Soft-delete via `is_active`; `updated_at` is
+app-maintained (no triggers). See plan `docs/plans/0004-*` and
 `docs/modules/maintenance.md`.
 
 > **`process` moved out in V15.** The process catalog is now `org.process`
-> (company-wide) — see [`org.md`](org.md). `maint.asset_process` stays here;
-> its `process_id` is now a cross-schema FK to `org.process`.
+> (company-wide) — see [`org.md`](org.md). The equipment↔process link is
+> `maint.asset_type_process` since V18 (per TYPE; the per-asset
+> `maint.asset_process` was dropped).
+>
+> **V18 (plan machines-locations-view)** also re-anchored physical location:
+> `maint.asset.plant_id` was replaced by `location_id` (FK to the new
+> `org.location`; the plant is derived), the matrícula `code_prefix` moved
+> category → type, and `asset_code_sequence` was re-keyed to (type, plant).
+> All `maint.asset` rows and dependents were purged up front (dev-only data;
+> prod had zero rows).
 
 ## `maint.asset_category`
 
 Configurable asset-category catalog (V17; replaces the V11 CHECK on
-`asset.asset_category`). `code_prefix` builds the asset matrícula
-(`PRD-P1-0001`); it is UNIQUE so two categories can never collide on the same
-prefix. Seeded with the two values migrated from the V11 CHECK:
-`production_equipment` (`PRD`) and `material_handling` (`MMH`).
+`asset.asset_category`). Since V18 it is a pure grouping dimension: the
+matrícula `code_prefix` moved to `maint.asset_type`. Seeded with the two
+values migrated from the V11 CHECK: `production_equipment` and
+`material_handling`.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
 | asset_category_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
 | code | nvarchar(40) | no | UQ | Stable machine key |
 | name | nvarchar(120) | no | | Spanish UI label |
-| code_prefix | nvarchar(8) | no | UQ | Matrícula prefix (e.g. `PRD`) |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
+
+Dropped in V18: `code_prefix` (+ `UQ_asset_category_prefix`) — the prefix now
+lives on `asset_type` (backfilled from the owning category before the drop).
 
 ## `maint.asset_type`
 
 Machine types grouped under a category (category → type hierarchy). `code` is
 unique **within** a category; the composite unique constraint doubles as the
-FK-support index for `asset_category_id`. No seed — users create types.
+FK-support index for `asset_category_id`. Since V18 the type owns the
+matrícula `code_prefix` (globally UNIQUE) and its process capability
+(`asset_type_process`). No seed — users create types.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
@@ -49,30 +62,51 @@ FK-support index for `asset_category_id`. No seed — users create types.
 | asset_category_id | int | no | FK → maint.asset_category (no cascade), UQ with code | Owning category |
 | code | nvarchar(40) | no | UQ with asset_category_id | Stable key, unique per category |
 | name | nvarchar(120) | no | | Spanish UI label |
+| code_prefix | nvarchar(8) | no | UQ (`UQ_asset_type_prefix`) (added V18) | Matrícula prefix (e.g. `PRD`); stored upper-case by the app |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
 
-## `maint.asset_code_sequence`
+## `maint.asset_type_process`
 
-Race-safe per (category, plant) counter that backs the app-generated matrícula
-`{code_prefix}-P{plant_id}-{NNNN}`. `next_seq` is the NEXT value to hand out;
-the app locks and increments the row (`UPDLOCK + SERIALIZABLE`) inside the
-asset-insert transaction (`createAsset` in `modules/maintenance/db.ts`). No
-triggers, no DB default on `asset.code`.
+M:N link type ↔ `org.process` (V18, new): "which processes can this TYPE of
+machine run" is a property of the type, not of each unit. **Replaces the
+per-asset `maint.asset_process` (V5, dropped in V18)** — no data migration
+(the old rows were purged with the assets). Link-row only; both FKs NO ACTION
+(catalog rows protected). The UI links one process per type (1:1), but the DB
+shape stays N:M.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
-| asset_category_id | int | no | PK (with plant_id), FK → maint.asset_category (no cascade) | Category reference |
-| plant_id | int | no | PK (with asset_category_id), FK → org.plant (no cascade; cross-schema) | Plant reference |
+| asset_type_id | int | no | PK, FK → maint.asset_type (no cascade) | Type reference |
+| process_id | int | no | PK, FK → org.process (no cascade; cross-schema) | Process reference |
+
+Indexes: `IX_asset_type_process_process (process_id)` (reverse lookup "which
+types run process X"; the forward lookup is served by the leading PK column).
+
+## `maint.asset_code_sequence`
+
+Race-safe per **(type, plant)** counter (re-keyed from (category, plant) in
+V18 — the counter follows the prefix, which now lives on the type) that backs
+the app-generated matrícula `{type.code_prefix}-P{plant_id}-{NNNN}`.
+`next_seq` is the NEXT value to hand out; the app locks and increments the row
+(`UPDLOCK + SERIALIZABLE`) inside the asset-insert transaction (`createAsset`
+in `modules/maintenance/db.ts`). No triggers, no DB default on `asset.code`.
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| asset_type_id | int | no | PK (with plant_id), FK → maint.asset_type (no cascade) (V18) | Type reference |
+| plant_id | int | no | PK (with asset_type_id), FK → org.plant (no cascade; cross-schema) | Plant reference (the asset's birth plant, resolved from its location) |
 | next_seq | int | no | DEFAULT 1, CHECK ≥ 1 | Next sequence value to hand out |
 
 ## `maint.asset`
 
 Machine/equipment catalog. `code` is the internal matrícula (QR payload),
-**app-generated since V17** (`{prefix}-P{plant_id}-{NNNN}`, never user input).
-The asset's category is **derived** via `asset_type → asset_category` (never
-stored on the asset). `parent_asset_id` models sub-assemblies
+**app-generated since V17** (`{prefix}-P{plant_id}-{NNNN}`, never user input;
+since V18 the prefix comes from the type and the plant from the location at
+creation time). The asset's category is **derived** via `asset_type →
+asset_category`, and its plant via `location → org.location.plant_id` (V18) —
+neither is stored on the asset. `parent_asset_id` models sub-assemblies
 (self-referencing hierarchy; the app decides depth).
 
 | Column | Type | Nullable | Constraints | Description |
@@ -83,10 +117,10 @@ stored on the asset). `parent_asset_id` models sub-assemblies
 | brand | nvarchar(120) | yes | | Manufacturer brand |
 | model | nvarchar(120) | yes | | Model |
 | serial_number | nvarchar(120) | yes | | Serial number |
-| plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15) | Plant where the asset lives |
-| asset_type_id | int | no | FK → maint.asset_type (no cascade) (added V17) | Machine type; the category is derived through it |
+| location_id | int | no | FK → org.location (no cascade; cross-schema) (V18) | Location within a plant; the asset's plant is derived through it |
+| asset_type_id | int | no | FK → maint.asset_type (no cascade) (added V17) | Machine type; category, prefix and processes derive through it |
 | criticality | char(1) | no | DEFAULT 'C', CHECK IN ('A','B','C') | Criticality class (still exists; not captured by the current machine form) |
-| status | nvarchar(20) | no | DEFAULT `active`, CHECK IN (`active`,`in_repair`,`standby`,`retired`) | Operational status |
+| status | nvarchar(20) | no | DEFAULT `active`, CHECK IN (`active`,`in_repair`,`standby`,`retired`) | Operational status (column still exists; since V18 the UI neither shows nor sets it and the APIs reject it) |
 | parent_asset_id | int | yes | FK → maint.asset (no cascade), CHECK ≠ asset_id | Parent asset (sub-assembly of) |
 | installation_date | date | yes | | Installation date (renamed from `acquisition_date` in V17; the app stores day = 01 for approximate month/year) |
 | image_blob_path | nvarchar(400) | yes | | Primary photo key in the Azure Blob `maintenance` container (added V17) |
@@ -98,21 +132,13 @@ stored on the asset). `parent_asset_id` models sub-assemblies
 Dropped in V17: `asset_category` (nvarchar(20) CHECK + default + `IX_asset_category`,
 added V11 — now the derived catalog dimension) and `location` (nvarchar(160)
 free text — physical location is historized in `production.asset_cell_assignment`).
+Dropped in V18: `plant_id` (+ `FK_asset_plant`, `IX_asset_plant`) — replaced
+by `location_id`; the plant is derived. Moving an asset to another location
+auto-closes its current cell assignments (app-enforced, maintenance asset
+PATCH).
 
-Indexes: `IX_asset_plant (plant_id, is_active)`, `IX_asset_parent (parent_asset_id) WHERE parent_asset_id IS NOT NULL`, `IX_asset_type (asset_type_id)` (added V17).
-
-## `maint.asset_process`
-
-Many-to-many join between `asset` and the company-wide process catalog
-(multi-process machines, storage). Stays in `maint`; since V15 its `process_id`
-is a **cross-schema FK to `org.process`**.
-
-| Column | Type | Nullable | Constraints | Description |
-|---|---|---|---|---|
-| asset_id | int | no | PK, FK → maint.asset (CASCADE DELETE) | Asset reference |
-| process_id | int | no | PK, FK → org.process (no cascade; cross-schema since V15) | Process reference |
-
-Indexes: `IX_asset_process_process (process_id)`.
+Indexes: `IX_asset_location (location_id, is_active)` (V18; replaces
+`IX_asset_plant`), `IX_asset_parent (parent_asset_id) WHERE parent_asset_id IS NOT NULL`, `IX_asset_type (asset_type_id)` (added V17).
 
 ## `maint.asset_restriction`
 
@@ -313,4 +339,5 @@ Indexes: `IX_stock_movement_part (spare_part_id, moved_at) INCLUDE (quantity, mo
 
 `GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::maint TO ebi_app`;
 `GRANT SELECT ON SCHEMA::maint TO ebi_agent_ro` (issued idempotently in V5, V6
-and V17; the schema-scope grants already cover the three V17 tables).
+and V17; the schema-scope grants cover `asset_type_process` and the recreated
+`asset_code_sequence` automatically — V18 added no new `maint` grants).

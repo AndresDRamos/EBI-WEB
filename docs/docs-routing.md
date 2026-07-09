@@ -55,6 +55,13 @@
 - **Ask up front:** does the new section belong under `auth` role-priority visibility, or does it need public/no-role default?
 - **Gotchas:** sections **and their items** are seeded by the migration of the module that owns the route — never let the admin panel create a section from scratch. The `admin` role needs no grant rows (sees everything, including inactive sections — rendered dimmed). Section grants now **authorize pages** (ADR 0005): each module must add `(portal)/<module>/layout.tsx` calling `requireSectionOrRedirect("<code>")`, or its pages stay reachable by any authenticated user. The admin panel rail is code-built (`ADMIN_NAV_SECTION`), not a `nav_section`.
 
+### Maintenance (CMMS)
+- **Read always:** `docs/modules/maintenance.md` · `docs/database/erd/maint.md`
+- **Read if:** `docs/database/erd/org.md` (asset location/plant derivation, V18) · `docs/modules/production.md` (cell/asset assignment invariant) · `docs/architecture/adr/0002-azure-blob-asset-documents.md` (document storage)
+- **Skip (known noise):** ETL docs · ADR 0001
+- **Ask up front:** does the change touch the category/type catalog (matrícula prefix, process link) or just the asset record itself?
+- **Gotchas:** never insert `maint.asset.code` by hand — only `createAsset` claims the `asset_code_sequence` counter under `UPDLOCK + SERIALIZABLE`. Moving an asset's location must close its current cell assignments (see the module doc's "Do not touch" section).
+
 ### Business module with temporal-bridge catalogs (production-style)
 - **Read always:** `docs/modules/production.md` · `docs/database/erd/production.md` · `docs/architecture/module-blueprint.md`
 - **Read if:** `docs/modules/maintenance.md` + `docs/database/erd/maint.md` (when touching `asset_category` / the Ubicación tab) · `docs/modules/rbac.md` / `docs/modules/navigation.md` (when seeding new permission codes or nav rows) · `docs/architecture/cad-layout-contract.md` + ADR 0006 (only when touching layout import / DXF / placements)

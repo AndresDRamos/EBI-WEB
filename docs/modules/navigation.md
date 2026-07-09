@@ -1,6 +1,7 @@
 # Navigation (portal layout & DB-driven nav registry)
 
-**Last synced:** 2026-07-08 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005) + plan admin-panel-regroup + unified permission manager redesign (nav structure CRUD + role grants folded into `PermissionManager`'s "Estructura del menú" panel, replacing the Módulos tab entirely) + plan admin-permissions-portal (per-page nav authorization, ADR 0008 supersedes 0005: `auth.role_nav_item` V16, `x-pathname`-driven guard, `/api/roles/[id]/items`)
+**Last synced:** 2026-07-08 (V16) · **Synced from:** see the ledger in
+[docs/plans/README.md](../plans/README.md) for the full plan history.
 
 ## Purpose
 

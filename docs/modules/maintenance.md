@@ -1,6 +1,7 @@
 # maintenance
 
-**Last synced:** 2026-07-09 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11) + plan org-schema-plant-process (process catalog moved to `org`, V15) + machines cards view (kit `EntityCard`, no schema change) + `design/Equipos.dc.html` fidelity pass (full-page layout, no schema change) + plan equipment-maintenance-attributes (asset catalog redesign: configurable category/type catalogs + app-generated matrícula + asset photo, V17) + plan equipment-detail-modal (detail page → expanding modal, no schema change) + plan machines-locations-view (`org.location` anchor, type-owned prefix/processes, modal redesign + QR landing `/asset/[code]`, V18) + plan production-operative-cells (adds `assetTypeSupportsProcess` to `db.ts`, backing the cell/asset process invariant on assignments; no `maintenance` schema change, V19)
+**Last synced:** 2026-07-09 (V19) · **Synced from:** see the ledger in
+[docs/plans/README.md](../plans/README.md) for the full plan history.
 
 ## Purpose
 

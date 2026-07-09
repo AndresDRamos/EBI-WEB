@@ -61,12 +61,19 @@ RBAC actions precede the next business module.
   the middleware, no Kysely / no argon2). `src/auth.ts` is **Node runtime**
   and adds the Credentials provider + DB-touching callbacks. Mixing imports
   breaks the edge bundling.
-- **Schema `auth` is bound manually.** `kysely-codegen` flattens schemas out
-  of the `DB` keys (`app_user`, not `auth.app_user`). Every module `db` file
-  that touches `auth` must do `rootDb.withSchema("auth")` at the top (see
-  `modules/org/db/users.ts`, `modules/org/db/org.ts`,
-  `modules/navigation/db.ts`). Without it, SQL Server resolves under `dbo`
-  and throws 208. `modules/maintenance/db.ts` binds `maint`.
+- **Schemas are bound in one shared file, not per module.**
+  `kysely-codegen` flattens schemas out of the `DB` keys (`app_user`, not
+  `auth.app_user`) — a bare table name resolves under `dbo` and throws 208
+  unless the client is schema-bound. `src/lib/db/schema-clients.ts` is the
+  single home for the four per-schema Kysely clients (`authDb`, `orgDb`,
+  `maintDb`, `productionDb`) plus `emptyToNull`; every module imports the
+  bound client it needs from there (`modules/org/db/{users,org,locations,
+  permissions,plant-process,processes}.ts`, `modules/navigation/db.ts`,
+  `modules/maintenance/db.ts`, `modules/production/db/shared.ts`) instead of
+  calling `rootDb.withSchema(...)` locally. Cross-schema ref lookups shared
+  by more than one module (location/process/asset identity) live the same
+  way in `src/lib/db/refs.ts` (`locationRefsById`/`processNamesById`/
+  `assetRefsById`, consumed by both `maintenance` and `production`).
 - **MSSQL inserts use `.output("inserted.<pk>")`.** Kysely MSSQL does **not**
   populate `.insertId`; use `.output("inserted.id").executeTakeFirst()` and
   then `select` the row. Uniform pattern across `users.ts`, `org.ts` and the
@@ -212,6 +219,26 @@ the app pages under `src/app/` are thin and compose from here):
   snapshot owns `location_id`, not `plant_id`/`status`) and
   `hooks/use-asset-detail.ts` (on-demand fetch of restrictions/documents/
   assignments for the tabs).
+- `production/` — production structure (`production` schema): the logical
+  cell hierarchy + temporal asset assignments (V11/V18/V19) and the V13
+  plant-layout digitization data layer.
+  - `db/` — one file per aggregate (plan production-db-unify, no schema
+    change): `cell.ts` (cell CRUD, `OperativeCellRow` projection +
+    `toOperativeCellRow`), `assignment.ts` (assignment CRUD, cell-name
+    resolution consolidated onto one shared query builder
+    `baseAssignmentWithCellQuery`), `layout.ts`/`footprint.ts`/
+    `placement.ts` (V13 unchanged by the split), `shared.ts` (re-binds the
+    module's `productionDb`/`emptyToNull`/`assetRefsById` from the shared
+    infra below, plus the one lookup that stayed local, `plantNamesById`),
+    `index.ts` (barrel — `@/modules/production/db` keeps resolving for every
+    call site outside the module).
+  - `dxf/` — pure DXF import pipeline (decode/parse/validate/normalize/
+    geometry/contract), no I/O, no `server-only`; 33 vitest unit tests.
+  - `enums.ts` — `LAYOUT_STATUSES`/`FOOTPRINT_SOURCE_KINDS` (pure module).
+  - `components/` — `operative-cells-page.tsx` + `location-cells-modal.tsx`
+    (the V19 catalog view; imports `OperativeCellRow` from `db/cell.ts`
+    instead of redeclaring it) for the portal route; the V13 layout/import/
+    footprint pages, dark-parked under `(portal)/test/*`.
 
 **Shared UI** (`src/components/`):
 
@@ -252,6 +279,12 @@ the app pages under `src/app/` are thin and compose from here):
 
 - `db/client.ts` — Kysely singleton + Azure SQL pool (Tarn, 1–10 conns).
 - `db/types.ts` — **generated** by `kysely-codegen`; do not edit by hand.
+- `db/schema-clients.ts` — single home for the four per-schema Kysely
+  clients (`authDb`, `orgDb`, `maintDb`, `productionDb`) + `emptyToNull`;
+  every module imports its bound client from here instead of calling
+  `rootDb.withSchema(...)` locally.
+- `db/refs.ts` — cross-schema ref lookups shared by `maintenance` and
+  `production` (`locationRefsById`, `processNamesById`, `assetRefsById`).
 - `auth/password.ts` — argon2id (`@node-rs/argon2`), Node only.
 - `auth/rbac.ts` — `requireUser / requireAnyRole / requirePermission /
   isAdmin / assertAdminOrRedirect / getUserScope`. Errors:

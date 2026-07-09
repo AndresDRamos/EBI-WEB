@@ -254,7 +254,7 @@ exists — the table was dropped in V19.
   children — **not expressible as a CHECK** (a self-referencing depth bound
   needs a recursive check or a trigger, both against house style/impossible
   in plain CHECK), so it is **enforced by the app only**, in exactly two
-  places: `createCell`/`updateCell` in `modules/production/db.ts` and the
+  places: `createCell`/`updateCell` in `modules/production/db/cell.ts` and the
   `PATCH /api/production/cells/[id]` route (see
   `docs/modules/production.md`, "Do not touch"). The DB backs only the
   narrower invariant it *can* express, `CK_cell_not_self_parent`
@@ -278,7 +278,7 @@ exists — the table was dropped in V19.
   `(parent_cell_id, sequence_in_parent) WHERE parent_cell_id IS NOT NULL AND sequence_in_parent IS NOT NULL`
   — successor of `UQ_cell_line_sequence`, now filtered on **both** columns
   (parent cells themselves, and any unsequenced child, stay unconstrained).
-  `reorderCellChildren` (`modules/production/db.ts`) persists a new Op10/
+  `reorderCellChildren` (`modules/production/db/cell.ts`) persists a new Op10/
   Op20… order in two passes (negative temp values, then final `(i+1)*10`) to
   dodge the filtered unique index while reordering.
 - **`size_x_m` / `size_y_m`** (`CK_cell_size_x` / `CK_cell_size_y`, both

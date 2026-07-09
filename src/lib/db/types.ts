@@ -141,12 +141,19 @@ export interface Cell {
   code: string;
   created_at: Generated<Date>;
   is_active: Generated<boolean>;
-  line_id: number | null;
-  location_id: number | null;
+  location_id: number;
   name: string;
-  plant_id: number;
-  sequence_in_line: number | null;
+  parent_cell_id: number | null;
+  process_id: number | null;
+  sequence_in_parent: number | null;
+  size_x_m: number | null;
+  size_y_m: number | null;
   updated_at: Generated<Date>;
+}
+
+export interface CellCodeSequence {
+  location_id: number;
+  next_seq: Generated<number>;
 }
 
 export interface DatabaseFirewallRules {
@@ -308,16 +315,6 @@ export interface Process {
   updated_at: Generated<Date>;
 }
 
-export interface ProductionLine {
-  code: string;
-  created_at: Generated<Date>;
-  is_active: Generated<boolean>;
-  line_id: Generated<number>;
-  name: string;
-  plant_id: number;
-  updated_at: Generated<Date>;
-}
-
 export interface Role {
   department_id: number | null;
   description: string | null;
@@ -443,6 +440,7 @@ export interface DB {
   asset_type: AssetType;
   asset_type_process: AssetTypeProcess;
   cell: Cell;
+  cell_code_sequence: CellCodeSequence;
   database_firewall_rules: DatabaseFirewallRules;
   department: Department;
   flyway_schema_history: FlywaySchemaHistory;
@@ -458,7 +456,6 @@ export interface DB {
   plant_layout: PlantLayout;
   plant_process: PlantProcess;
   process: Process;
-  production_line: ProductionLine;
   role: Role;
   role_nav_item: RoleNavItem;
   role_nav_section: RoleNavSection;

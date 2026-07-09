@@ -38,7 +38,9 @@ export interface UseMachineFormParams {
  * (read when not editing, editable in place when editing) instead of a
  * one-shot Radix dialog. Owns a `saved` snapshot internally — the source of
  * truth for read-only display and for what Cancel reverts to — updated
- * locally after each successful save (no refetch needed).
+ * locally after each successful save (no refetch needed). Since V18 the form
+ * captures the LOCATION (plant derives from it), status is not settable, and
+ * processes hang off the asset type (read-only here).
  */
 export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFormParams) {
   const [saved, setSaved] = React.useState<MachineFormAsset | null>(asset);
@@ -46,15 +48,11 @@ export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFor
   const [brand, setBrand] = React.useState(saved?.brand ?? "");
   const [model, setModel] = React.useState(saved?.model ?? "");
   const [serial, setSerial] = React.useState(saved?.serial_number ?? "");
-  const [plantId, setPlantId] = React.useState<string>(
-    saved ? String(saved.plant_id) : "",
+  const [locationId, setLocationId] = React.useState<string>(
+    saved ? String(saved.location_id) : "",
   );
-  const [status, setStatus] = React.useState(saved?.status ?? "active");
   const [typeId, setTypeId] = React.useState<string>(
     saved?.asset_type_id ? String(saved.asset_type_id) : "",
-  );
-  const [processId, setProcessId] = React.useState<string>(
-    saved?.process_ids?.[0] ? String(saved.process_ids[0]) : "",
   );
   const [installMonth, setInstallMonth] = React.useState<string>(
     saved?.installation_date ? saved.installation_date.slice(5, 7) : "",
@@ -79,9 +77,13 @@ export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFor
   const noTypes = types.length === 0;
 
   const typeGroups = React.useMemo(() => {
-    const byCat = new Map<number, { category: string; items: TypeOption[] }>();
+    const byCat = new Map<
+      number,
+      { asset_category_id: number; category: string; items: TypeOption[] }
+    >();
     for (const t of types) {
       const g = byCat.get(t.asset_category_id) ?? {
+        asset_category_id: t.asset_category_id,
         category: t.category_name,
         items: [],
       };
@@ -131,10 +133,8 @@ export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFor
     setBrand(s?.brand ?? "");
     setModel(s?.model ?? "");
     setSerial(s?.serial_number ?? "");
-    setPlantId(s ? String(s.plant_id) : "");
-    setStatus(s?.status ?? "active");
+    setLocationId(s ? String(s.location_id) : "");
     setTypeId(s?.asset_type_id ? String(s.asset_type_id) : "");
-    setProcessId(s?.process_ids?.[0] ? String(s.process_ids[0]) : "");
     setInstallMonth(s?.installation_date ? s.installation_date.slice(5, 7) : "");
     setInstallYear(s?.installation_date ? s.installation_date.slice(0, 4) : "");
     setParentId(s?.parent_asset_id ?? null);
@@ -152,8 +152,8 @@ export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFor
 
   async function submit() {
     setError(null);
-    if (!name.trim() || !plantId) {
-      setError("Nombre y planta son obligatorios.");
+    if (!name.trim() || !locationId) {
+      setError("Nombre y ubicación son obligatorios.");
       return;
     }
     if (!typeId) {
@@ -170,34 +170,28 @@ export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFor
         installMonth && installYear ? `${installYear}-${installMonth}-01` : null;
       const payload = {
         name: name.trim(),
-        plant_id: Number(plantId),
+        location_id: Number(locationId),
         asset_type_id: Number(typeId),
         brand: brand.trim() || null,
         model: model.trim() || null,
         serial_number: serial.trim() || null,
-        status,
         parent_asset_id: parentId,
         installation_date: installationDate,
         image_blob_path: imagePath,
         notes: notes.trim() || null,
       };
-      const processIds = processId ? [Number(processId)] : [];
 
       if (saved) {
         const res = await fetch(`/api/maintenance/assets/${saved.asset_id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...payload, process_ids: processIds }),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) {
           const d = (await res.json().catch(() => ({}))) as { error?: string };
           throw new Error(d.error ?? "No se pudo guardar el equipo.");
         }
-        const merged: MachineFormAsset = {
-          ...saved,
-          ...payload,
-          process_ids: processIds,
-        };
+        const merged: MachineFormAsset = { ...saved, ...payload };
         setSaved(merged);
         setParentPanelOpen(false);
         onSaved("updated", saved.asset_id);
@@ -213,23 +207,10 @@ export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFor
         }
         const d = (await res.json()) as { asset: { asset_id: number; code: string } };
         const assetId = d.asset.asset_id;
-        if (processIds.length > 0) {
-          const pres = await fetch(`/api/maintenance/assets/${assetId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ process_ids: processIds }),
-          });
-          if (!pres.ok) {
-            throw new Error(
-              "El equipo se creó pero no se pudo asignar el proceso; edítalo para reintentar.",
-            );
-          }
-        }
         const created: MachineFormAsset = {
           asset_id: assetId,
           code: d.asset.code,
           ...payload,
-          process_ids: processIds,
         };
         setSaved(created);
         setParentPanelOpen(false);
@@ -264,10 +245,8 @@ export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFor
       brand, setBrand,
       model, setModel,
       serial, setSerial,
-      plantId, setPlantId,
-      status, setStatus,
+      locationId, setLocationId,
       typeId, setTypeId,
-      processId, setProcessId,
       installMonth, setInstallMonth,
       installYear, setInstallYear,
       parentId, setParentId,

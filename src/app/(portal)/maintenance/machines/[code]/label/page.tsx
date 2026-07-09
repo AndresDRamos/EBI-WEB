@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { findAssetByCode } from "@/modules/maintenance/db";
-import { listPlants } from "@/modules/org/db/org";
+import { findAssetByCode, getAssetDetail } from "@/modules/maintenance/db";
 import { buildAssetQrDataUrl } from "@/modules/maintenance/qr";
 import { MachineLabel } from "@/modules/maintenance/components/machine-label";
 
@@ -17,15 +16,14 @@ export default async function MachineLabelPage({
   if (!asset) notFound();
 
   const qrDataUrl = await buildAssetQrDataUrl(asset.code);
-  const plants = await listPlants().catch(() => []);
-  const plantName =
-    plants.find((p) => p.plant_id === asset.plant_id)?.name ?? "";
+  // Plant derives from the asset's location since V18.
+  const detail = await getAssetDetail(asset.asset_id);
 
   return (
     <MachineLabel
       code={asset.code}
       name={asset.name}
-      plantName={plantName}
+      plantName={detail?.asset.plant_name ?? ""}
       qrDataUrl={qrDataUrl}
     />
   );

@@ -4,10 +4,13 @@ import {
   findAssetById,
   updateAsset,
   softDeleteAsset,
-  setAssetProcesses,
-  ASSET_STATUSES,
 } from "@/modules/maintenance/db";
-import { listHistoryByAsset } from "@/modules/production/db";
+import { findLocationById } from "@/modules/org/db/locations";
+import {
+  listCurrentByAsset,
+  listHistoryByAsset,
+  closeAssignment,
+} from "@/modules/production/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -18,7 +21,7 @@ function parseId(raw: string): number | null {
 
 /** GET /api/maintenance/assets/[id] — full detail incl. production cell
  * assignment history (any authenticated user) — backs the equipment modal's
- * tabs (Procesos/Restricciones/Documentos/Ubicación). */
+ * tabs (Documentación/Restricciones) and the Celda field. */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -42,22 +45,23 @@ export async function GET(
 
 interface PatchBody {
   name?: unknown;
-  plant_id?: unknown;
+  location_id?: unknown;
   asset_type_id?: unknown;
   brand?: unknown;
   model?: unknown;
   serial_number?: unknown;
-  status?: unknown;
   parent_asset_id?: unknown;
   installation_date?: unknown;
   image_blob_path?: unknown;
   notes?: unknown;
   is_active?: unknown;
-  /** Full replacement of the asset ↔ process M:N when present. */
-  process_ids?: unknown;
 }
 
-/** PATCH /api/maintenance/assets/[id] — update fields and/or replace processes (admin). */
+/** PATCH /api/maintenance/assets/[id] — update fields. `code`, `status` and
+ * `plant_id` are not accepted: the matrícula is immutable, status is not
+ * user-settable, and the plant derives from the location (V18). Moving the
+ * asset to another location closes its current cell assignments (they no
+ * longer share the location — historized close, never a delete). */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -73,12 +77,12 @@ export async function PATCH(
 
   const changes: Parameters<typeof updateAsset>[1] = {};
   if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (body.plant_id !== undefined) {
-    const plantId = Number(body.plant_id);
-    if (!Number.isInteger(plantId) || plantId <= 0) {
-      return NextResponse.json({ error: "Planta inválida." }, { status: 422 });
+  if (body.location_id !== undefined) {
+    const locationId = Number(body.location_id);
+    if (!Number.isInteger(locationId) || locationId <= 0) {
+      return NextResponse.json({ error: "Ubicación inválida." }, { status: 422 });
     }
-    changes.plant_id = plantId;
+    changes.location_id = locationId;
   }
   if (body.asset_type_id !== undefined) {
     const typeId = Number(body.asset_type_id);
@@ -92,15 +96,6 @@ export async function PATCH(
     if (v === null || typeof v === "string") {
       changes[key] = typeof v === "string" && v.trim() ? v.trim() : null;
     }
-  }
-  if (body.status !== undefined) {
-    if (
-      typeof body.status !== "string" ||
-      !(ASSET_STATUSES as readonly string[]).includes(body.status)
-    ) {
-      return NextResponse.json({ error: "Estatus inválido." }, { status: 422 });
-    }
-    changes.status = body.status;
   }
   if (body.parent_asset_id !== undefined) {
     const parentId = body.parent_asset_id == null ? null : Number(body.parent_asset_id);
@@ -130,27 +125,35 @@ export async function PATCH(
   }
   if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
 
-  let processIds: number[] | undefined;
-  if (body.process_ids !== undefined) {
-    if (
-      !Array.isArray(body.process_ids) ||
-      body.process_ids.some((p) => !Number.isInteger(p) || (p as number) <= 0)
-    ) {
-      return NextResponse.json({ error: "Procesos inválidos." }, { status: 422 });
-    }
-    processIds = body.process_ids as number[];
-  }
-
-  if (Object.keys(changes).length === 0 && processIds === undefined) {
+  if (Object.keys(changes).length === 0) {
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
   }
   try {
     await requirePermission("maintenance.asset:update");
-    if (!(await findAssetById(id))) {
+    const existing = await findAssetById(id);
+    if (!existing) {
       return NextResponse.json({ error: "Equipo no encontrado." }, { status: 404 });
     }
-    if (Object.keys(changes).length > 0) await updateAsset(id, changes);
-    if (processIds !== undefined) await setAssetProcesses(id, processIds);
+    const movingLocation =
+      changes.location_id !== undefined &&
+      changes.location_id !== existing.location_id;
+    if (movingLocation && changes.location_id !== undefined) {
+      const location = await findLocationById(changes.location_id);
+      if (!location || !location.is_active) {
+        return NextResponse.json({ error: "Ubicación inválida." }, { status: 422 });
+      }
+    }
+    await updateAsset(id, changes);
+    if (movingLocation) {
+      // The location changed under the asset's cell assignments — close them
+      // (physically the machine left those cells). Same historized close the
+      // cell detail uses; permission-wise it rides on maintenance.asset:update
+      // because it is a consequence of moving the asset, not a standalone act.
+      const current = await listCurrentByAsset(id).catch(() => []);
+      for (const a of current) {
+        await closeAssignment(a.assignment_id).catch(() => undefined);
+      }
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     const res = authErrorResponse(err);

@@ -5,6 +5,7 @@ import {
   listByLayout,
 } from "@/modules/production/db/placement";
 import { findAssetById } from "@/modules/maintenance/db";
+import { findLocationById } from "@/modules/org/db/locations";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -89,7 +90,9 @@ export async function POST(
     if (!asset) {
       return NextResponse.json({ error: "Equipo no encontrado." }, { status: 422 });
     }
-    if (asset.plant_id !== layout.plant_id) {
+    // Plant is derived via the asset's location since V18.
+    const location = await findLocationById(asset.location_id);
+    if (!location || location.plant_id !== layout.plant_id) {
       return NextResponse.json(
         { error: "El equipo pertenece a otra planta." },
         { status: 422 },

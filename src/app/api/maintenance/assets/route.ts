@@ -3,8 +3,8 @@ import {
   listAssets,
   createAsset,
   AssetTypeInvalidError,
+  AssetLocationInvalidError,
   AssetCodeOverflowError,
-  ASSET_STATUSES,
 } from "@/modules/maintenance/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
@@ -14,11 +14,11 @@ export async function GET(request: NextRequest) {
   try {
     await requireUser();
     const sp = request.nextUrl.searchParams;
-    const plantIdRaw = sp.get("plant_id");
-    const plantId = plantIdRaw ? Number(plantIdRaw) : undefined;
+    const locationIdRaw = sp.get("location_id");
+    const locationId = locationIdRaw ? Number(locationIdRaw) : undefined;
     const status = sp.get("status") ?? undefined;
     const assets = await listAssets({
-      plantId: Number.isInteger(plantId) ? plantId : undefined,
+      locationId: Number.isInteger(locationId) ? locationId : undefined,
       status,
       activeOnly: sp.get("active") === "1",
     });
@@ -32,12 +32,11 @@ export async function GET(request: NextRequest) {
 
 interface CreateBody {
   name?: unknown;
-  plant_id?: unknown;
+  location_id?: unknown;
   asset_type_id?: unknown;
   brand?: unknown;
   model?: unknown;
   serial_number?: unknown;
-  status?: unknown;
   parent_asset_id?: unknown;
   installation_date?: unknown;
   image_blob_path?: unknown;
@@ -46,8 +45,8 @@ interface CreateBody {
 
 /**
  * POST /api/maintenance/assets — create an asset. The matrícula (`code`) is
- * auto-generated server-side from the type's category prefix + plant; the
- * client never sends it.
+ * auto-generated server-side from the type's prefix + the location's plant;
+ * the client never sends it. Status is not client-settable.
  */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
@@ -57,11 +56,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const plantId = Number(body.plant_id);
+  const locationId = Number(body.location_id);
   const assetTypeId = Number(body.asset_type_id);
-  if (!name || !Number.isInteger(plantId) || plantId <= 0) {
+  if (!name || !Number.isInteger(locationId) || locationId <= 0) {
     return NextResponse.json(
-      { error: "Nombre y planta son obligatorios." },
+      { error: "Nombre y ubicación son obligatorios." },
       { status: 422 },
     );
   }
@@ -70,13 +69,6 @@ export async function POST(request: NextRequest) {
       { error: "El tipo de equipo es obligatorio." },
       { status: 422 },
     );
-  }
-  const status = typeof body.status === "string" ? body.status : undefined;
-  if (
-    status !== undefined &&
-    !(ASSET_STATUSES as readonly string[]).includes(status)
-  ) {
-    return NextResponse.json({ error: "Estatus inválido." }, { status: 422 });
   }
   const parentId =
     body.parent_asset_id == null ? null : Number(body.parent_asset_id);
@@ -94,12 +86,11 @@ export async function POST(request: NextRequest) {
     await requirePermission("maintenance.asset:create");
     const asset = await createAsset({
       name,
-      plant_id: plantId,
+      location_id: locationId,
       asset_type_id: assetTypeId,
       brand: strOrNull(body.brand),
       model: strOrNull(body.model),
       serial_number: strOrNull(body.serial_number),
-      status,
       parent_asset_id: parentId,
       installation_date: installationDate,
       image_blob_path: strOrNull(body.image_blob_path),
@@ -109,7 +100,11 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
-    if (err instanceof AssetTypeInvalidError || err instanceof AssetCodeOverflowError) {
+    if (
+      err instanceof AssetTypeInvalidError ||
+      err instanceof AssetLocationInvalidError ||
+      err instanceof AssetCodeOverflowError
+    ) {
       return NextResponse.json({ error: err.message }, { status: 422 });
     }
     const msg = err instanceof Error ? err.message : "";

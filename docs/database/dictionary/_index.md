@@ -3,9 +3,10 @@
 > Maintained by the `docs-sync` sub-agent, which runs at the end of every
 > `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-08. Reflects V1–V17 (V17 sourced from the applied
-> migration file `V17__maint_asset_catalog_redesign.sql` + regenerated Kysely
-> types (`pnpm db:gen`, 40 tables), not live introspection).
+> Last synced: 2026-07-08. Reflects V1–V18 (V18 sourced from the
+> adopted-from-live migration file `V18__org_locations_type_processes.sql` +
+> regenerated Kysely types (`pnpm db:gen`, 41 tables), not direct
+> introspection).
 >
 > **How to read:** find the table below, then open only its schema page —
 > never read the whole folder. One page per schema, mirroring
@@ -39,19 +40,21 @@ when the feature is rebuilt).
 ## [org](org.md)
 
 Created in V15 by transferring `auth.plant` → `org.plant` and `maint.process`
-→ `org.process` (columns unchanged) plus a new N:M link.
+→ `org.process` (columns unchanged) plus a new N:M link; `org.location` added
+in V18.
 
 - `org.plant` — plant catalog managed by portal admins (moved from `auth`).
+- `org.location` — named locations within a plant (V18); anchor for asset/cell physical location.
 - `org.process` — company-wide manufacturing process catalog (promoted from `maint`).
 - `org.plant_process` — M:N link "which processes each plant runs" (link-row only).
 
 ## [maint](maint.md)
 
-- `maint.asset` — machine/equipment catalog; `code` is the app-generated matrícula (QR payload) since V17; category derived via `asset_type`.
-- `maint.asset_category` — configurable asset-category catalog with matrícula `code_prefix` (V17; replaces the V11 CHECK).
-- `maint.asset_type` — machine types grouped under a category; `code` unique per category (V17).
-- `maint.asset_code_sequence` — race-safe per (category, plant) counter backing the matrícula (V17).
-- `maint.asset_process` — M:N asset ↔ `org.process` (cross-schema since V15).
+- `maint.asset` — machine/equipment catalog; `code` is the app-generated matrícula (QR payload) since V17; category derived via `asset_type`, plant derived via `org.location` (V18).
+- `maint.asset_category` — configurable asset-category catalog (V17; `code_prefix` moved to `asset_type` in V18).
+- `maint.asset_type` — machine types grouped under a category; `code` unique per category (V17); owns the matrícula `code_prefix` and the process links since V18.
+- `maint.asset_type_process` — M:N type ↔ `org.process` (V18; replaces the per-asset `asset_process`, dropped).
+- `maint.asset_code_sequence` — race-safe per (type, plant) counter backing the matrícula (V17, re-keyed in V18).
 - `maint.asset_restriction` — operational/safety limitations per asset.
 - `maint.asset_document` — document metadata; bytes live in Azure Blob Storage.
 - `maint.spare_part` — spare-part catalog (single maintenance warehouse in v1).
@@ -69,7 +72,7 @@ Created as `produccion` in V11; renamed to `production` in V12 (structure
 unchanged); plant-layout tables added in V13.
 
 - `production.production_line` — optional sequencing container for cells.
-- `production.cell` — logical production post/function; `line_id` nullable (standalone cells).
+- `production.cell` — logical production post/function; `line_id` nullable (standalone cells); optional `location_id` → `org.location` (V18).
 - `production.asset_cell_assignment` — temporal, historized M:N bridge asset ↔ cell (truth for where an asset works).
 - `production.plant_layout` — versioned, immutable plant canvas (DXF → normalized JSON); one `active` per plant.
 - `production.asset_footprint` — top-view shape per asset (one per asset, editable in place; `dxf` | `rectangle`).

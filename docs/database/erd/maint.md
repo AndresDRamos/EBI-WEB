@@ -1,17 +1,20 @@
 # ERD — esquema `maint`
 
 > Generado a partir de las migraciones aplicadas `V5__maint_asset_catalog.sql`,
-> `V6__maint_plans_workorders_spares.sql`, `V11__produccion_schema.sql` y
-> `V17__maint_asset_catalog_redesign.sql`. No editar a mano; lo regenera el
-> sub-agente `docs-sync` al cierre de cada `/build-plan`.
+> `V6__maint_plans_workorders_spares.sql`, `V11__produccion_schema.sql`,
+> `V17__maint_asset_catalog_redesign.sql` y
+> `V18__org_locations_type_processes.sql`. No editar a mano; lo regenera el
+> sub-agente `docs-sync` al cierre de cada build.
 >
-> Última sincronización: 2026-07-08. Refleja V5 + V6 + V11 + V15 + V17 (V17
-> desde el archivo de migración aplicado + tipos Kysely regenerados, no
-> introspección en vivo). V15 promovió `maint.process` → `org.process` (ver
-> `docs/database/erd/org.md`); `asset_process` permanece en `maint`. V17
-> rediseña el catálogo de activos: `asset_category`/`asset_type` como catálogos
-> configurables, contador `asset_code_sequence` para la matrícula, y cambios de
-> columnas en `asset` (ver notas al pie).
+> Última sincronización: 2026-07-08. Refleja V5 + V6 + V11 + V15 + V17 + V18
+> (V18 desde el archivo de migración adoptado-de-vivo + tipos Kysely
+> regenerados, no introspección directa). V15 promovió `maint.process` →
+> `org.process` (ver `docs/database/erd/org.md`). V17 rediseñó el catálogo de
+> activos (categoría/tipo configurables, contador de matrículas). V18 mueve el
+> prefijo de matrícula categoría → tipo, sustituye `asset_process` por
+> `asset_type_process` (la capacidad de proceso vive en el TIPO), re-clava
+> `asset_code_sequence` por (tipo, planta) y cambia `asset.plant_id` →
+> `asset.location_id` (FK a la nueva `org.location`; la planta se deriva).
 
 ```mermaid
 erDiagram
@@ -20,7 +23,6 @@ erDiagram
         int asset_category_id PK
         nvarchar_40 code "UQ"
         nvarchar_120 name
-        nvarchar_8 code_prefix "UQ: prefijo de matricula (PRD, MMH)"
         bit is_active
         datetime2 created_at
         datetime2 updated_at
@@ -31,13 +33,14 @@ erDiagram
         int asset_category_id FK "UQ con code"
         nvarchar_40 code "unico por categoria"
         nvarchar_120 name
+        nvarchar_8 code_prefix "UQ: prefijo de matricula (V18, antes en category)"
         bit is_active
         datetime2 created_at
         datetime2 updated_at
     }
 
     asset_code_sequence {
-        int asset_category_id PK,FK
+        int asset_type_id PK,FK "re-clavada en V18 (antes asset_category_id)"
         int plant_id PK,FK "FK cross-schema a org.plant"
         int next_seq "siguiente valor a entregar, CHECK >= 1"
     }
@@ -49,7 +52,7 @@ erDiagram
         nvarchar_120 brand
         nvarchar_120 model
         nvarchar_120 serial_number
-        int plant_id FK
+        int location_id FK "V18; FK cross-schema a org.location — planta DERIVADA"
         int asset_type_id FK
         char_1 criticality
         nvarchar_20 status
@@ -62,8 +65,8 @@ erDiagram
         datetime2 updated_at
     }
 
-    asset_process {
-        int asset_id PK,FK
+    asset_type_process {
+        int asset_type_id PK,FK
         int process_id PK,FK
     }
 
@@ -187,14 +190,16 @@ erDiagram
     %% ── relaciones ──────────────────────────────────────────────────────────
 
     asset_category ||--o{ asset_type          : "agrupa (category → type)"
-    asset_category ||--o{ asset_code_sequence : "cuenta matriculas por planta"
+    asset_type     ||--o{ asset_code_sequence : "cuenta matriculas por planta (V18)"
     asset_type     ||--o{ asset               : "clasifica (categoria DERIVADA via type)"
     %% asset_code_sequence.plant_id is a cross-schema FK to org.plant.
+    %% asset.location_id is a cross-schema FK to org.location (V18); the plant
+    %% is DERIVED via location.plant_id (asset.plant_id dropped in V18).
 
     asset ||--o{ asset : "sub-ensamble (parent_asset_id)"
 
-    asset   ||--o{ asset_process : "runs"
-    %% asset_process.process_id is a cross-schema FK to org.process (moved in V15).
+    asset_type ||--o{ asset_type_process : "can run (V18, antes asset_process por activo)"
+    %% asset_type_process.process_id is a cross-schema FK to org.process.
 
     asset ||--o{ asset_restriction : "restricted by"
     asset ||--o{ asset_document    : "documented by"
@@ -217,9 +222,11 @@ erDiagram
 
 ## FKs hacia otros esquemas
 
-- `asset.plant_id` → `org.plant.plant_id` (sin cascade; antes `auth.plant`, movida en V15).
-- `asset_code_sequence.plant_id` → `org.plant.plant_id` (sin cascade; V17).
-- `asset_process.process_id` → `org.process.process_id` (sin cascade; antes `maint.process`, promovida en V15).
+- `asset.location_id` → `org.location.location_id` (sin cascade; V18 —
+  sustituye a `asset.plant_id` → `org.plant`, eliminada; índice
+  `IX_asset_location (location_id, is_active)`).
+- `asset_code_sequence.plant_id` → `org.plant.plant_id` (sin cascade; V17, re-creada en V18).
+- `asset_type_process.process_id` → `org.process.process_id` (sin cascade; V18 — antes `asset_process.process_id`).
 - `asset_document.uploaded_by` → `auth.app_user.user_id` (sin cascade).
 - `work_order.assigned_to`, `work_order.completed_by` → `auth.app_user.user_id` (sin cascade).
 - `work_order_task.done_by` → `auth.app_user.user_id` (sin cascade).
@@ -228,7 +235,7 @@ erDiagram
 FK entrante desde otro esquema: `production.asset_cell_assignment.asset_id` →
 `maint.asset.asset_id` (sin cascade; ver [production.md](production.md)).
 
-## Notas de diseño (V5/V6/V11/V17)
+## Notas de diseño (V5/V6/V11/V17/V18)
 
 - Enumeraciones vía `CHECK` constraints con nombre (sin tablas lookup) —
   **con la excepción introducida en V17**: `asset_category`/`asset_type` son
@@ -242,18 +249,37 @@ FK entrante desde otro esquema: `production.asset_cell_assignment.asset_id` →
   con índice único `UQ_work_order_code`.
 - Las work orders son historia: sin cascades hacia ellas; solo sus filas hijas
   (`work_order_task`, `work_order_material`) cascadean desde su cabecera.
-- Cascades restantes: `asset` → `asset_process`, `asset_restriction`;
+- Cascades restantes: `asset` → `asset_restriction`;
   `maintenance_plan` → `plan_task`, `plan_material`.
+  (`asset_type_process` NO cascadea — link de catálogos, FKs NO ACTION.)
 - V17 promueve la dimensión `asset_category` (añadida por V11 como CHECK en
-  `asset`) a los catálogos `asset_category` (semillas: `production_equipment`
-  → PRD, `material_handling` → MMH) y `asset_type`. La categoría de un activo
-  es **derivada** vía `asset → asset_type → asset_category`; nunca se guarda
-  en `asset`.
-- `asset.code` (matrícula) sigue siendo `UNIQUE` pero desde V17 la **genera la
-  app** (`{code_prefix}-P{plant_id}-{NNNN}`, nunca input del usuario) dentro
+  `asset`) a los catálogos `asset_category` (semillas: `production_equipment`,
+  `material_handling`) y `asset_type`. La categoría de un activo es
+  **derivada** vía `asset → asset_type → asset_category`; nunca se guarda en
+  `asset`. **V18 mueve el prefijo de matrícula** (`code_prefix`, UNIQUE) de
+  `asset_category` a `asset_type` (`UQ_asset_type_prefix`): el prefijo es una
+  propiedad del tipo, no de la categoría.
+- `asset.code` (matrícula) sigue siendo `UNIQUE` y la **genera la app**
+  (`{type.code_prefix}-P{plant_id}-{NNNN}`, nunca input del usuario) dentro
   de la transacción de inserción, reclamando `asset_code_sequence.next_seq`
-  bajo `UPDLOCK + SERIALIZABLE` (contador race-safe por (categoría, planta);
-  sin triggers ni DEFAULT en la columna). `UQ_asset_code` es el respaldo final.
+  bajo `UPDLOCK + SERIALIZABLE` — contador race-safe por **(tipo, planta)**
+  desde V18 (antes (categoría, planta)); la planta se resuelve desde la
+  ubicación (`org.location.plant_id`) al crear el activo — la matrícula fija
+  la planta de "nacimiento" aunque el activo se mueva después. Sin triggers ni
+  DEFAULT en la columna; `UQ_asset_code` es el respaldo final.
+- **V18: `asset.plant_id` → `asset.location_id`** (NOT NULL, FK a
+  `org.location`, índice `IX_asset_location (location_id, is_active)`). La
+  planta del activo es **derivada** vía `location.plant_id`. La invariante
+  celda/activo (una asignación en `production.asset_cell_assignment` exige
+  `cell.location_id = asset.location_id`) la aplica la app (422), sin
+  triggers. El re-key y el NOT NULL exigieron **purgar todas las filas de
+  `maint.asset` y sus dependientes** (destructivo, solo datos dev; prod tenía
+  cero filas).
+- **V18 sustituye `asset_process` (por activo) por `asset_type_process` (por
+  tipo):** "qué procesos puede correr esta máquina" es una propiedad del TIPO,
+  no de cada unidad. Misma forma de link-row + índice inverso
+  `IX_asset_type_process_process (process_id)` que V5/V15. Sin migración de
+  datos (las filas se purgaron con los activos); la tabla vieja se eliminó.
 - V17 también renombra `acquisition_date` → `installation_date`, añade
   `image_blob_path` (foto principal; contenedor blob `maintenance`) y **elimina
   `asset.location`** (texto libre): la ubicación física la historiza

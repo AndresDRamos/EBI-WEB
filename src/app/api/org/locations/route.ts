@@ -1,18 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import {
-  listAssetCategories,
-  createAssetCategory,
-} from "@/modules/maintenance/db";
+import { listLocations, createLocation } from "@/modules/org/db/locations";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
-/** GET /api/maintenance/asset-categories — catalog list (any authenticated user). */
-export async function GET(request: NextRequest) {
+/** GET /api/org/locations — list plant locations (any authenticated user). */
+export async function GET() {
   try {
     await requireUser();
-    const activeOnly = request.nextUrl.searchParams.get("active") === "1";
-    const categories = await listAssetCategories(activeOnly);
-    return NextResponse.json({ categories });
+    const locations = await listLocations();
+    return NextResponse.json({ locations });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
@@ -21,12 +17,12 @@ export async function GET(request: NextRequest) {
 }
 
 interface CreateBody {
+  plant_id?: unknown;
   code?: unknown;
   name?: unknown;
 }
 
-/** POST /api/maintenance/asset-categories — create a category. Since V18 the
- * matrícula prefix lives on the asset TYPE, not here. */
+/** POST /api/org/locations — create a location within a plant. */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
   try {
@@ -34,31 +30,32 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
+  const plantId = Number(body.plant_id);
   const code = typeof body.code === "string" ? body.code.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  if (!code || !name) {
+  if (!Number.isInteger(plantId) || plantId <= 0 || !code || !name) {
     return NextResponse.json(
-      { error: "Código y nombre son obligatorios." },
+      { error: "Planta, código y nombre son obligatorios." },
       { status: 422 },
     );
   }
   try {
-    await requirePermission("maintenance.asset_category:create");
-    const category = await createAssetCategory({ code, name });
-    return NextResponse.json({ category }, { status: 201 });
+    await requirePermission("org.location:create");
+    const location = await createLocation({ plant_id: plantId, code, name });
+    return NextResponse.json({ location }, { status: 201 });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
     const msg = err instanceof Error ? err.message : "";
     if (/unique/i.test(msg)) {
       return NextResponse.json(
-        { error: "El código ya existe." },
+        { error: "El código ya existe en esa planta." },
         { status: 409 },
       );
     }
-    console.error("POST /api/maintenance/asset-categories failed:", err);
+    console.error("POST /api/org/locations failed:", err);
     return NextResponse.json(
-      { error: "No se pudo crear la categoría." },
+      { error: "No se pudo crear la ubicación." },
       { status: 500 },
     );
   }

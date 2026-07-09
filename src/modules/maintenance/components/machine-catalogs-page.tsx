@@ -8,6 +8,7 @@ import {
   type GroupedChildColumn,
 } from "@/components/kit/grouped-data-table";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -17,7 +18,6 @@ export interface CategoryGroupRow {
   asset_category_id: number;
   code: string;
   name: string;
-  code_prefix: string;
   is_active: boolean;
 }
 
@@ -26,22 +26,34 @@ export interface TypeChildRow {
   asset_category_id: number;
   code: string;
   name: string;
+  code_prefix: string;
+  /** Process links (N:M in DB; the UI edits a single select for now). */
+  process_ids: number[];
+  process_names: string[];
   is_active: boolean;
+}
+
+export interface ProcessOption {
+  process_id: number;
+  code: string;
+  name: string;
 }
 
 /**
  * Catálogos — asset categories grouped with their types (mirror of the
- * Departamento→Rol grouped table in the admin panel). A category carries the
- * matrícula `code_prefix`; a type only exists inside a category and is what
- * the machine form actually assigns. CRUD gated per permission
- * (`maintenance.asset_category:*` / `maintenance.asset_type:*`).
+ * Departamento→Rol grouped table in the admin panel). Since V18 the TYPE
+ * carries the matrícula `code_prefix` and the process it performs (stored
+ * N:M, edited as 1:1 for now); the category is just the grouping. CRUD gated
+ * per permission (`maintenance.asset_category:*` / `maintenance.asset_type:*`).
  */
 export function MachineCatalogsPage({
   categories,
   types,
+  processes,
 }: {
   categories: CategoryGroupRow[];
   types: TypeChildRow[];
+  processes: ProcessOption[];
 }) {
   const can = useCan();
   const router = useRouter();
@@ -53,7 +65,6 @@ export function MachineCatalogsPage({
   }>({ open: false, editId: null });
   const [catCode, setCatCode] = React.useState("");
   const [catName, setCatName] = React.useState("");
-  const [catPrefix, setCatPrefix] = React.useState("");
   const [catError, setCatError] = React.useState<string | null>(null);
   const [catBusy, setCatBusy] = React.useState(false);
 
@@ -64,7 +75,9 @@ export function MachineCatalogsPage({
   }>({ open: false, editId: null });
   const [typeCode, setTypeCode] = React.useState("");
   const [typeName, setTypeName] = React.useState("");
+  const [typePrefix, setTypePrefix] = React.useState("");
   const [typeCategoryId, setTypeCategoryId] = React.useState<string>("");
+  const [typeProcessId, setTypeProcessId] = React.useState<string>("");
   const [typeError, setTypeError] = React.useState<string | null>(null);
   const [typeBusy, setTypeBusy] = React.useState(false);
 
@@ -85,7 +98,6 @@ export function MachineCatalogsPage({
   function openCreateCat() {
     setCatCode("");
     setCatName("");
-    setCatPrefix("");
     setCatError(null);
     setCatModal({ open: true, editId: null });
   }
@@ -93,19 +105,14 @@ export function MachineCatalogsPage({
   function openEditCat(g: CategoryGroupRow) {
     setCatCode(g.code);
     setCatName(g.name);
-    setCatPrefix(g.code_prefix);
     setCatError(null);
     setCatModal({ open: true, editId: g.asset_category_id });
   }
 
   async function onSubmitCat() {
     setCatError(null);
-    if (!catCode.trim() || !catName.trim() || !catPrefix.trim()) {
-      setCatError("Código, nombre y prefijo son obligatorios.");
-      return;
-    }
-    if (!/^[A-Za-z0-9]{2,8}$/.test(catPrefix.trim())) {
-      setCatError("El prefijo debe ser alfanumérico (2–8 caracteres).");
+    if (!catCode.trim() || !catName.trim()) {
+      setCatError("Código y nombre son obligatorios.");
       return;
     }
     setCatBusy(true);
@@ -121,7 +128,6 @@ export function MachineCatalogsPage({
           body: JSON.stringify({
             code: catCode.trim(),
             name: catName.trim(),
-            code_prefix: catPrefix.trim().toUpperCase(),
           }),
         },
       );
@@ -160,7 +166,9 @@ export function MachineCatalogsPage({
   function openCreateType(g: CategoryGroupRow) {
     setTypeCode("");
     setTypeName("");
+    setTypePrefix("");
     setTypeCategoryId(String(g.asset_category_id));
+    setTypeProcessId("");
     setTypeError(null);
     setTypeModal({ open: true, editId: null });
   }
@@ -168,7 +176,9 @@ export function MachineCatalogsPage({
   function openEditType(t: TypeChildRow) {
     setTypeCode(t.code);
     setTypeName(t.name);
+    setTypePrefix(t.code_prefix);
     setTypeCategoryId(String(t.asset_category_id));
+    setTypeProcessId(t.process_ids[0] ? String(t.process_ids[0]) : "");
     setTypeError(null);
     setTypeModal({ open: true, editId: t.asset_type_id });
   }
@@ -177,6 +187,10 @@ export function MachineCatalogsPage({
     setTypeError(null);
     if (!typeCode.trim() || !typeName.trim() || !typeCategoryId) {
       setTypeError("Categoría, código y nombre son obligatorios.");
+      return;
+    }
+    if (!/^[A-Za-z0-9]{2,8}$/.test(typePrefix.trim())) {
+      setTypeError("El prefijo de matrícula debe ser alfanumérico (2–8 caracteres).");
       return;
     }
     setTypeBusy(true);
@@ -191,6 +205,8 @@ export function MachineCatalogsPage({
             asset_category_id: Number(typeCategoryId),
             code: typeCode.trim(),
             name: typeName.trim(),
+            code_prefix: typePrefix.trim().toUpperCase(),
+            process_ids: typeProcessId ? [Number(typeProcessId)] : [],
           }),
         },
       );
@@ -227,7 +243,34 @@ export function MachineCatalogsPage({
         key: "name",
         header: "Tipo de equipo",
         render: (t) => <span className="font-medium">{t.name}</span>,
-        className: "w-72",
+        className: "w-64",
+      },
+      {
+        key: "prefix",
+        header: "Prefijo",
+        render: (t) => (
+          <span className="rounded border bg-white px-1.5 font-mono text-[11px] text-muted-foreground">
+            {t.code_prefix}
+          </span>
+        ),
+        className: "w-24",
+      },
+      {
+        key: "process",
+        header: "Proceso",
+        render: (t) =>
+          t.process_names.length > 0 ? (
+            <span className="flex flex-wrap gap-1">
+              {t.process_names.map((n) => (
+                <Badge key={n} variant="outline">
+                  {n}
+                </Badge>
+              ))}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Sin proceso</span>
+          ),
+        className: "w-52",
       },
       {
         key: "code",
@@ -252,16 +295,14 @@ export function MachineCatalogsPage({
     <>
       <GroupedDataTable<CategoryGroupRow, TypeChildRow>
         icon={Tags}
-        title="Catálogos de equipo"
-        subtitle="Cada categoría agrupa sus tipos de equipo y define el prefijo de la matrícula automática."
+        title="Categorías y tipos de equipo"
+        subtitle="Cada categoría agrupa sus tipos de equipo. El tipo define el prefijo de la matrícula automática y el proceso que realiza."
         groups={groups}
         getGroupId={(g) => g.asset_category_id}
         renderGroupTitle={(g) => (
           <span className="flex items-baseline gap-2">
             <span className="font-semibold">{g.name}</span>
-            <span className="rounded border bg-white px-1.5 font-mono text-[11px] text-muted-foreground">
-              {g.code_prefix}
-            </span>
+            <span className="font-mono text-xs text-muted-foreground">{g.code}</span>
           </span>
         )}
         groupIsActive={(g) => g.is_active}
@@ -354,7 +395,6 @@ export function MachineCatalogsPage({
           if (!open) setCatError(null);
         }}
         title={catModal.editId === null ? "Nueva categoría" : "Editar categoría"}
-        description="El prefijo forma la matrícula de los equipos de esta categoría (p. ej. PRD-P1-0001)."
         busy={catBusy}
         error={catError}
         onSubmit={onSubmitCat}
@@ -374,33 +414,19 @@ export function MachineCatalogsPage({
               placeholder="p. ej. Equipo de producción"
             />
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="cat-code">Código *</Label>
-              <Input
-                id="cat-code"
-                value={catCode}
-                onChange={(e) => setCatCode(e.target.value)}
-                maxLength={40}
-                disabled={catBusy}
-                placeholder="p. ej. production_equipment"
-              />
-              <p className="text-xs text-muted-foreground">
-                Clave estable interna (minúsculas, sin espacios).
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cat-prefix">Prefijo de matrícula *</Label>
-              <Input
-                id="cat-prefix"
-                value={catPrefix}
-                onChange={(e) => setCatPrefix(e.target.value.toUpperCase())}
-                maxLength={8}
-                disabled={catBusy}
-                placeholder="p. ej. PRD"
-                className="font-mono uppercase"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="cat-code">Código *</Label>
+            <Input
+              id="cat-code"
+              value={catCode}
+              onChange={(e) => setCatCode(e.target.value)}
+              maxLength={40}
+              disabled={catBusy}
+              placeholder="p. ej. production_equipment"
+            />
+            <p className="text-xs text-muted-foreground">
+              Clave estable interna (minúsculas, sin espacios).
+            </p>
           </div>
         </div>
       </EntityFormDialog>
@@ -412,6 +438,7 @@ export function MachineCatalogsPage({
           if (!open) setTypeError(null);
         }}
         title={typeModal.editId === null ? "Nuevo tipo de equipo" : "Editar tipo de equipo"}
+        description="El prefijo forma la matrícula de los equipos de este tipo (p. ej. LSR-P1-0001). El proceso aplica a todos los equipos del tipo."
         busy={typeBusy}
         error={typeError}
         onSubmit={onSubmitType}
@@ -445,7 +472,7 @@ export function MachineCatalogsPage({
                 onChange={(e) => setTypeName(e.target.value)}
                 maxLength={120}
                 disabled={typeBusy}
-                placeholder="p. ej. Corte láser"
+                placeholder="p. ej. Cortadora láser"
               />
             </div>
             <div className="space-y-2">
@@ -460,6 +487,42 @@ export function MachineCatalogsPage({
               />
               <p className="text-xs text-muted-foreground">
                 Único dentro de la categoría.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="type-prefix">Prefijo de matrícula *</Label>
+              <Input
+                id="type-prefix"
+                value={typePrefix}
+                onChange={(e) => setTypePrefix(e.target.value.toUpperCase())}
+                maxLength={8}
+                disabled={typeBusy}
+                placeholder="p. ej. LSR"
+                className="font-mono uppercase"
+              />
+              <p className="text-xs text-muted-foreground">
+                Único entre todos los tipos.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type-process">Proceso</Label>
+              <Select
+                id="type-process"
+                value={typeProcessId}
+                onChange={(e) => setTypeProcessId(e.target.value)}
+                disabled={typeBusy}
+              >
+                <option value="">Sin proceso</option>
+                {processes.map((p) => (
+                  <option key={p.process_id} value={p.process_id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Proceso que realiza este tipo de máquina.
               </p>
             </div>
           </div>

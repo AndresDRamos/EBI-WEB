@@ -4,6 +4,7 @@ import {
   findCellById,
   reassign,
 } from "@/modules/production/db";
+import { findAssetById } from "@/modules/maintenance/db";
 import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -59,8 +60,22 @@ export async function POST(
         { status: 422 },
       );
     }
-    if (!(await findCellById(toCellId))) {
+    const toCell = await findCellById(toCellId);
+    if (!toCell) {
       return NextResponse.json({ error: "Celda destino inválida." }, { status: 422 });
+    }
+    // Cross-schema invariant (V18, app-enforced — house style, no triggers):
+    // an asset only works in a cell that shares its physical location.
+    const asset = await findAssetById(existing.asset_id);
+    if (
+      !asset ||
+      toCell.location_id === null ||
+      toCell.location_id !== asset.location_id
+    ) {
+      return NextResponse.json(
+        { error: "La celda destino no está en la misma ubicación que el equipo." },
+        { status: 422 },
+      );
     }
     const assignment = await reassign({
       assignment_id: id,

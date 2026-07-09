@@ -8,10 +8,13 @@
 > `production`; V13 added the three plant-layout tables. Do not edit by hand;
 > the `docs-sync` sub-agent regenerates it at the close of each build.
 >
-> Last synced: 2026-07-07. Reflects V11 + V12 + V13 + V15. V15 did not change
-> `production`'s tables; it transferred `auth.plant` → `org.plant`, so the
-> `plant_id` FKs below now cross to `org` (re-pointed by `object_id`, not
-> recreated). See `docs/database/erd/org.md`.
+> Last synced: 2026-07-08. Reflects V11 + V12 + V13 + V15 + V18. V15 did not
+> change `production`'s tables; it transferred `auth.plant` → `org.plant`, so
+> the `plant_id` FKs below now cross to `org` (re-pointed by `object_id`, not
+> recreated). V18 added `cell.location_id` (NULLable FK to the new
+> `org.location`). V18 sourced from the adopted-from-live migration file +
+> regenerated Kysely types, not direct introspection. See
+> `docs/database/erd/org.md`.
 
 ```mermaid
 erDiagram
@@ -33,6 +36,7 @@ erDiagram
         int plant_id FK
         int line_id FK "NULL = standalone cell"
         int sequence_in_line "only when line_id set"
+        int location_id FK "NULL allowed; cross-schema FK to org.location (V18)"
         bit is_active
         datetime2 created_at
         datetime2 updated_at
@@ -105,6 +109,8 @@ erDiagram
 
 - `production_line.plant_id` → `org.plant.plant_id` (no cascade; was `auth.plant` before V15).
 - `cell.plant_id` → `org.plant.plant_id` (no cascade; was `auth.plant` before V15).
+- `cell.location_id` → `org.location.location_id` (no cascade; NULLable, V18;
+  filtered index `IX_cell_location (location_id) WHERE location_id IS NOT NULL`).
 - `asset_cell_assignment.asset_id` → `maint.asset.asset_id` (no cascade: history
   survives the asset being retired).
 - `asset_cell_assignment.created_by` → `auth.app_user.user_id` (no cascade:
@@ -195,7 +201,24 @@ All FKs are NO ACTION — catalog rows and history are protected, never cascaded
   `IX_asset_placement_asset` `(…, valid_from)` serve composition and history
   queries.
 - **Cross-schema invariant enforced by the app, not the DB** (house style: no
-  triggers): `maint.asset.plant_id` must match `plant_layout.plant_id` for a
+  triggers): the asset's plant must match `plant_layout.plant_id` for a
   placement — validated by the API when creating placements (422 otherwise).
+  Since V18 the asset's plant is **derived** via
+  `maint.asset.location_id → org.location.plant_id` (the direct
+  `asset.plant_id` column was dropped).
 - Blob paths only, never content: `source_blob_path` points at the archived
   original DXF in the private `production` container (account `ezistorage`).
+
+## Design notes (V18 — cell location)
+
+- **`cell.location_id` is a NULLable cross-schema FK to `org.location`** — a
+  cell may sit inside a named location within its plant. Filtered index
+  `IX_cell_location` only pays for linked rows (same pattern as
+  `IX_asset_parent`, V5). Existing cells stayed NULL at apply time.
+- **App-enforced invariant (no triggers):** creating or reassigning an
+  `asset_cell_assignment` requires `cell.location_id` to be set **and** equal
+  to `maint.asset.location_id` (the APIs return 422 otherwise). Moving an
+  asset to another location auto-closes its current assignments (historized
+  close via `valid_to`, never a delete) — done by the maintenance asset PATCH.
+- The API layer also validates that a cell's `location_id` belongs to the
+  cell's own plant (422) when creating/updating cells.

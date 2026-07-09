@@ -799,7 +799,7 @@ export function ActiveInactiveToggle({
   return (
     <div
       role="tablist"
-      className="inline-flex items-center rounded-md border bg-card p-0.5 text-xs"
+      className="inline-flex h-9 items-center gap-0.5 rounded-md border bg-card p-0.5 text-xs"
     >
       <Tooltip>
         <TooltipTrigger asChild>
@@ -810,7 +810,7 @@ export function ActiveInactiveToggle({
             aria-label={`Activos (${activeCount})`}
             onClick={() => onChange(false)}
             className={cn(
-              "flex items-center gap-1.5 rounded-[4px] px-2.5 py-1 transition-colors",
+              "flex h-full items-center gap-1.5 rounded-[4px] px-2.5 transition-colors",
               !showInactive
                 ? "bg-ezi-gray text-white"
                 : "text-muted-foreground hover:bg-gray-100",
@@ -831,7 +831,7 @@ export function ActiveInactiveToggle({
             aria-label={`Inactivos (${inactiveCount})`}
             onClick={() => onChange(true)}
             className={cn(
-              "flex items-center gap-1.5 rounded-[4px] px-2.5 py-1 transition-colors",
+              "flex h-full items-center gap-1.5 rounded-[4px] px-2.5 transition-colors",
               showInactive
                 ? "bg-ezi-gray text-white"
                 : "text-muted-foreground hover:bg-gray-100",

@@ -2,10 +2,10 @@ import {
   listAssets,
   listAssetCategories,
   listAssetTypes,
-  listProcesses,
 } from "@/modules/maintenance/db";
 import { listPlants } from "@/modules/org/db/org";
-import { currentCellNamesByAssets } from "@/modules/production/db";
+import { listLocations } from "@/modules/org/db/locations";
+import { listCells, currentCellNamesByAssets } from "@/modules/production/db";
 import { PageTabs } from "@/components/kit/page-tabs";
 import {
   MachinesCardsPage,
@@ -19,12 +19,13 @@ export const dynamic = "force-dynamic";
 /** Equipos — maintenance asset catalog as cards. Action visibility is resolved
  * client-side by `useCan` (PermissionsProvider in the portal layout). */
 export default async function MachinesPage() {
-  const [assets, plants, categories, types, processes] = await Promise.all([
+  const [assets, plants, locations, cells, categories, types] = await Promise.all([
     listAssets().catch(() => []),
     listPlants(true).catch(() => []),
+    listLocations(true).catch(() => []),
+    listCells(true).catch(() => []),
     listAssetCategories(true).catch(() => []),
     listAssetTypes(true).catch(() => []),
-    listProcesses(true).catch(() => []),
   ]);
   const cellNames = await currentCellNamesByAssets(
     assets.map((a) => a.asset_id),
@@ -40,6 +41,7 @@ export default async function MachinesPage() {
       name: t.name,
       asset_category_id: t.asset_category_id,
       category_name: categoryName.get(t.asset_category_id) ?? "",
+      process_names: t.process_names,
     }));
 
   const rows: MachineRow[] = assets.map((a) => ({
@@ -49,9 +51,10 @@ export default async function MachinesPage() {
     brand: a.brand,
     model: a.model,
     serial_number: a.serial_number,
+    location_id: a.location_id,
+    location_name: a.location_name,
     plant_id: a.plant_id,
     plant_name: a.plant_name,
-    status: a.status,
     asset_type_id: a.asset_type_id,
     type_name: a.type_name,
     category_name: a.category_name,
@@ -62,7 +65,6 @@ export default async function MachinesPage() {
     image_blob_path: a.image_blob_path,
     notes: a.notes,
     process_names: a.process_names,
-    process_ids: a.process_ids,
     cell_names: cellNames.get(a.asset_id) ?? [],
     is_active: a.is_active,
   }));
@@ -74,12 +76,19 @@ export default async function MachinesPage() {
         <MachinesCardsPage
           machines={rows}
           plants={plants.map((p) => ({ plant_id: p.plant_id, name: p.name }))}
-          types={typeOptions}
-          processes={processes.map((p) => ({
-            process_id: p.process_id,
-            code: p.code,
-            name: p.name,
+          locations={locations.map((l) => ({
+            location_id: l.location_id,
+            plant_id: l.plant_id,
+            plant_name: l.plant_name,
+            name: l.name,
           }))}
+          cells={cells.map((c) => ({
+            cell_id: c.cell_id,
+            code: c.code,
+            name: c.name,
+            location_id: c.location_id,
+          }))}
+          types={typeOptions}
         />
       </div>
     </div>

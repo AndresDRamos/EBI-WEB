@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export interface QrModalProps {
@@ -22,12 +22,51 @@ export interface QrModalProps {
 /**
  * QR label preview stacked above the equipment modal — fetches the dataURL
  * on open instead of navigating to the printable `/label` route. "Imprimir
- * etiqueta" still opens that route in a new tab: it already has a proven
- * print stylesheet, no reason to duplicate that logic here.
+ * etiqueta" opens the browser print dialog right here (no navigation): a
+ * hidden iframe loads the proven printable `/label` route and prints it once
+ * loaded.
  */
 export function QrModal({ assetId, code, name, onClose }: QrModalProps) {
   const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [printing, setPrinting] = React.useState(false);
+  const printFrameRef = React.useRef<HTMLIFrameElement | null>(null);
+
+  function printLabel() {
+    if (printing) return;
+    setPrinting(true);
+    // Reuse one hidden iframe per modal instance; the label route carries its
+    // own print stylesheet, so printing its window prints only the label.
+    let frame = printFrameRef.current;
+    if (!frame) {
+      frame = document.createElement("iframe");
+      frame.style.position = "fixed";
+      frame.style.right = "0";
+      frame.style.bottom = "0";
+      frame.style.width = "0";
+      frame.style.height = "0";
+      frame.style.border = "0";
+      frame.setAttribute("aria-hidden", "true");
+      document.body.appendChild(frame);
+      printFrameRef.current = frame;
+    }
+    frame.onload = () => {
+      try {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+      } finally {
+        setPrinting(false);
+      }
+    };
+    frame.src = `/maintenance/machines/${encodeURIComponent(code)}/label`;
+  }
+
+  React.useEffect(() => {
+    return () => {
+      printFrameRef.current?.remove();
+      printFrameRef.current = null;
+    };
+  }, []);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -85,15 +124,10 @@ export function QrModal({ assetId, code, name, onClose }: QrModalProps) {
             <Download className="h-4 w-4" />
             Descargar PNG
           </a>
-          <a
-            href={`/maintenance/machines/${encodeURIComponent(code)}/label`}
-            target="_blank"
-            rel="noreferrer"
-            className={cn(buttonVariants({ variant: "default" }))}
-          >
+          <Button onClick={printLabel} disabled={printing}>
             <Printer className="h-4 w-4" />
-            Imprimir etiqueta
-          </a>
+            {printing ? "Preparando…" : "Imprimir etiqueta"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

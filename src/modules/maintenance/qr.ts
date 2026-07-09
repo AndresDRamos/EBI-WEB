@@ -11,13 +11,15 @@ export async function resolveBaseUrl(): Promise<string> {
 }
 
 /**
- * QR label payload for an asset — the same target URL that resolves via the
- * `[code]/page.tsx` redirect shim, so a physically printed label keeps
- * scanning correctly regardless of how the portal renders that route.
+ * QR label payload for an asset — the layout-less landing page `/asset/[code]`
+ * (authenticated), which renders the same detail surface as the equipment
+ * modal. Labels printed before V18 encode the old
+ * `/maintenance/machines/[code]` URL; that redirect shim stays alive so they
+ * keep resolving.
  */
 export async function buildAssetQrDataUrl(code: string): Promise<string> {
   const baseUrl = await resolveBaseUrl();
-  const target = `${baseUrl}/maintenance/machines/${encodeURIComponent(code)}`;
+  const target = `${baseUrl}/asset/${encodeURIComponent(code)}`;
   return QRCode.toDataURL(target, {
     errorCorrectionLevel: "M",
     margin: 1,

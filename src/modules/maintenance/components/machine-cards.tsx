@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Factory, Boxes, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Factory, Boxes, MapPin, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { EntityCard, EntityCardGrid } from "@/components/kit/entity-card";
 import type { ExpandingModalRect } from "@/components/kit/expanding-modal";
 import {
@@ -87,6 +87,10 @@ export function MachineCardsGrid({
             ]}
             locations={[
               { icon: Factory, label: m.plant_name },
+              {
+                icon: MapPin,
+                label: m.location_name || "Sin ubicación",
+              },
               {
                 icon: Boxes,
                 label:

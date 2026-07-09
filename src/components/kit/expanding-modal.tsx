@@ -14,6 +14,10 @@ export interface ExpandingModalRect {
 interface ExpandingModalContextValue {
   /** Starts the reverse (closing) animation; no-op while `closeDisabled`. */
   requestClose: () => void;
+  /** Same, but ignores `closeDisabled` — for an explicit in-content "Cancelar"
+   * action, which must always be able to close even mid-edit (unlike an
+   * accidental backdrop click or Escape, which `requestClose` still guards). */
+  requestCloseForce: () => void;
   /** True once the surface has finished expanding to its target geometry —
    *  content can use this to fade itself in instead of popping in early. */
   opened: boolean;
@@ -30,6 +34,12 @@ export function useExpandingModal(): ExpandingModalContextValue {
     throw new Error("useExpandingModal must be used inside an ExpandingModal");
   }
   return ctx;
+}
+
+/** Like `useExpandingModal`, but returns `null` outside a modal — for content
+ * components that can also render standalone on a full page. */
+export function useOptionalExpandingModal(): ExpandingModalContextValue | null {
+  return React.useContext(ExpandingModalContext);
 }
 
 export interface ExpandingModalProps {
@@ -127,6 +137,10 @@ export function ExpandingModal({
     setPhase((p) => (p === "closing" ? p : "closing"));
   }, [closeDisabled]);
 
+  const requestCloseForce = React.useCallback(() => {
+    setPhase((p) => (p === "closing" ? p : "closing"));
+  }, []);
+
   // Flush the origin geometry for one paint, then animate to the target.
   React.useLayoutEffect(() => {
     if (!mounted || phase !== "opening") return;
@@ -172,7 +186,7 @@ export function ExpandingModal({
   const isDeepLink = origin === null;
 
   return (
-    <ExpandingModalContext.Provider value={{ requestClose, opened }}>
+    <ExpandingModalContext.Provider value={{ requestClose, requestCloseForce, opened }}>
       <DialogPrimitive.Root open onOpenChange={() => undefined}>
         <DialogPrimitive.Portal forceMount>
           <DialogPrimitive.Overlay

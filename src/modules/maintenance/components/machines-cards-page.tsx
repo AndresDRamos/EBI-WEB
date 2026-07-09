@@ -44,9 +44,10 @@ import {
   type ExpandingModalRect,
 } from "@/components/kit/expanding-modal";
 import {
+  type CellOption,
+  type LocationOption,
   type PlantOption,
   type TypeOption,
-  type ProcessOption,
   type ParentOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
 import { MachineCardsGrid } from "@/modules/maintenance/components/machine-cards";
@@ -59,9 +60,11 @@ export interface MachineRow {
   brand: string | null;
   model: string | null;
   serial_number: string | null;
+  location_id: number;
+  location_name: string;
+  /** Derived via the location (V18) — kept for filters and card footers. */
   plant_id: number;
   plant_name: string;
-  status: string;
   asset_type_id: number;
   type_name: string;
   category_name: string;
@@ -70,7 +73,6 @@ export interface MachineRow {
   image_blob_path: string | null;
   notes: string | null;
   process_names: string[];
-  process_ids: number[];
   cell_names: string[];
   is_active: boolean;
 }
@@ -99,13 +101,15 @@ function concatLabels(values: string[]): string {
 export function MachinesCardsPage({
   machines,
   plants,
+  locations,
+  cells,
   types,
-  processes,
 }: {
   machines: MachineRow[];
   plants: PlantOption[];
+  locations: LocationOption[];
+  cells: CellOption[];
   types: TypeOption[];
-  processes: ProcessOption[];
 }) {
   const can = useCan();
   const router = useRouter();
@@ -255,21 +259,26 @@ export function MachinesCardsPage({
       brand: m.brand,
       model: m.model,
       serial_number: m.serial_number,
-      plant_name: m.plant_name,
+      category_name: m.category_name,
       type_name: m.type_name,
+      plant_name: m.plant_name,
+      location_name: m.location_name,
+      cell_names: m.cell_names,
       has_image: m.image_blob_path !== null,
     }));
 
   return (
     <div className="flex h-full flex-col">
-      {/* Header — title, total count, add action. Not boxed. */}
-      <div className="flex flex-shrink-0 flex-wrap items-end justify-between gap-4 pb-4">
+      {/* Header — title, total count, active/inactive toggle + add action
+          grouped together (same pairing as the generic kit `DataTable`
+          header). Not boxed. */}
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 pb-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-ezi-gray">
-            Equipos
+            Listado de equipos
           </h1>
         </div>
-        <div className="flex items-center gap-4 pb-0.5">
+        <div className="flex items-center gap-3">
           <span className="flex items-center gap-2 text-xs text-muted-foreground">
             <Boxes className="h-4 w-4" />
             <span>
@@ -277,12 +286,18 @@ export function MachinesCardsPage({
               equipos en planta
             </span>
           </span>
+          <ActiveInactiveToggle
+            showInactive={showInactive}
+            onChange={setShowInactive}
+            activeCount={activeCount}
+            inactiveCount={inactiveCount}
+          />
           {can("maintenance.asset:create") ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  size="sm"
-                  className={cn("w-8 px-0", modal?.row === null && "opacity-0")}
+                  size="icon"
+                  className={cn(modal?.row === null && "opacity-0")}
                   onClick={(e) =>
                     setModal({
                       row: null,
@@ -310,12 +325,6 @@ export function MachinesCardsPage({
 
       {/* Filters row — pill + inline applied chips + results count. */}
       <div className="flex flex-shrink-0 flex-wrap items-center gap-3 border-b pb-4">
-        <ActiveInactiveToggle
-          showInactive={showInactive}
-          onChange={setShowInactive}
-          activeCount={activeCount}
-          inactiveCount={inactiveCount}
-        />
         <FiltersButton
           filters={filters}
           onChange={setFilters}
@@ -442,8 +451,9 @@ export function MachinesCardsPage({
             key={modal.row?.asset_id ?? "new"}
             row={modal.row}
             plants={plants}
+            locations={locations}
+            cells={cells}
             types={types}
-            processes={processes}
             parents={parentOptions}
             isActive={modal.isActiveOverride ?? modal.row?.is_active ?? true}
             editing={modal.editing}

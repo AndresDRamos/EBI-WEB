@@ -17,7 +17,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useExpandingModal } from "@/components/kit/expanding-modal";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useOptionalExpandingModal } from "@/components/kit/expanding-modal";
 import { useCan } from "@/components/providers/permissions-provider";
 import {
   MONTHS_ES,
@@ -25,32 +30,29 @@ import {
 } from "@/modules/maintenance/hooks/use-machine-form";
 import { useAssetDetail } from "@/modules/maintenance/hooks/use-asset-detail";
 import {
-  ParentSearchPanel,
+  type CellOption,
+  type LocationOption,
   type MachineFormAsset,
   type ParentOption,
   type PlantOption,
-  type ProcessOption,
   type TypeOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
 import {
   DocumentosTab,
-  ProcesosTab,
+  MantenimientoTab,
   RestriccionesTab,
-  UbicacionTab,
 } from "@/modules/maintenance/components/machine-tabs";
-import { StatusBadge } from "@/modules/maintenance/components/machine-badges";
 import { QrModal } from "@/modules/maintenance/components/qr-modal";
+import { ParentPickerModal } from "@/modules/maintenance/components/parent-picker-modal";
 import type { MachineRow } from "@/modules/maintenance/components/machines-cards-page";
-import { ASSET_STATUSES, statusLabel } from "@/modules/maintenance/enums";
 import { cn } from "@/lib/utils";
 
-type TabId = "procesos" | "ubicacion" | "restricciones" | "documentos";
+type TabId = "mantenimiento" | "documentacion" | "restricciones";
 
 const TABS: { id: TabId; label: string }[] = [
-  { id: "procesos", label: "Procesos" },
-  { id: "ubicacion", label: "Ubicación" },
+  { id: "mantenimiento", label: "Mantenimiento" },
+  { id: "documentacion", label: "Documentación" },
   { id: "restricciones", label: "Restricciones" },
-  { id: "documentos", label: "Documentos" },
 ];
 
 function rowToFormAsset(row: MachineRow): MachineFormAsset {
@@ -61,14 +63,12 @@ function rowToFormAsset(row: MachineRow): MachineFormAsset {
     brand: row.brand,
     model: row.model,
     serial_number: row.serial_number,
-    plant_id: row.plant_id,
-    status: row.status,
+    location_id: row.location_id,
     asset_type_id: row.asset_type_id,
     parent_asset_id: row.parent_asset_id,
     installation_date: row.installation_date,
     image_blob_path: row.image_blob_path,
     notes: row.notes,
-    process_ids: row.process_ids,
   };
 }
 
@@ -85,8 +85,9 @@ export interface MachineModalProps {
   /** null = creating a new asset. */
   row: MachineRow | null;
   plants: PlantOption[];
+  locations: LocationOption[];
+  cells: CellOption[];
   types: TypeOption[];
-  processes: ProcessOption[];
   parents: ParentOption[];
   /** Whether the asset is currently active — lifted to the caller so a
    * deactivate/restore triggered from this modal's header reflects instantly
@@ -99,21 +100,26 @@ export interface MachineModalProps {
   /** Fires after create/edit/deactivate/restore succeed so the caller can
    * refresh the underlying list without closing this modal. */
   onMutated: () => void;
+  /** True when rendered on a full page (QR landing) instead of inside an
+   * ExpandingModal — hides the back button. */
+  standalone?: boolean;
 }
 
 /**
  * Unified view/edit/create surface for a maintenance asset — the content of
- * the `ExpandingModal` shell. Replaces the old page-level `MachineDetail` +
- * the separate Radix `MachineFormDialog`: a summary panel that toggles
- * between read-only and editable in place, plus the real Procesos/Ubicación/
- * Restricciones/Documentos tabs (unchanged business logic, moved as-is from
- * `machine-detail.tsx` into `machine-tabs.tsx`).
+ * the `ExpandingModal` shell AND of the layout-less QR landing page
+ * (`standalone`). V18 redesign: large photo on the left; identity fields on
+ * the right; a Ubicación row (planta derivada · ubicación · celda — the cell
+ * options are filtered to the asset's location); status is neither shown nor
+ * editable; header actions are icon-only (QR / trash / pencil); tabs are
+ * Mantenimiento (representative), Documentación and Restricciones.
  */
 export function MachineModal({
   row,
   plants,
+  locations,
+  cells,
   types,
-  processes,
   parents,
   isActive,
   editing,
@@ -121,9 +127,24 @@ export function MachineModal({
   onRequestDeactivate,
   onRestore,
   onMutated,
+  standalone = false,
 }: MachineModalProps) {
   const can = useCan();
-  const { requestClose } = useExpandingModal();
+  const modalCtx = useOptionalExpandingModal();
+  const requestClose = modalCtx?.requestClose;
+  const requestCloseForce = modalCtx?.requestCloseForce;
+  const canAssignCell =
+    can("production.assignment:create") && can("production.assignment:close");
+
+  const [tab, setTab] = React.useState<TabId>("mantenimiento");
+  const [qrOpen, setQrOpen] = React.useState(false);
+  const [cellError, setCellError] = React.useState<string | null>(null);
+  // The user's pending cell choice while editing; null = "Sin celda",
+  // undefined = untouched (keep whatever is currently assigned).
+  const [pendingCellId, setPendingCellId] = React.useState<number | null | undefined>(
+    undefined,
+  );
+
   // Only read by `useMachineForm`'s `useState` initializers on first mount —
   // this component instance is remounted (via `key`) whenever a different
   // asset opens, so a fresh value here each render is never stale.
@@ -131,27 +152,80 @@ export function MachineModal({
     asset: row ? rowToFormAsset(row) : null,
     types,
     parents,
-    onSaved: () => {
-      onEditingChange(false);
-      onMutated();
+    onSaved: (mode, assetId) => {
+      void (async () => {
+        await syncCellAssignment(assetId);
+        onEditingChange(false);
+        onMutated();
+        if (mode === "updated") detail.refetch();
+      })();
     },
   });
-  const [tab, setTab] = React.useState<TabId>("procesos");
-  const [qrOpen, setQrOpen] = React.useState(false);
-  const [processIds, setProcessIds] = React.useState<number[]>(
-    row?.process_ids ?? [],
-  );
 
   const isCreate = form.saved === null;
   const assetId = form.saved?.asset_id ?? null;
   const detail = useAssetDetail(assetId);
 
+  const currentAssignments = (detail.data?.assignments ?? []).filter(
+    (a) => a.valid_to === null,
+  );
+  const currentAssignment = currentAssignments[0] ?? null;
+
+  /** Reconcile the pending cell choice with the live assignment after save:
+   * close the current row and/or open a new one via the production APIs. */
+  async function syncCellAssignment(savedAssetId: number) {
+    if (!canAssignCell || pendingCellId === undefined) return;
+    setCellError(null);
+    try {
+      const targetCellId = pendingCellId;
+      const current = currentAssignment;
+      if (current && current.cell_id === targetCellId) return;
+      if (current) {
+        // The server may have closed it already if the location changed —
+        // a 409 ("already closed") is fine, anything else surfaces.
+        const res = await fetch(
+          `/api/production/assignments/${current.assignment_id}/close`,
+          { method: "POST" },
+        );
+        if (!res.ok && res.status !== 409) {
+          const d = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(d.error ?? "No se pudo cerrar la asignación de celda.");
+        }
+      }
+      if (targetCellId !== null) {
+        const res = await fetch(
+          `/api/production/cells/${targetCellId}/assignments`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ asset_id: savedAssetId }),
+          },
+        );
+        if (!res.ok) {
+          const d = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(d.error ?? "No se pudo asignar la celda.");
+        }
+      }
+    } catch (err) {
+      setCellError(
+        err instanceof Error ? err.message : "No se pudo actualizar la celda.",
+      );
+    } finally {
+      setPendingCellId(undefined);
+    }
+  }
+
   function cancelEdit() {
     if (isCreate) {
-      requestClose();
+      // Explicit "Cancelar" click, not a backdrop/Escape dismiss — must always
+      // close even though `editing` (still true here) keeps the guarded
+      // `requestClose` a no-op via `closeDisabled`.
+      requestCloseForce?.();
       return;
     }
     form.cancel();
+    setPendingCellId(undefined);
+    setCellError(null);
     onEditingChange(false);
   }
 
@@ -159,21 +233,22 @@ export function MachineModal({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-shrink-0 flex-wrap items-start justify-between gap-3 px-6 pt-5">
         <div className="flex min-w-0 items-center gap-3">
-          <button
-            type="button"
-            onClick={requestClose}
-            disabled={editing}
-            aria-label="Volver a equipos"
-            className="-ml-1.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-40"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          {!standalone ? (
+            <button
+              type="button"
+              onClick={() => requestClose?.()}
+              disabled={editing}
+              aria-label="Volver a equipos"
+              className="-ml-1.5 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          ) : null}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-lg font-semibold text-ezi-gray">
                 {isCreate ? "Nuevo equipo" : form.fields.name || "Equipo"}
               </h2>
-              {!isCreate ? <StatusBadge value={form.fields.status} /> : null}
               {!isCreate && !isActive ? (
                 <Badge variant="outline" className="border-gray-300 text-gray-500">
                   Inactivo
@@ -205,60 +280,103 @@ export function MachineModal({
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => setQrOpen(true)}>
-                <QrCode className="h-4 w-4" />
-                Etiqueta QR
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-9 px-0"
+                    onClick={() => setQrOpen(true)}
+                    aria-label="Etiqueta QR"
+                  >
+                    <QrCode className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Etiqueta QR</TooltipContent>
+              </Tooltip>
               {isActive
                 ? can("maintenance.asset:delete") && (
-                    <Button
-                      variant="outline"
-                      className="text-destructive hover:bg-red-50"
-                      onClick={() =>
-                        form.saved &&
-                        onRequestDeactivate(
-                          form.saved.asset_id,
-                          form.saved.code,
-                          form.fields.name,
-                        )
-                      }
-                      aria-label="Desactivar equipo"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-9 px-0 text-destructive hover:bg-red-50"
+                          onClick={() =>
+                            form.saved &&
+                            onRequestDeactivate(
+                              form.saved.asset_id,
+                              form.saved.code,
+                              form.fields.name,
+                            )
+                          }
+                          aria-label="Desechar equipo"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Desechar equipo</TooltipContent>
+                    </Tooltip>
                   )
                 : can("maintenance.asset:update") && (
-                    <Button
-                      variant="outline"
-                      onClick={() => assetId !== null && onRestore(assetId)}
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Reactivar
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-9 px-0"
+                          onClick={() => assetId !== null && onRestore(assetId)}
+                          aria-label="Reactivar equipo"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">Reactivar equipo</TooltipContent>
+                    </Tooltip>
                   )}
               {can("maintenance.asset:update") ? (
-                <Button onClick={() => onEditingChange(true)}>
-                  <Pencil className="h-4 w-4" />
-                  Editar
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      className="w-9 px-0"
+                      onClick={() => onEditingChange(true)}
+                      aria-label="Editar equipo"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Editar equipo</TooltipContent>
+                </Tooltip>
               ) : null}
             </>
           )}
         </div>
       </div>
 
-      {form.error ? (
+      {form.error || cellError ? (
         <p className="mx-6 mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {form.error}
+          {form.error ?? cellError}
         </p>
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <SummaryFields form={form} plants={plants} editing={editing} />
-        <hr className="mx-6 mt-2 border-t" />
+        <SummaryFields
+          form={form}
+          plants={plants}
+          locations={locations}
+          cells={cells}
+          editing={editing}
+          canAssignCell={canAssignCell}
+          currentCellNames={
+            detail.data
+              ? currentAssignments.map((a) => a.cell_name)
+              : (row?.cell_names ?? [])
+          }
+          currentCellId={currentAssignment?.cell_id ?? null}
+          pendingCellId={pendingCellId}
+          onPendingCellChange={setPendingCellId}
+        />
 
         {!isCreate ? (
           <>
+            <hr className="mx-6 mt-2 border-t" />
             <div role="tablist" className="flex flex-shrink-0 gap-1 border-b px-6 pt-3">
               {TABS.map((t) => (
                 <button
@@ -279,7 +397,9 @@ export function MachineModal({
               ))}
             </div>
             <div className="px-6 py-4">
-              {detail.error ? (
+              {tab === "mantenimiento" ? (
+                <MantenimientoTab />
+              ) : detail.error ? (
                 <p className="rounded-lg border bg-card p-4 text-sm text-destructive">
                   {detail.error}{" "}
                   <button
@@ -294,20 +414,6 @@ export function MachineModal({
                 <div className="h-24 animate-pulse rounded-lg border bg-gray-50" />
               ) : (
                 <>
-                  {tab === "procesos" && assetId !== null ? (
-                    <ProcesosTab
-                      assetId={assetId}
-                      assetProcessIds={processIds}
-                      allProcesses={processes}
-                      onChanged={(ids) => {
-                        setProcessIds(ids);
-                        onMutated();
-                      }}
-                    />
-                  ) : null}
-                  {tab === "ubicacion" ? (
-                    <UbicacionTab assignments={detail.data?.assignments ?? []} />
-                  ) : null}
                   {tab === "restricciones" && assetId !== null ? (
                     <RestriccionesTab
                       assetId={assetId}
@@ -315,7 +421,7 @@ export function MachineModal({
                       onChanged={detail.refetch}
                     />
                   ) : null}
-                  {tab === "documentos" && assetId !== null ? (
+                  {tab === "documentacion" && assetId !== null ? (
                     <DocumentosTab
                       assetId={assetId}
                       documents={detail.data?.documents ?? []}
@@ -337,25 +443,44 @@ export function MachineModal({
           onClose={() => setQrOpen(false)}
         />
       ) : null}
+
+      {form.parentPanelOpen ? (
+        <ParentPickerModal
+          choices={form.parentChoices}
+          selectedId={form.fields.parentId}
+          onSelect={(id) => form.fields.setParentId(id)}
+          onClose={() => form.setParentPanelOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // Summary panel — always visible; toggles between read-only and editable.
+// Layout: large photo + identity fields (name, brand/model/serial, a
+// Categoría → Tipo cascade) on top; a boxed "Ubicación" section in the
+// middle (Planta → Ubicación → Celda, each filtering the next, revealed one
+// at a time while editing); then a divider and a "Detalles" section
+// (installation date, parent asset, notes) at the bottom.
 // ---------------------------------------------------------------------------
+
+/** Progressive-reveal wrapper for a cascade step that only mounts once its
+ * prerequisite is chosen — the enter transition is what makes each field
+ * feel like it "appears after" the previous one. */
+const REVEAL_CLASS = "animate-in fade-in-0 slide-in-from-top-1 duration-200";
 
 function FieldSlot({
   label,
-  full,
+  className,
   children,
 }: {
   label: string;
-  full?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("flex flex-col gap-1.5", full && "sm:col-span-2 lg:col-span-3")}>
+    <div className={cn("flex flex-col gap-1.5", className)}>
       <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
@@ -364,9 +489,20 @@ function FieldSlot({
   );
 }
 
-function ReadValue({ children }: { children?: React.ReactNode }) {
+function ReadValue({
+  big,
+  children,
+}: {
+  big?: boolean;
+  children?: React.ReactNode;
+}) {
   return (
-    <div className="flex min-h-[38px] items-center text-sm text-ezi-gray">
+    <div
+      className={cn(
+        "flex min-h-[38px] items-center text-ezi-gray",
+        big ? "text-xl font-semibold" : "text-sm",
+      )}
+    >
       {children || <span className="text-muted-foreground">—</span>}
     </div>
   );
@@ -375,302 +511,476 @@ function ReadValue({ children }: { children?: React.ReactNode }) {
 function SummaryFields({
   form,
   plants,
+  locations,
+  cells,
   editing,
+  canAssignCell,
+  currentCellNames,
+  currentCellId,
+  pendingCellId,
+  onPendingCellChange,
 }: {
   form: ReturnType<typeof useMachineForm>;
   plants: PlantOption[];
+  locations: LocationOption[];
+  cells: CellOption[];
   editing: boolean;
+  canAssignCell: boolean;
+  currentCellNames: string[];
+  currentCellId: number | null;
+  pendingCellId: number | null | undefined;
+  onPendingCellChange: (v: number | null | undefined) => void;
 }) {
   const { fields } = form;
-  const plantName = plants.find((p) => String(p.plant_id) === fields.plantId)?.name;
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const selectedLocation = locations.find(
+    (l) => String(l.location_id) === fields.locationId,
+  );
+  const locationCells = cells.filter(
+    (c) => c.location_id !== null && String(c.location_id) === fields.locationId,
+  );
+  // Editing value for the cell select: pending choice wins; otherwise mirror
+  // the live assignment.
+  const cellSelectValue =
+    pendingCellId !== undefined
+      ? pendingCellId === null
+        ? ""
+        : String(pendingCellId)
+      : currentCellId !== null
+        ? String(currentCellId)
+        : "";
+
+  // Categoría → Tipo cascade. `categoryId` is a pure UI filter (the asset
+  // only stores `asset_type_id`; the category is derived) — lazy-initialized
+  // from the current type so an existing asset opens with both steps already
+  // revealed, not needing to be re-picked.
+  const [categoryId, setCategoryId] = React.useState<string>(() =>
+    form.selectedType ? String(form.selectedType.asset_category_id) : "",
+  );
+  const categoryOptions = form.typeGroups.map((g) => ({
+    asset_category_id: g.asset_category_id,
+    name: g.category,
+  }));
+  const categoryTypes =
+    form.typeGroups.find((g) => String(g.asset_category_id) === categoryId)
+      ?.items ?? [];
+
+  // Planta → Ubicación → Celda cascade. `plantId` is likewise a pure UI
+  // filter — the asset stores `location_id` only, plant is derived from it —
+  // lazy-initialized from the current location for the same reason.
+  const [plantId, setPlantId] = React.useState<string>(() =>
+    selectedLocation ? String(selectedLocation.plant_id) : "",
+  );
+  const plantLocations = locations.filter((l) => String(l.plant_id) === plantId);
+
   return (
-    <div className="flex flex-shrink-0 gap-6 px-6 py-4">
-      <div className="shrink-0">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void form.onPickImage(f);
-            e.target.value = "";
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => editing && fileInputRef.current?.click()}
-          disabled={!editing || form.busy || form.imageBusy}
-          className={cn(
-            "relative flex h-32 w-32 flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border-2 text-muted-foreground transition-colors",
-            editing ? "border-dashed hover:border-ezi-orange/60 hover:text-ezi-orange" : "border-solid",
-            form.imageSrc && "border-solid",
-          )}
-          aria-label="Imagen del equipo"
-        >
-          {form.imageSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element -- blob/object URLs don't go through the Next image optimizer
-            <img
-              src={form.imageSrc}
-              alt="Imagen del equipo"
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          ) : (
-            <>
-              <ImagePlus className="h-6 w-6" />
-              <span className="px-2 text-center text-[10px] leading-tight">
-                {form.imageBusy ? "Subiendo…" : "Imagen del equipo"}
-              </span>
-            </>
-          )}
-        </button>
-        {editing && form.imageSrc ? (
+    <div className="flex flex-shrink-0 flex-col gap-4 px-6 py-4">
+      <div className="flex gap-6">
+        {/* Photo — the mock gives it real presence, not a thumbnail. */}
+        <div className="shrink-0">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void form.onPickImage(f);
+              e.target.value = "";
+            }}
+          />
           <button
             type="button"
-            onClick={form.removeImage}
-            disabled={form.busy || form.imageBusy}
-            className="mt-1 w-full text-center text-[10px] text-muted-foreground hover:text-ezi-orange"
+            onClick={() => editing && fileInputRef.current?.click()}
+            disabled={!editing || form.busy || form.imageBusy}
+            className={cn(
+              "relative flex h-56 w-56 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border-2 text-muted-foreground transition-colors",
+              editing
+                ? "border-dashed hover:border-ezi-orange/60 hover:text-ezi-orange"
+                : "border-solid",
+              form.imageSrc && "border-solid",
+            )}
+            aria-label="Imagen del equipo"
           >
-            Quitar imagen
+            {form.imageSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element -- blob/object URLs don't go through the Next image optimizer
+              <img
+                src={form.imageSrc}
+                alt="Imagen del equipo"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : (
+              <>
+                <ImagePlus className="h-8 w-8" />
+                <span className="px-2 text-center text-xs leading-tight">
+                  {form.imageBusy ? "Subiendo…" : "Imagen del equipo"}
+                </span>
+              </>
+            )}
           </button>
-        ) : null}
-      </div>
+          {editing && form.imageSrc ? (
+            <button
+              type="button"
+              onClick={form.removeImage}
+              disabled={form.busy || form.imageBusy}
+              className="mt-1 w-full text-center text-[10px] text-muted-foreground hover:text-ezi-orange"
+            >
+              Quitar imagen
+            </button>
+          ) : null}
+        </div>
 
-      <div className="grid min-w-0 flex-1 grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-        <FieldSlot label="Nombre" full>
-          {editing ? (
-            <Input
-              value={fields.name}
-              onChange={(e) => fields.setName(e.target.value)}
-              maxLength={200}
-              disabled={form.busy}
-            />
-          ) : (
-            <ReadValue>{fields.name}</ReadValue>
-          )}
-        </FieldSlot>
+        {/* Identity fields — name, brand/model/serial, category/type. */}
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <FieldSlot label="Nombre">
+            {editing ? (
+              <Input
+                value={fields.name}
+                onChange={(e) => fields.setName(e.target.value)}
+                maxLength={200}
+                disabled={form.busy}
+              />
+            ) : (
+              <ReadValue big>{fields.name}</ReadValue>
+            )}
+          </FieldSlot>
 
-        <FieldSlot label="Marca">
-          {editing ? (
-            <Input
-              value={fields.brand}
-              onChange={(e) => fields.setBrand(e.target.value)}
-              maxLength={120}
-              disabled={form.busy}
-            />
-          ) : (
-            <ReadValue>{fields.brand}</ReadValue>
-          )}
-        </FieldSlot>
-        <FieldSlot label="Modelo">
-          {editing ? (
-            <Input
-              value={fields.model}
-              onChange={(e) => fields.setModel(e.target.value)}
-              maxLength={120}
-              disabled={form.busy}
-            />
-          ) : (
-            <ReadValue>{fields.model}</ReadValue>
-          )}
-        </FieldSlot>
-        <FieldSlot label="Número de serie">
-          {editing ? (
-            <Input
-              value={fields.serial}
-              onChange={(e) => fields.setSerial(e.target.value)}
-              maxLength={120}
-              disabled={form.busy}
-            />
-          ) : (
-            <ReadValue>{fields.serial}</ReadValue>
-          )}
-        </FieldSlot>
+          <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-3">
+            <FieldSlot label="Marca">
+              {editing ? (
+                <Input
+                  value={fields.brand}
+                  onChange={(e) => fields.setBrand(e.target.value)}
+                  maxLength={120}
+                  disabled={form.busy}
+                />
+              ) : (
+                <ReadValue>{fields.brand}</ReadValue>
+              )}
+            </FieldSlot>
+            <FieldSlot label="Modelo">
+              {editing ? (
+                <Input
+                  value={fields.model}
+                  onChange={(e) => fields.setModel(e.target.value)}
+                  maxLength={120}
+                  disabled={form.busy}
+                />
+              ) : (
+                <ReadValue>{fields.model}</ReadValue>
+              )}
+            </FieldSlot>
+            <FieldSlot label="Número de serie">
+              {editing ? (
+                <Input
+                  value={fields.serial}
+                  onChange={(e) => fields.setSerial(e.target.value)}
+                  maxLength={120}
+                  disabled={form.busy}
+                />
+              ) : (
+                <ReadValue>{fields.serial}</ReadValue>
+              )}
+            </FieldSlot>
+          </div>
 
-        <FieldSlot label="Tipo de equipo">
-          {editing ? (
-            <>
-              <Select
-                value={fields.typeId}
-                onChange={(e) => fields.setTypeId(e.target.value)}
-                disabled={form.busy || form.noTypes}
-              >
-                <option value="">Selecciona…</option>
-                {form.typeGroups.map((g) => (
-                  <optgroup key={g.category} label={g.category}>
-                    {g.items.map((t) => (
+          {/* Categoría → Tipo cascade: category first, type only once a
+              category is chosen (already-set assets open with both revealed). */}
+          <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-3">
+            <FieldSlot label="Categoría">
+              {editing ? (
+                <Select
+                  value={categoryId}
+                  onChange={(e) => {
+                    setCategoryId(e.target.value);
+                    fields.setTypeId("");
+                  }}
+                  disabled={form.busy || categoryOptions.length === 0}
+                >
+                  <option value="">Selecciona…</option>
+                  {categoryOptions.map((c) => (
+                    <option key={c.asset_category_id} value={c.asset_category_id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <ReadValue>{form.selectedType?.category_name}</ReadValue>
+              )}
+            </FieldSlot>
+            {editing ? (
+              categoryId ? (
+                <FieldSlot
+                  label="Tipo de equipo"
+                  className={cn("sm:col-span-2", REVEAL_CLASS)}
+                >
+                  <Select
+                    value={fields.typeId}
+                    onChange={(e) => fields.setTypeId(e.target.value)}
+                    disabled={form.busy || categoryTypes.length === 0}
+                  >
+                    <option value="">
+                      {categoryTypes.length === 0
+                        ? "Sin tipos en esta categoría"
+                        : "Selecciona…"}
+                    </option>
+                    {categoryTypes.map((t) => (
                       <option key={t.asset_type_id} value={t.asset_type_id}>
                         {t.name}
                       </option>
                     ))}
-                  </optgroup>
-                ))}
-              </Select>
-              {form.selectedType ? (
-                <p className="text-xs text-muted-foreground">
-                  Categoría:{" "}
-                  <span className="font-medium text-ezi-gray">
-                    {form.selectedType.category_name}
-                  </span>
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <ReadValue>{form.selectedType?.name}</ReadValue>
-          )}
-        </FieldSlot>
-        <FieldSlot label="Categoría">
-          <ReadValue>{form.selectedType?.category_name}</ReadValue>
-        </FieldSlot>
-        <FieldSlot label="Planta">
-          {editing ? (
-            <Select
-              value={fields.plantId}
-              onChange={(e) => fields.setPlantId(e.target.value)}
-              disabled={form.busy}
-            >
-              <option value="">Selecciona…</option>
-              {plants.map((p) => (
-                <option key={p.plant_id} value={p.plant_id}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <ReadValue>{plantName}</ReadValue>
-          )}
-        </FieldSlot>
-
-        <FieldSlot label="Estatus">
-          {editing ? (
-            <Select
-              value={fields.status}
-              onChange={(e) => fields.setStatus(e.target.value)}
-              disabled={form.busy}
-            >
-              {ASSET_STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {statusLabel(s)}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <ReadValue>
-              <StatusBadge value={fields.status} />
-            </ReadValue>
-          )}
-        </FieldSlot>
-        <FieldSlot label="Fecha de instalación">
-          {editing ? (
-            <div className="grid grid-cols-2 gap-2">
-              <Select
-                aria-label="Mes de instalación"
-                value={fields.installMonth}
-                onChange={(e) => fields.setInstallMonth(e.target.value)}
-                disabled={form.busy}
-              >
-                <option value="">Mes…</option>
-                {MONTHS_ES.map((m, i) => (
-                  <option key={m} value={String(i + 1).padStart(2, "0")}>
-                    {m}
-                  </option>
-                ))}
-              </Select>
-              <Select
-                aria-label="Año de instalación"
-                value={fields.installYear}
-                onChange={(e) => fields.setInstallYear(e.target.value)}
-                disabled={form.busy}
-              >
-                <option value="">Año…</option>
-                {form.years.map((y) => (
-                  <option key={y} value={String(y)}>
-                    {y}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ) : (
-            <ReadValue>
-              {fields.installMonth && fields.installYear
-                ? installationLabel(`${fields.installYear}-${fields.installMonth}-01`)
-                : null}
-            </ReadValue>
-          )}
-        </FieldSlot>
-        <FieldSlot label="Equipo padre">
-          {editing ? (
-            <div className="space-y-2">
-              {form.selectedParent ? (
-                <div className="flex items-center gap-2 rounded-md border bg-gray-50 px-3 py-2">
-                  <span className="font-mono text-xs font-semibold text-muted-foreground">
-                    {form.selectedParent.code}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    {form.selectedParent.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => fields.setParentId(null)}
-                    disabled={form.busy}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
-                    aria-label="Quitar equipo padre"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={form.busy}
-                onClick={() => form.setParentPanelOpen((v) => !v)}
-              >
-                <Search className="h-3.5 w-3.5" />
-                {form.parentPanelOpen
-                  ? "Cerrar búsqueda"
-                  : form.selectedParent
-                    ? "Cambiar equipo padre"
-                    : "Buscar equipo padre"}
-              </Button>
-            </div>
-          ) : (
-            <ReadValue>
-              {form.selectedParent ? (
-                <span className="font-mono text-sm">{form.selectedParent.code}</span>
-              ) : null}
-            </ReadValue>
-          )}
-        </FieldSlot>
-
-        <FieldSlot label="Notas" full>
-          {editing ? (
-            <Textarea
-              value={fields.notes}
-              onChange={(e) => fields.setNotes(e.target.value)}
-              maxLength={2000}
-              rows={3}
-              disabled={form.busy}
-            />
-          ) : (
-            <ReadValue>
-              <span className="whitespace-pre-wrap">{fields.notes}</span>
-            </ReadValue>
-          )}
-        </FieldSlot>
+                  </Select>
+                  {form.selectedType &&
+                  form.selectedType.process_names.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Proceso:{" "}
+                      <span className="font-medium text-ezi-gray">
+                        {form.selectedType.process_names.join(", ")}
+                      </span>
+                    </p>
+                  ) : null}
+                </FieldSlot>
+              ) : null
+            ) : (
+              <FieldSlot label="Tipo de equipo" className="sm:col-span-2">
+                <ReadValue>{form.selectedType?.name}</ReadValue>
+              </FieldSlot>
+            )}
+          </div>
+        </div>
       </div>
 
-      {editing && form.parentPanelOpen ? (
-        <ParentSearchPanel
-          choices={form.parentChoices}
-          selectedId={fields.parentId}
-          onSelect={(id) => fields.setParentId(id)}
-          disabled={form.busy}
-        />
-      ) : null}
+      {/* Ubicación — planta → ubicación → celda, each filtering the next. */}
+      <div className="rounded-lg border bg-gray-50/60 p-4">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Ubicación
+        </p>
+        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-3">
+          <FieldSlot label="Planta">
+            {editing ? (
+              <Select
+                value={plantId}
+                onChange={(e) => {
+                  setPlantId(e.target.value);
+                  fields.setLocationId("");
+                  onPendingCellChange(null);
+                }}
+                disabled={form.busy || plants.length === 0}
+              >
+                <option value="">Selecciona…</option>
+                {plants.map((p) => (
+                  <option key={p.plant_id} value={p.plant_id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <ReadValue>{selectedLocation?.plant_name}</ReadValue>
+            )}
+          </FieldSlot>
+
+          {editing ? (
+            plantId ? (
+              <FieldSlot label="Ubicación" className={REVEAL_CLASS}>
+                <Select
+                  value={fields.locationId}
+                  onChange={(e) => {
+                    fields.setLocationId(e.target.value);
+                    // A different location invalidates the cell: default to none.
+                    onPendingCellChange(null);
+                  }}
+                  disabled={form.busy || plantLocations.length === 0}
+                >
+                  <option value="">
+                    {plantLocations.length === 0
+                      ? "Sin ubicaciones en esta planta"
+                      : "Selecciona…"}
+                  </option>
+                  {plantLocations.map((l) => (
+                    <option key={l.location_id} value={l.location_id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </Select>
+              </FieldSlot>
+            ) : null
+          ) : (
+            <FieldSlot label="Ubicación">
+              <ReadValue>{selectedLocation?.name}</ReadValue>
+            </FieldSlot>
+          )}
+
+          {editing ? (
+            canAssignCell ? (
+              fields.locationId ? (
+                <FieldSlot label="Celda de producción" className={REVEAL_CLASS}>
+                  <Select
+                    value={cellSelectValue}
+                    onChange={(e) =>
+                      onPendingCellChange(
+                        e.target.value === "" ? null : Number(e.target.value),
+                      )
+                    }
+                    disabled={form.busy || locationCells.length === 0}
+                  >
+                    <option value="">
+                      {locationCells.length === 0
+                        ? "Sin celdas en esta ubicación"
+                        : "Sin celda"}
+                    </option>
+                    {locationCells.map((c) => (
+                      <option key={c.cell_id} value={c.cell_id}>
+                        {c.code} — {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Solo celdas en la misma ubicación del equipo.
+                  </p>
+                </FieldSlot>
+              ) : null
+            ) : (
+              <FieldSlot label="Celda de producción">
+                <ReadValue>
+                  {currentCellNames.length > 0 ? currentCellNames.join(", ") : null}
+                </ReadValue>
+              </FieldSlot>
+            )
+          ) : (
+            <FieldSlot label="Celda de producción">
+              <ReadValue>
+                {currentCellNames.length > 0 ? currentCellNames.join(", ") : null}
+              </ReadValue>
+            </FieldSlot>
+          )}
+        </div>
+      </div>
+
+      <hr className="border-t" />
+
+      {/* Detalles — installation date, parent asset, notes. Notas gets the
+          full width (its own row) instead of a cramped third column, but a
+          shorter textarea so it doesn't stretch the modal. */}
+      <div>
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Detalles
+        </p>
+        <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+          <FieldSlot label="Fecha de instalación">
+            {editing ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Select
+                  aria-label="Mes de instalación"
+                  value={fields.installMonth}
+                  onChange={(e) => fields.setInstallMonth(e.target.value)}
+                  disabled={form.busy}
+                >
+                  <option value="">Mes…</option>
+                  {MONTHS_ES.map((m, i) => (
+                    <option key={m} value={String(i + 1).padStart(2, "0")}>
+                      {m}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  aria-label="Año de instalación"
+                  value={fields.installYear}
+                  onChange={(e) => fields.setInstallYear(e.target.value)}
+                  disabled={form.busy}
+                >
+                  <option value="">Año…</option>
+                  {form.years.map((y) => (
+                    <option key={y} value={String(y)}>
+                      {y}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            ) : (
+              <ReadValue>
+                {fields.installMonth && fields.installYear
+                  ? installationLabel(
+                      `${fields.installYear}-${fields.installMonth}-01`,
+                    )
+                  : null}
+              </ReadValue>
+            )}
+          </FieldSlot>
+          <FieldSlot label="Equipo padre">
+            {editing ? (
+              <div className="space-y-2">
+                {form.selectedParent ? (
+                  <div className="flex h-9 items-center gap-2 rounded-md border bg-gray-50 px-3">
+                    <span className="font-mono text-xs font-semibold text-muted-foreground">
+                      {form.selectedParent.code}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm">
+                      {form.selectedParent.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => fields.setParentId(null)}
+                      disabled={form.busy}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
+                      aria-label="Quitar equipo padre"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={form.busy}
+                    onClick={() => form.setParentPanelOpen(true)}
+                    className="w-full justify-start"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    Buscar equipo padre
+                  </Button>
+                )}
+                {form.selectedParent ? (
+                  <button
+                    type="button"
+                    onClick={() => form.setParentPanelOpen(true)}
+                    disabled={form.busy}
+                    className="text-xs font-medium text-ezi-orange hover:text-orange-700"
+                  >
+                    Cambiar equipo padre
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <ReadValue>
+                {form.selectedParent ? (
+                  <span className="font-mono text-sm">
+                    {form.selectedParent.code}
+                  </span>
+                ) : null}
+              </ReadValue>
+            )}
+          </FieldSlot>
+        </div>
+
+        <div className="mt-3">
+          <FieldSlot label="Notas">
+            {editing ? (
+              <Textarea
+                value={fields.notes}
+                onChange={(e) => fields.setNotes(e.target.value)}
+                maxLength={2000}
+                rows={2}
+                disabled={form.busy}
+              />
+            ) : (
+              <ReadValue>
+                <span className="whitespace-pre-wrap text-sm">{fields.notes}</span>
+              </ReadValue>
+            )}
+          </FieldSlot>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,26 +1,29 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Download, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  CalendarCheck,
+  Download,
+  FileText,
+  Pencil,
+  Plus,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
 import { useCan } from "@/components/providers/permissions-provider";
-import type { ProcessOption } from "@/modules/maintenance/components/machine-form-dialog";
 import {
   DOC_TYPES,
   RESTRICTION_TYPES,
   docTypeLabel,
   restrictionTypeLabel,
 } from "@/modules/maintenance/enums";
-
-export type { ProcessOption };
 
 export interface RestrictionItem {
   restriction_id: number;
@@ -53,201 +56,43 @@ export interface AssignmentItem {
 }
 
 // ---------------------------------------------------------------------------
-// Procesos
+// Mantenimiento — representative entry points for the next module phase
+// (plans + work orders exist in the schema since V6 but have no UI yet).
 // ---------------------------------------------------------------------------
 
-export function ProcesosTab({
-  assetId,
-  assetProcessIds,
-  allProcesses,
-  onChanged,
-}: {
-  assetId: number;
-  assetProcessIds: number[];
-  allProcesses: ProcessOption[];
-  onChanged: (processIds: number[]) => void;
-}) {
-  const can = useCan();
-  const [selected, setSelected] = React.useState<number[]>(assetProcessIds);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const dirty =
-    selected.length !== assetProcessIds.length ||
-    selected.some((id) => !assetProcessIds.includes(id));
-
-  async function onSave() {
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/maintenance/assets/${assetId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ process_ids: selected }),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudieron guardar los procesos.");
-      }
-      onChanged(selected);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Saving the process set PATCHes the asset — same permission as editing it.
-  if (!can("maintenance.asset:update")) {
-    const names = allProcesses
-      .filter((p) => assetProcessIds.includes(p.process_id))
-      .map((p) => p.name);
-    return (
-      <div className="rounded-lg border bg-card p-4">
-        {names.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Este equipo no tiene procesos asignados.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {names.map((n) => (
-              <Badge key={n} variant="outline">
-                {n}
-              </Badge>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-
+export function MantenimientoTab() {
   return (
-    <div className="space-y-3 rounded-lg border bg-card p-4">
-      <p className="text-sm text-muted-foreground">
-        Procesos que ejecuta este equipo (multi-proceso permitido).
-      </p>
-      {allProcesses.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No hay procesos en el catálogo. Un administrador los crea en{" "}
-          <Link href="/admin/organization/processes" className="underline">
-            Organización → Procesos
-          </Link>
-          .
-        </p>
-      ) : (
-        <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
-          {allProcesses.map((p) => (
-            <label
-              key={p.process_id}
-              className="flex items-start gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-gray-50"
-            >
-              <Checkbox
-                checked={selected.includes(p.process_id)}
-                disabled={busy}
-                onCheckedChange={(checked) => {
-                  setSelected((prev) =>
-                    checked
-                      ? [...prev, p.process_id]
-                      : prev.filter((id) => id !== p.process_id),
-                  );
-                }}
-                className="mt-0.5"
-              />
-              <span>
-                <span className="font-medium">{p.name}</span>{" "}
-                <span className="font-mono text-xs text-muted-foreground">
-                  {p.code}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
-      )}
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className="flex justify-end">
-        <Button onClick={onSave} disabled={busy || !dirty}>
-          {busy ? "Guardando…" : "Guardar procesos"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Ubicación (asignación a celdas de producción — módulo production)
-// ---------------------------------------------------------------------------
-
-export function UbicacionTab({ assignments }: { assignments: AssignmentItem[] }) {
-  const current = assignments.filter((a) => a.valid_to === null);
-  const history = assignments.filter((a) => a.valid_to !== null);
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-3 rounded-lg border bg-card p-4">
-        <p className="text-sm text-muted-foreground">
-          Celdas de producción donde trabaja este equipo hoy. La asignación se
-          administra desde el detalle de cada celda en{" "}
-          <Link href="/production/cells" className="underline">
-            Producción → Celdas
-          </Link>
-          .
-        </p>
-        {current.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Sin celda asignada (equipo de pool o pendiente de asignar).
-          </p>
-        ) : (
-          <ul className="divide-y">
-            {current.map((a) => (
-              <li key={a.assignment_id} className="flex items-center gap-3 py-2.5">
-                <Link
-                  href={`/production/cells/${a.cell_id}`}
-                  className="font-mono text-sm font-medium text-ezi-gray underline-offset-2 hover:text-ezi-orange hover:underline"
-                >
-                  {a.cell_code}
-                </Link>
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {a.cell_name}
-                  {a.role_label ? (
-                    <span className="text-muted-foreground"> · {a.role_label}</span>
-                  ) : null}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  desde {a.valid_from.slice(0, 10)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {history.length > 0 ? (
-        <div className="space-y-3 rounded-lg border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Historial de asignaciones
-          </p>
-          <ul className="divide-y">
-            {history.map((a) => (
-              <li
-                key={a.assignment_id}
-                className="flex items-center gap-3 py-2 text-muted-foreground"
-              >
-                <span className="font-mono text-sm">{a.cell_code}</span>
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {a.cell_name}
-                  {a.role_label ? <span> · {a.role_label}</span> : null}
-                </span>
-                <span className="shrink-0 text-xs">
-                  {a.valid_from.slice(0, 10)} → {a.valid_to?.slice(0, 10)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+    <div className="grid gap-4 sm:grid-cols-2">
+      <button
+        type="button"
+        disabled
+        className="flex flex-col items-start gap-2 rounded-lg border bg-card p-5 text-left transition-colors hover:border-ezi-orange/50 disabled:cursor-default"
+        title="Próximamente"
+      >
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-ezi-orange">
+          <CalendarCheck className="h-5 w-5" />
+        </span>
+        <span className="font-semibold text-ezi-gray">Mantenimiento preventivo</span>
+        <span className="text-xs text-muted-foreground">
+          Planes programados, checklists y órdenes de trabajo del equipo.
+          Próximamente.
+        </span>
+      </button>
+      <button
+        type="button"
+        disabled
+        className="flex flex-col items-start gap-2 rounded-lg border bg-card p-5 text-left transition-colors hover:border-ezi-orange/50 disabled:cursor-default"
+        title="Próximamente"
+      >
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-orange-50 text-ezi-orange">
+          <Wrench className="h-5 w-5" />
+        </span>
+        <span className="font-semibold text-ezi-gray">Mantenimiento autónomo</span>
+        <span className="text-xs text-muted-foreground">
+          Rutinas del operador: limpieza, inspección y lubricación de primera
+          línea. Próximamente.
+        </span>
+      </button>
     </div>
   );
 }

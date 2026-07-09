@@ -99,6 +99,20 @@
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
   --radius-xl: 12px;
+
+  --animate-row-in: row-in 200ms ease;
+}
+
+/* Grouped-table child rows fade + slide in on expand (GroupedDataTable). */
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @layer base {

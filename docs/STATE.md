@@ -289,8 +289,8 @@ the app pages under `src/app/` are thin and compose from here):
   create live in a modal, not a route) + label + type catalog.
   `machines/[code]/page.tsx` is a redirect shim to
   `machines?asset=<code>` (opens the modal deep-linked) — kept alive because
-  `production/cells` links to it and QR labels printed before V18 encode that
-  exact URL.
+  the production module's cell composition view links to it and QR labels
+  printed before V18 encode that exact URL.
 - `asset/[code]/page.tsx` — QR landing page, OUTSIDE the `(portal)` group on
   purpose (no topbar/sidebar): renders `MachineModal` standalone via
   `MachineStandaloneView`. New labels encode this URL (V18); auth still
@@ -299,7 +299,9 @@ the app pages under `src/app/` are thin and compose from here):
   `departments`, `nav`, `profile`, `invite`, `auth`); business-module routes
   are namespaced: `api/maintenance/{assets,asset-categories,asset-types}/**`,
   `api/org/{locations,processes}/**`, `api/production/{cells,assignments,
-  layouts,lines,footprints,placements}/**`.
+  layouts,footprints,placements}/**` (`cells/[id]/children/reorder` nested
+  under `cells`; `lines` retired — V19 collapsed `production_line` into a
+  self-referencing `cell.parent_cell_id` hierarchy).
 
 ## Where the history lives (read on demand, not every session)
 

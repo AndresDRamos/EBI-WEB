@@ -97,6 +97,18 @@ Three tiers:
   close-out, not at plan approval. While in flight, `docs/plans/<slug>.md`'s `status:`
   is the record; in-flight detection = plan files with `status: approved|built|verified`
   plus open PRs.
+- **Worktree/branch hygiene:** `ExitWorktree` only cleans up the worktree *the current
+  session* created, and only if someone calls it — a PR often merges after that session
+  is long gone, so orphaned worktrees/branches are expected, not a bug to work around by
+  hand. Use `scripts/worktree-status.ps1` any time to see every worktree, its branch, its
+  plan's `status:`, and whether it's already merged/dirty/ghost. Use
+  `scripts/worktree-clean.ps1` (`-WhatIf` for a dry run) to reclaim anything merged into
+  `origin/main` — it is safe to run from any session at any time: it only touches a
+  branch after confirming with `git merge-base --is-ancestor` that it's fully merged, and
+  deletes via `git branch -d` (not `-D`), which Git itself refuses if that check is wrong.
+  Never delete a worktree folder by hand (`rm -rf`) — that leaves a "prunable" ghost
+  entry in `.git/worktrees/` and an orphaned branch; use `ExitWorktree` or the clean
+  script instead. `/commit-plan` runs the clean script automatically right after a merge.
 
 ## Design workflow (Claude Design)
 

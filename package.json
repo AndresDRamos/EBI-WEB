@@ -8,7 +8,9 @@
     "start": "next start -p 3001",
     "lint": "eslint",
     "test": "vitest run",
-    "db:gen": "node --env-file=.env db/gen.mjs"
+    "db:gen": "node --env-file=.env db/gen.mjs",
+    "worktrees:status": "pwsh -File scripts/worktree-status.ps1",
+    "worktrees:clean": "pwsh -File scripts/worktree-clean.ps1"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.33.0",

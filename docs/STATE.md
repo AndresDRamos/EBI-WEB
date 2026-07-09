@@ -113,25 +113,30 @@ RBAC actions precede the next business module.
 **Modules** (`src/modules/<m>/` — each domain owns its db + components;
 the app pages under `src/app/` are thin and compose from here):
 
-- `org/` — identity & organization (`auth` schema).
+- `org/` — identity (`auth` schema) & organization (`org` schema: `plant`,
+  `process`, `location` since V15/V18).
   - `db/users.ts` — `auth.app_user` + junctions + `invitation` + admin CRUD.
     Reads: `findAuthUserByUsername/ById`, `getUserRolesById`, `getUserScope`,
     `listUsers/WithNames`, `getUserDetail`. Writes: `createUser`,
     `updateUserAssignments`, `bumpTokenVersion`, `setUserPassword`,
     `createInvitation / accept / revoke`.
-  - `db/org.ts` — `auth.role | plant | department` + CRUD with the `admin`
-    guard. Exports `RoleProtectedError` and `PROTECTED_ROLE = "admin"`.
-    `deleteRole` clears the profile's grants (`role_permission`,
-    `role_nav_item`, `role_nav_section`) in-transaction (409 only for
-    assigned users).
+  - `db/org.ts` — `auth.role | department` CRUD (role protection) +
+    `org.plant` CRUD. Exports `RoleProtectedError` and
+    `PROTECTED_ROLE = "admin"`. `deleteRole` clears the profile's grants
+    (`role_permission`, `role_nav_item`, `role_nav_section`) in-transaction
+    (409 only for assigned users).
+  - `db/locations.ts` — `org.location` CRUD (per-plant named locations —
+    naves de producción, almacenes…, V18); 409 on FK when an asset or a
+    production cell still references it.
   - `db/permissions.ts` — `auth.permission | role_permission`:
     `getPermissionCodesForRoles` (hot path for `requirePermission`), catalog
     list + replace-set grants for the panel.
-  - `components/` — `users-table-page.tsx` + `plants-table-page.tsx` (flat
-    DataTable pages), `departments-roles-page.tsx` (GroupedDataTable:
-    departments as groups, roles — UI label "Roles" — as child rows;
-    synthetic "Sin departamento" group only while orphan roles exist),
-    `permission-manager.tsx` (unified Permisos tab: one top filter bar
+  - `components/` — `users-table-page.tsx` (flat DataTable),
+    `plants-locations-page.tsx` (GroupedDataTable Planta→Ubicaciones, V18 —
+    replaces the old flat `plants-table-page.tsx`), `departments-roles-page.tsx`
+    (GroupedDataTable: departments as groups, roles — UI label "Roles" — as
+    child rows; synthetic "Sin departamento" group only while orphan roles
+    exist), `permission-manager.tsx` (unified Permisos tab: one top filter bar
     (Rol ⇄ Usuario) drives both the `module.resource` × action matrix AND the
     page-granular nav tree — per-page visibility (`role_nav_item`) + per-role
     page order + per-role section order; ungranted sections sink to the end),
@@ -166,33 +171,47 @@ the app pages under `src/app/` are thin and compose from here):
     screen (`admin/portal/permissions`, `permission-manager.tsx`) covering
     permissions, section access/order and nav structure CRUD (inline
     dialogs on a drag-and-drop tree) via one shared role filter.
-- `maintenance/` — CMMS (`maint` schema). `db.ts` (assets, the
-  `asset_category`/`asset_type` configurable catalogs since V17 — category is
-  derived via the asset's type, never stored redundantly — with a
-  transactional matrícula generator `{prefix}-P{plant}-{NNNN}`; processes
-  reads; restrictions; documents), `enums.ts` (status/restriction/doc-type
-  CHECKs — pure module, no I/O; category/type labels come from the DB, no
-  static enum), `qr.ts` (`buildAssetQrDataUrl`/`resolveBaseUrl`, shared by the
-  printable label page and the in-modal QR endpoint), `components/` —
-  `machines-cards-page` (Equipos tab: cards catalog, Filtros popover + Nuevo
-  equipo; card click/"+"/context-menu "Editar" all open the same
-  `MachineModal` via the kit `ExpandingModal`, no page navigation),
-  `machine-catalogs-page` (Catálogos tab: `GroupedDataTable` Categoría→Tipo),
-  `machines-tabs` (shared `PageTabs` config for both), `machine-cards` (maps
-  rows onto the kit `EntityCard` with `onExpand`, not `href`), `machine-badges`
-  (`StatusBadge`), `machine-modal` (the equipment detail/edit/create surface:
-  an always-visible summary panel toggling read-only ↔ editable in place,
-  header actions incl. Etiqueta QR / Desactivar-Reactivar, tabs below), `machine-tabs`
-  (Procesos/Ubicación/Restricciones/Documentos — real CRUD, unchanged logic,
-  just relocated out of the old page-level `machine-detail`), `machine-form-dialog`
-  (now just the shared types + `ParentSearchPanel` — the dialog chrome itself
-  was retired), `qr-modal` (QR preview stacked over `MachineModal`; "Imprimir
-  etiqueta" still opens the printable `/label` route), `machine-label`
-  (printable QR, the proven print path). `hooks/use-machine-form.ts` (form
-  state/submit, owns a `saved` snapshot updated locally after create/edit —
-  no refetch needed) and `hooks/use-asset-detail.ts` (on-demand fetch of
-  restrictions/documents/assignments for the tabs; the summary panel itself
-  renders instantly from the row that opened the modal).
+- `maintenance/` — CMMS (`maint` schema). `db.ts` (assets are anchored to
+  `location_id` (`org.location`, V18) — plant is DERIVED via the location,
+  `plant_id` was dropped from `asset`; `asset_category`/`asset_type`
+  configurable catalogs — the matrícula `code_prefix` and the process link
+  (`asset_type_process`, N:M in DB, edited 1:1 in the UI) moved from category
+  to TYPE, replacing the old per-asset `asset_process`; transactional
+  matrícula generator `{type.code_prefix}-P{plant}-{NNNN}` keyed by
+  (type, plant); restrictions; documents), `enums.ts` (status/restriction/
+  doc-type CHECKs — pure module, no I/O; category/type/process labels come
+  from the DB, no static enum), `qr.ts` (`buildAssetQrDataUrl`/
+  `resolveBaseUrl` — the QR payload targets the layout-less `/asset/[code]`
+  landing page since V18, not a portal route), `components/` —
+  `machines-cards-page` (Equipos tab: header groups the active/inactive
+  toggle with "Nuevo equipo" — h-9, matching the kit `DataTable` pairing;
+  cards catalog, Filtros popover; card click/"+"/context-menu "Editar" all
+  open the same `MachineModal` via the kit `ExpandingModal`, no page
+  navigation), `machine-catalogs-page` ("Tipos de equipo" tab:
+  `GroupedDataTable` "Categorías y tipos de equipo" — the type row carries
+  prefijo + proceso), `machines-tabs` (shared `PageTabs` config, labels
+  "Equipos" / "Tipos de equipo"), `machine-cards` (maps rows onto the kit
+  `EntityCard` with `onExpand`, not `href`), `machine-modal` (the equipment
+  detail/edit/create surface: large photo + identity fields with a
+  Categoría→Tipo cascade; a boxed "Ubicación" section with a
+  Planta→Ubicación→Celda cascade, each step filtering/revealing the next; a
+  "Detalles" section — fecha de instalación, equipo padre, notas — behind a
+  divider; header actions icon-only (QR/trash/pencil); tabs Mantenimiento
+  (representative placeholders) / Documentación / Restricciones — no more
+  Procesos/Ubicación tabs, `machine-badges.tsx` retired since status isn't
+  shown), `machine-tabs` (now just `MantenimientoTab` + `DocumentosTab` +
+  `RestriccionesTab`), `machine-form-dialog` (pure type exports only — the
+  old `ParentSearchPanel` moved into `parent-picker-modal.tsx`, a `QrModal`-
+  style dialog stacked over the equipment modal: search list + a compact
+  read-only preview of the candidate, no edit/tabs/Detalles), `qr-modal`
+  (in-modal QR preview; "Imprimir etiqueta" prints via a hidden iframe on the
+  printable `/label` route instead of navigating), `machine-label`
+  (printable QR, unchanged), `machine-standalone-view` (the QR landing
+  page's content — same `MachineModal`, a `standalone` prop hides the back
+  button). `hooks/use-machine-form.ts` (form state/submit; the `saved`
+  snapshot owns `location_id`, not `plant_id`/`status`) and
+  `hooks/use-asset-detail.ts` (on-demand fetch of restrictions/documents/
+  assignments for the tabs).
 
 **Shared UI** (`src/components/`):
 
@@ -210,7 +229,10 @@ the app pages under `src/app/` are thin and compose from here):
   (`ExpandingModal`: generic "shared element" shell over raw Radix Dialog
   primitives — expands from a clicked card/button's rect into a large
   centered surface across opening→open→closing phases; `useExpandingModal()`
-  exposes `requestClose`/`opened` to children), `table-utils.ts` (pure: NFD
+  exposes `requestClose` (guarded by `closeDisabled`), `requestCloseForce`
+  (bypasses the guard — for an explicit in-content "Cancelar", never for
+  backdrop/Escape) and `opened` to children; `useOptionalExpandingModal()`
+  for content that also renders standalone outside a modal), `table-utils.ts` (pure: NFD
   normalization, comparators, catalog intersection). Future:
   `ResourceTable/Form`, `Calendar`, `KpiCard`.
 - `layout/` — global chrome: `portal-shell.tsx` (composes
@@ -264,13 +286,20 @@ the app pages under `src/app/` are thin and compose from here):
   (`users|roles|departments|plants|access|permissions`) are `redirect()`-only.
 - `(portal)/maintenance/*` — `layout.tsx` guard
   (`requireSectionOrRedirect("maintenance")`) + machines list (detail/edit/
-  create live in a modal, not a route) + label + process catalog.
+  create live in a modal, not a route) + label + type catalog.
   `machines/[code]/page.tsx` is a redirect shim to
   `machines?asset=<code>` (opens the modal deep-linked) — kept alive because
-  `production/cells` links to it and printed QR labels encode that exact URL.
+  `production/cells` links to it and QR labels printed before V18 encode that
+  exact URL.
+- `asset/[code]/page.tsx` — QR landing page, OUTSIDE the `(portal)` group on
+  purpose (no topbar/sidebar): renders `MachineModal` standalone via
+  `MachineStandaloneView`. New labels encode this URL (V18); auth still
+  applies (middleware default-deny + an `auth()` check in the page).
 - `api/` — core portal routes stay flat (`users`, `roles`, `plants`,
   `departments`, `nav`, `profile`, `invite`, `auth`); business-module routes
-  are namespaced: `api/maintenance/{assets,processes}/**`.
+  are namespaced: `api/maintenance/{assets,asset-categories,asset-types}/**`,
+  `api/org/{locations,processes}/**`, `api/production/{cells,assignments,
+  layouts,lines,footprints,placements}/**`.
 
 ## Where the history lives (read on demand, not every session)
 

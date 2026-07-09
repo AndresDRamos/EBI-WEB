@@ -3,10 +3,11 @@
 > Maintained by the `docs-sync` sub-agent, which runs at the end of every
 > `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-08. Reflects V1–V18 (V18 sourced from the
+> Last synced: 2026-07-09. Reflects V1–V19 (V18 sourced from the
 > adopted-from-live migration file `V18__org_locations_type_processes.sql` +
-> regenerated Kysely types (`pnpm db:gen`, 41 tables), not direct
-> introspection).
+> regenerated Kysely types, not direct introspection; V19 sourced from the
+> applied migration file `V19__production_operative_cells.sql` +
+> regenerated Kysely types).
 >
 > **How to read:** find the table below, then open only its schema page —
 > never read the whole folder. One page per schema, mirroring
@@ -69,11 +70,13 @@ in V18.
 ## [production](production.md)
 
 Created as `produccion` in V11; renamed to `production` in V12 (structure
-unchanged); plant-layout tables added in V13.
+unchanged); plant-layout tables added in V13; the line/cell two-level model
+was collapsed into a single self-referencing `cell` in V19
+(`production.production_line` dropped).
 
-- `production.production_line` — optional sequencing container for cells.
-- `production.cell` — logical production post/function; `line_id` nullable (standalone cells); optional `location_id` → `org.location` (V18).
-- `production.asset_cell_assignment` — temporal, historized M:N bridge asset ↔ cell (truth for where an asset works).
+- `production.cell` — logical production post/function, a self-referencing hierarchy capped at depth 1 (V19); `location_id` NOT NULL → `org.location` (plant derived through it); optional `parent_cell_id`, `process_id` → `org.process`.
+- `production.cell_code_sequence` — race-safe per-location counter backing the app-generated cell code (V19).
+- `production.asset_cell_assignment` — temporal, historized M:N bridge asset ↔ cell (truth for where an asset works); since V19 also gated by the cell's declared process vs. the asset type's supported processes.
 - `production.plant_layout` — versioned, immutable plant canvas (DXF → normalized JSON); one `active` per plant.
 - `production.asset_footprint` — top-view shape per asset (one per asset, editable in place; `dxf` | `rectangle`).
 - `production.asset_placement` — temporal, historized position of an asset on a layout (close + insert, never in-place).

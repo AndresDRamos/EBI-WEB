@@ -4,7 +4,7 @@ import {
   findCellById,
   reassign,
 } from "@/modules/production/db";
-import { findAssetById } from "@/modules/maintenance/db";
+import { findAssetById, assetTypeSupportsProcess } from "@/modules/maintenance/db";
 import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -74,6 +74,17 @@ export async function POST(
     ) {
       return NextResponse.json(
         { error: "La celda destino no está en la misma ubicación que el equipo." },
+        { status: 422 },
+      );
+    }
+    // Cross-schema invariant (V19, app-enforced — house style, no triggers):
+    // an asset only works in a cell whose declared process its type supports.
+    if (
+      toCell.process_id !== null &&
+      !(await assetTypeSupportsProcess(asset.asset_type_id, toCell.process_id))
+    ) {
+      return NextResponse.json(
+        { error: "El tipo del equipo no soporta el proceso de la celda destino." },
         { status: 422 },
       );
     }

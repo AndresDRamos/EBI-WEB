@@ -77,9 +77,13 @@ Ninguna con cascade:
   en V18 al re-clavar la tabla por (type, plant)).
 - `maint.asset_type_process.process_id` → `org.process.process_id` (V18;
   sustituye a `maint.asset_process.process_id`, tabla eliminada en V18).
-- `production.production_line.plant_id` → `org.plant.plant_id` (antes `auth.plant`).
-- `production.cell.plant_id` → `org.plant.plant_id` (antes `auth.plant`).
-- `production.cell.location_id` → `org.location.location_id` (V18, NULLable).
+- `production.cell.location_id` → `org.location.location_id` (obligatoria
+  desde V19 — antes NULLable desde V18; `production.cell.plant_id` fue
+  eliminada en V19, la planta de una celda ahora se DERIVA vía
+  `location.plant_id`; `production.production_line.plant_id` desapareció al
+  eliminarse esa tabla en V19).
+- `production.cell.process_id` → `org.process.process_id` (V19, NULLable).
+- `production.cell_code_sequence.location_id` → `org.location.location_id` (V19).
 - `production.plant_layout.plant_id` → `org.plant.plant_id` (antes `auth.plant`).
 
 ## Notas de diseño (V15)

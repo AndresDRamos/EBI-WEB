@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCellDetail, findCellById, assign } from "@/modules/production/db";
-import { findAssetById } from "@/modules/maintenance/db";
+import { findAssetById, assetTypeSupportsProcess } from "@/modules/maintenance/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -83,6 +83,17 @@ export async function POST(
     if (cell.location_id === null || cell.location_id !== asset.location_id) {
       return NextResponse.json(
         { error: "La celda no está en la misma ubicación que el equipo." },
+        { status: 422 },
+      );
+    }
+    // Cross-schema invariant (V19, app-enforced — house style, no triggers):
+    // an asset only works in a cell whose declared process its type supports.
+    if (
+      cell.process_id !== null &&
+      !(await assetTypeSupportsProcess(asset.asset_type_id, cell.process_id))
+    ) {
+      return NextResponse.json(
+        { error: "El tipo del equipo no soporta el proceso de la celda." },
         { status: 422 },
       );
     }

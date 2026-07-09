@@ -11,30 +11,43 @@ import type {
 } from "@/lib/db/types";
 
 // `asset`, `asset_category`, `asset_type`, `asset_code_sequence`,
-// `asset_process`, `asset_restriction`, `asset_document` all live in the
+// `asset_type_process`, `asset_restriction`, `asset_document` all live in the
 // `maint` schema. kysely-codegen drops the schema from the generated keys, so
 // bind the client to `maint` or SQL Server looks under dbo and 208s.
 const db = rootDb.withSchema("maint");
 
-// Plant AND process both moved to the `org` schema in V15 (process was
-// promoted out of `maint` to become the canonical company-wide catalog). A
-// typed cross-schema join is not expressible with the flattened codegen keys
-// (each client binds one schema), so `asset_process` (maint) links to process
-// names via a second, `org`-bound query merged in JS. Catalog sizes make this
-// a non-issue.
+// Plant, location AND process live in the `org` schema (V15/V18). A typed
+// cross-schema join is not expressible with the flattened codegen keys (each
+// client binds one schema), so org lookups run as separate `org`-bound
+// queries merged in JS. Catalog sizes make this a non-issue.
 const orgDb = rootDb.withSchema("org");
 
-async function plantNamesById(ids: number[]): Promise<Map<number, string>> {
+/** Location refs (name + owning plant) by id — since V18 the asset's plant is
+ * DERIVED via its location (`asset.plant_id` was dropped). */
+async function locationRefsById(
+  ids: number[],
+): Promise<Map<number, { name: string; plant_id: number; plant_name: string }>> {
   if (ids.length === 0) return new Map();
   const rows = await orgDb
-    .selectFrom("plant")
-    .select(["plant_id", "name"])
-    .where("plant_id", "in", ids)
+    .selectFrom("location")
+    .innerJoin("plant", "plant.plant_id", "location.plant_id")
+    .select([
+      "location.location_id",
+      "location.name",
+      "location.plant_id",
+      "plant.name as plant_name",
+    ])
+    .where("location.location_id", "in", ids)
     .execute();
-  return new Map(rows.map((r) => [r.plant_id, r.name]));
+  return new Map(
+    rows.map((r) => [
+      r.location_id,
+      { name: r.name, plant_id: r.plant_id, plant_name: r.plant_name },
+    ]),
+  );
 }
 
-/** Process names by id, from `org.process` (for the asset-process JS merge). */
+/** Process names by id, from `org.process` (for the type-process JS merge). */
 async function processNamesById(ids: number[]): Promise<Map<number, string>> {
   if (ids.length === 0) return new Map();
   const rows = await orgDb
@@ -45,14 +58,29 @@ async function processNamesById(ids: number[]): Promise<Map<number, string>> {
   return new Map(rows.map((r) => [r.process_id, r.name]));
 }
 
-/** Full process rows an asset runs, ordered by name (maint links → org rows). */
-async function assetProcessRows(assetId: number): Promise<ProcessRow[]> {
+/** Process ids per asset type (V18: processes are a property of the TYPE,
+ * not of each unit — `asset_type_process` replaced `asset_process`). */
+async function typeProcessIdsByType(
+  typeIds: number[],
+): Promise<Map<number, number[]>> {
+  if (typeIds.length === 0) return new Map();
   const links = await db
-    .selectFrom("asset_process")
-    .select("process_id")
-    .where("asset_id", "=", assetId)
+    .selectFrom("asset_type_process")
+    .select(["asset_type_id", "process_id"])
+    .where("asset_type_id", "in", typeIds)
     .execute();
-  const ids = links.map((l) => l.process_id);
+  const map = new Map<number, number[]>();
+  for (const l of links) {
+    const arr = map.get(l.asset_type_id) ?? [];
+    arr.push(l.process_id);
+    map.set(l.asset_type_id, arr);
+  }
+  return map;
+}
+
+/** Full process rows an asset TYPE runs, ordered by name (maint links → org rows). */
+async function typeProcessRows(typeId: number): Promise<ProcessRow[]> {
+  const ids = (await typeProcessIdsByType([typeId])).get(typeId) ?? [];
   if (ids.length === 0) return [];
   return orgDb
     .selectFrom("process")
@@ -69,7 +97,7 @@ export type ProcessRow = Selectable<Process>;
 export type RestrictionRow = Selectable<AssetRestriction>;
 export type DocumentRow = Selectable<AssetDocument>;
 
-/** Type name + derived category (asset → asset_type → asset_category). */
+/** Type name + prefix + derived category (asset → asset_type → asset_category). */
 interface TypeInfo {
   type_name: string;
   asset_category_id: number;
@@ -77,7 +105,8 @@ interface TypeInfo {
   code_prefix: string;
 }
 
-/** Resolve type/category info for a set of asset_type ids (both live in maint). */
+/** Resolve type/category info for a set of asset_type ids (both live in maint).
+ * Since V18 the matrícula prefix lives on the TYPE, not the category. */
 async function typeInfoById(ids: number[]): Promise<Map<number, TypeInfo>> {
   if (ids.length === 0) return new Map();
   const rows = await db
@@ -88,7 +117,7 @@ async function typeInfoById(ids: number[]): Promise<Map<number, TypeInfo>> {
       "t.name as type_name",
       "t.asset_category_id as asset_category_id",
       "c.name as category_name",
-      "c.code_prefix as code_prefix",
+      "t.code_prefix as code_prefix",
     ])
     .where("t.asset_type_id", "in", ids)
     .execute();
@@ -105,8 +134,11 @@ async function typeInfoById(ids: number[]): Promise<Map<number, TypeInfo>> {
   );
 }
 
-/** Asset list row with plant, process, and derived type/category names. */
+/** Asset list row with location (plant derived), type-derived processes and
+ * type/category names. */
 export interface AssetListRow extends AssetRow {
+  location_name: string;
+  plant_id: number;
   plant_name: string;
   process_names: string[];
   process_ids: number[];
@@ -117,6 +149,8 @@ export interface AssetListRow extends AssetRow {
 
 export interface AssetDetail {
   asset: AssetRow & {
+    location_name: string;
+    plant_id: number;
     plant_name: string;
     parent_code: string | null;
     type_name: string;
@@ -136,16 +170,25 @@ export class AssetTypeInvalidError extends Error {
   }
 }
 
-/** Thrown when the 4-digit matrícula sequence is exhausted for (category, plant). */
+/** Thrown when createAsset is given a location_id that is missing/inactive. */
+export class AssetLocationInvalidError extends Error {
+  constructor() {
+    super("La ubicación no existe o está inactiva.");
+    this.name = "AssetLocationInvalidError";
+  }
+}
+
+/** Thrown when the 4-digit matrícula sequence is exhausted for (type, plant). */
 export class AssetCodeOverflowError extends Error {
   constructor() {
-    super("Se agotó la numeración de matrícula para esta categoría y planta.");
+    super("Se agotó la numeración de matrícula para este tipo y planta.");
     this.name = "AssetCodeOverflowError";
   }
 }
 
 // ---------------------------------------------------------------------------
-// Asset categories (configurable catalog — carries the matrícula code_prefix)
+// Asset categories (configurable catalog — since V18 the matrícula code_prefix
+// lives on the TYPE, not here)
 // ---------------------------------------------------------------------------
 
 export async function listAssetCategories(
@@ -170,7 +213,6 @@ export async function findAssetCategoryById(
 export interface CreateAssetCategoryInput {
   code: string;
   name: string;
-  code_prefix: string;
 }
 
 export async function createAssetCategory(
@@ -181,7 +223,6 @@ export async function createAssetCategory(
     .values({
       code: input.code.trim(),
       name: input.name.trim(),
-      code_prefix: input.code_prefix.trim().toUpperCase(),
     })
     .output("inserted.asset_category_id")
     .executeTakeFirst();
@@ -194,7 +235,6 @@ export async function createAssetCategory(
 export interface UpdateAssetCategoryInput {
   code?: string;
   name?: string;
-  code_prefix?: string;
   is_active?: boolean;
 }
 
@@ -205,8 +245,6 @@ export async function updateAssetCategory(
   const changes: Partial<Insertable<AssetCategory>> = { updated_at: new Date() };
   if (input.code !== undefined && input.code.trim()) changes.code = input.code.trim();
   if (input.name !== undefined && input.name.trim()) changes.name = input.name.trim();
-  if (input.code_prefix !== undefined && input.code_prefix.trim())
-    changes.code_prefix = input.code_prefix.trim().toUpperCase();
   if (input.is_active !== undefined) changes.is_active = input.is_active;
   await db
     .updateTable("asset_category")
@@ -232,15 +270,39 @@ export async function deleteAssetCategory(id: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Asset types (configurable catalog — grouped under a category)
+// Asset types (configurable catalog — grouped under a category; since V18 the
+// type carries the matrícula code_prefix and its process links)
 // ---------------------------------------------------------------------------
+
+/** Type row extended with its process links (V18: 1 type → N processes; the
+ * UI edits it as a single select for now). */
+export interface AssetTypeWithProcesses extends AssetTypeRow {
+  process_ids: number[];
+  process_names: string[];
+}
 
 export async function listAssetTypes(
   activeOnly = false,
-): Promise<AssetTypeRow[]> {
+): Promise<AssetTypeWithProcesses[]> {
   let q = db.selectFrom("asset_type").selectAll();
   if (activeOnly) q = q.where("is_active", "=", true);
-  return q.orderBy("name", "asc").execute();
+  const types = await q.orderBy("name", "asc").execute();
+  if (types.length === 0) return [];
+  const processIds = await typeProcessIdsByType(types.map((t) => t.asset_type_id));
+  const processNames = await processNamesById([
+    ...new Set([...processIds.values()].flat()),
+  ]);
+  return types.map((t) => {
+    const ids = processIds.get(t.asset_type_id) ?? [];
+    return {
+      ...t,
+      process_ids: ids,
+      process_names: ids.flatMap((id) => {
+        const name = processNames.get(id);
+        return name ? [name] : [];
+      }),
+    };
+  });
 }
 
 export async function findAssetTypeById(
@@ -258,22 +320,40 @@ export interface CreateAssetTypeInput {
   asset_category_id: number;
   code: string;
   name: string;
+  code_prefix: string;
+  /** Process links (N:M in DB; the UI sends 0 or 1 for now). */
+  process_ids?: number[];
 }
 
 export async function createAssetType(
   input: CreateAssetTypeInput,
 ): Promise<AssetTypeRow> {
-  const result = await db
-    .insertInto("asset_type")
-    .values({
-      asset_category_id: input.asset_category_id,
-      code: input.code.trim(),
-      name: input.name.trim(),
-    })
-    .output("inserted.asset_type_id")
-    .executeTakeFirst();
-  if (!result) throw new Error("Asset type insert returned no identity");
-  const row = await findAssetTypeById(result.asset_type_id);
+  const newId = await db.transaction().execute(async (trx) => {
+    const result = await trx
+      .insertInto("asset_type")
+      .values({
+        asset_category_id: input.asset_category_id,
+        code: input.code.trim(),
+        name: input.name.trim(),
+        code_prefix: input.code_prefix.trim().toUpperCase(),
+      })
+      .output("inserted.asset_type_id")
+      .executeTakeFirst();
+    if (!result) throw new Error("Asset type insert returned no identity");
+    if (input.process_ids && input.process_ids.length > 0) {
+      await trx
+        .insertInto("asset_type_process")
+        .values(
+          input.process_ids.map((pid) => ({
+            asset_type_id: result.asset_type_id,
+            process_id: pid,
+          })),
+        )
+        .execute();
+    }
+    return result.asset_type_id;
+  });
+  const row = await findAssetTypeById(newId);
   if (!row) throw new Error("Asset type not found after insert");
   return row;
 }
@@ -282,6 +362,7 @@ export interface UpdateAssetTypeInput {
   asset_category_id?: number;
   code?: string;
   name?: string;
+  code_prefix?: string;
   is_active?: boolean;
 }
 
@@ -294,12 +375,38 @@ export async function updateAssetType(
     changes.asset_category_id = input.asset_category_id;
   if (input.code !== undefined && input.code.trim()) changes.code = input.code.trim();
   if (input.name !== undefined && input.name.trim()) changes.name = input.name.trim();
+  if (input.code_prefix !== undefined && input.code_prefix.trim())
+    changes.code_prefix = input.code_prefix.trim().toUpperCase();
   if (input.is_active !== undefined) changes.is_active = input.is_active;
   await db
     .updateTable("asset_type")
     .set(changes)
     .where("asset_type_id", "=", id)
     .execute();
+}
+
+/**
+ * Replace the type ↔ process M:M in one transaction (V18 — replaces the old
+ * per-asset `setAssetProcesses`). The trx inherits the `maint` binding.
+ */
+export async function setAssetTypeProcesses(
+  typeId: number,
+  processIds: number[],
+): Promise<void> {
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .deleteFrom("asset_type_process")
+      .where("asset_type_id", "=", typeId)
+      .execute();
+    if (processIds.length > 0) {
+      await trx
+        .insertInto("asset_type_process")
+        .values(
+          processIds.map((pid) => ({ asset_type_id: typeId, process_id: pid })),
+        )
+        .execute();
+    }
+  });
 }
 
 export async function softDeleteAssetType(id: number): Promise<void> {
@@ -310,9 +417,16 @@ export async function softDeleteAssetType(id: number): Promise<void> {
     .execute();
 }
 
-/** Hard delete: 409s (FK) when an asset still references the type. */
+/** Hard delete: 409s (FK) when an asset still references the type. Process
+ * links are config OF the type, so they are cleared in the same transaction. */
 export async function deleteAssetType(id: number): Promise<void> {
-  await db.deleteFrom("asset_type").where("asset_type_id", "=", id).execute();
+  await db.transaction().execute(async (trx) => {
+    await trx
+      .deleteFrom("asset_type_process")
+      .where("asset_type_id", "=", id)
+      .execute();
+    await trx.deleteFrom("asset_type").where("asset_type_id", "=", id).execute();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -320,7 +434,7 @@ export async function deleteAssetType(id: number): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export interface ListAssetsFilter {
-  plantId?: number;
+  locationId?: number;
   status?: string;
   activeOnly?: boolean;
 }
@@ -329,8 +443,8 @@ export async function listAssets(
   filter: ListAssetsFilter = {},
 ): Promise<AssetListRow[]> {
   let q = db.selectFrom("asset").selectAll();
-  if (filter.plantId !== undefined) {
-    q = q.where("plant_id", "=", filter.plantId);
+  if (filter.locationId !== undefined) {
+    q = q.where("location_id", "=", filter.locationId);
   }
   if (filter.status !== undefined) {
     q = q.where("status", "=", filter.status);
@@ -341,41 +455,30 @@ export async function listAssets(
   const assets = await q.orderBy("code", "asc").execute();
   if (assets.length === 0) return [];
 
-  // asset_process (maint) links to process names in org: fetch the link rows,
-  // then resolve names from org and merge (no cross-schema join possible).
-  const links = await db
-    .selectFrom("asset_process")
-    .select(["asset_id", "process_id"])
-    .where(
-      "asset_id",
-      "in",
-      assets.map((a) => a.asset_id),
-    )
-    .execute();
-  const [plantNames, processNames, typeInfo] = await Promise.all([
-    plantNamesById([...new Set(assets.map((a) => a.plant_id))]),
-    processNamesById([...new Set(links.map((l) => l.process_id))]),
-    typeInfoById([...new Set(assets.map((a) => a.asset_type_id))]),
+  // Processes derive from the asset's TYPE (V18); location resolves the plant.
+  const typeIds = [...new Set(assets.map((a) => a.asset_type_id))];
+  const [locationRefs, typeInfo, processIdsByType] = await Promise.all([
+    locationRefsById([...new Set(assets.map((a) => a.location_id))]),
+    typeInfoById(typeIds),
+    typeProcessIdsByType(typeIds),
   ]);
-  const byAsset = new Map<number, string[]>();
-  const idsByAsset = new Map<number, number[]>();
-  for (const l of links) {
-    const ids = idsByAsset.get(l.asset_id) ?? [];
-    ids.push(l.process_id);
-    idsByAsset.set(l.asset_id, ids);
-    const name = processNames.get(l.process_id);
-    if (!name) continue;
-    const arr = byAsset.get(l.asset_id) ?? [];
-    arr.push(name);
-    byAsset.set(l.asset_id, arr);
-  }
+  const processNames = await processNamesById([
+    ...new Set([...processIdsByType.values()].flat()),
+  ]);
   return assets.map((a) => {
     const ti = typeInfo.get(a.asset_type_id);
+    const loc = locationRefs.get(a.location_id);
+    const pids = processIdsByType.get(a.asset_type_id) ?? [];
     return {
       ...a,
-      plant_name: plantNames.get(a.plant_id) ?? "",
-      process_names: byAsset.get(a.asset_id) ?? [],
-      process_ids: idsByAsset.get(a.asset_id) ?? [],
+      location_name: loc?.name ?? "",
+      plant_id: loc?.plant_id ?? 0,
+      plant_name: loc?.plant_name ?? "",
+      process_names: pids.flatMap((id) => {
+        const name = processNames.get(id);
+        return name ? [name] : [];
+      }),
+      process_ids: pids,
       type_name: ti?.type_name ?? "",
       asset_category_id: ti?.asset_category_id ?? 0,
       category_name: ti?.category_name ?? "",
@@ -416,14 +519,17 @@ export async function getAssetDetail(
     .where("asset.asset_id", "=", assetId)
     .executeTakeFirst();
   if (!base) return undefined;
-  const [plantNames, typeInfo] = await Promise.all([
-    plantNamesById([base.plant_id]),
+  const [locationRefs, typeInfo] = await Promise.all([
+    locationRefsById([base.location_id]),
     typeInfoById([base.asset_type_id]),
   ]);
   const ti = typeInfo.get(base.asset_type_id);
+  const loc = locationRefs.get(base.location_id);
   const asset = {
     ...base,
-    plant_name: plantNames.get(base.plant_id) ?? "",
+    location_name: loc?.name ?? "",
+    plant_id: loc?.plant_id ?? 0,
+    plant_name: loc?.plant_name ?? "",
     parent_code: base.parent_code ?? null,
     type_name: ti?.type_name ?? "",
     asset_category_id: ti?.asset_category_id ?? 0,
@@ -431,7 +537,7 @@ export async function getAssetDetail(
   };
 
   const [processes, restrictions, documents] = await Promise.all([
-    assetProcessRows(assetId),
+    typeProcessRows(base.asset_type_id),
     db
       .selectFrom("asset_restriction")
       .selectAll()
@@ -450,12 +556,11 @@ export async function getAssetDetail(
 
 export interface CreateAssetInput {
   name: string;
-  plant_id: number;
+  location_id: number;
   asset_type_id: number;
   brand?: string | null;
   model?: string | null;
   serial_number?: string | null;
-  status?: string;
   parent_asset_id?: number | null;
   installation_date?: Date | null;
   image_blob_path?: string | null;
@@ -464,43 +569,48 @@ export interface CreateAssetInput {
 
 /**
  * Create an asset with an auto-generated matrícula
- * `{category.code_prefix}-P{plant_id}-{NNNN}`, sequential per (category, plant).
- * The whole thing runs in one transaction: resolve the type's category+prefix,
- * claim the next sequence value under UPDLOCK+SERIALIZABLE (race-safe, per the
- * dba design), build the code, insert. `UQ_asset_code` is the final backstop.
+ * `{type.code_prefix}-P{plant_id}-{NNNN}`, sequential per (type, plant) since
+ * V18 — the plant is the location's plant at birth (moving the asset later
+ * shows in its location, the code never changes). One transaction: resolve
+ * the type's prefix + the location's plant, claim the next sequence value
+ * under UPDLOCK+SERIALIZABLE (race-safe, per the dba design), build the code,
+ * insert. `UQ_asset_code` is the final backstop.
  */
 export async function createAsset(input: CreateAssetInput): Promise<AssetRow> {
+  // Resolve the birth plant from the (active) location — org-bound query, so
+  // it runs before the maint transaction (read-only, no atomicity needed).
+  const location = await orgDb
+    .selectFrom("location")
+    .select(["location_id", "plant_id"])
+    .where("location_id", "=", input.location_id)
+    .where("is_active", "=", true)
+    .executeTakeFirst();
+  if (!location) throw new AssetLocationInvalidError();
+  const plantId = location.plant_id;
+
   const newId = await db.transaction().execute(async (trx) => {
-    // 1. Resolve category + prefix from the chosen (active) type.
+    // 1. Resolve the prefix from the chosen (active) type.
     const typeRow = await trx
-      .selectFrom("asset_type as t")
-      .innerJoin(
-        "asset_category as c",
-        "c.asset_category_id",
-        "t.asset_category_id",
-      )
-      .select([
-        "t.asset_category_id as asset_category_id",
-        "c.code_prefix as code_prefix",
-      ])
-      .where("t.asset_type_id", "=", input.asset_type_id)
-      .where("t.is_active", "=", true)
+      .selectFrom("asset_type")
+      .select(["asset_type_id", "code_prefix"])
+      .where("asset_type_id", "=", input.asset_type_id)
+      .where("is_active", "=", true)
       .executeTakeFirst();
     if (!typeRow) throw new AssetTypeInvalidError();
 
     // 2. Claim the next sequence value atomically. SERIALIZABLE + UPDLOCK takes
-    //    a key-range lock even when the (category, plant) row does not yet
-    //    exist, so concurrent first-inserts serialize instead of racing the PK.
+    //    a key-range lock even when the (type, plant) row does not yet exist,
+    //    so concurrent first-inserts serialize instead of racing the PK.
     const claimed = await sql<{ seq: number }>`
       DECLARE @seq INT;
       UPDATE maint.asset_code_sequence WITH (UPDLOCK, SERIALIZABLE)
         SET @seq = next_seq, next_seq = next_seq + 1
-        WHERE asset_category_id = ${typeRow.asset_category_id}
-          AND plant_id = ${input.plant_id};
+        WHERE asset_type_id = ${typeRow.asset_type_id}
+          AND plant_id = ${plantId};
       IF @@ROWCOUNT = 0
       BEGIN
-        INSERT INTO maint.asset_code_sequence (asset_category_id, plant_id, next_seq)
-        VALUES (${typeRow.asset_category_id}, ${input.plant_id}, 2);
+        INSERT INTO maint.asset_code_sequence (asset_type_id, plant_id, next_seq)
+        VALUES (${typeRow.asset_type_id}, ${plantId}, 2);
         SET @seq = 1;
       END
       SELECT @seq AS seq;
@@ -508,7 +618,7 @@ export async function createAsset(input: CreateAssetInput): Promise<AssetRow> {
     const seq = claimed.rows[0]?.seq;
     if (!seq) throw new Error("Could not claim asset code sequence");
     if (seq > 9999) throw new AssetCodeOverflowError();
-    const code = `${typeRow.code_prefix}-P${input.plant_id}-${String(seq).padStart(4, "0")}`;
+    const code = `${typeRow.code_prefix}-P${plantId}-${String(seq).padStart(4, "0")}`;
 
     // 3. Insert the asset with the generated code.
     const result = await trx
@@ -516,12 +626,11 @@ export async function createAsset(input: CreateAssetInput): Promise<AssetRow> {
       .values({
         code,
         name: input.name.trim(),
-        plant_id: input.plant_id,
+        location_id: input.location_id,
         asset_type_id: input.asset_type_id,
         brand: emptyToNull(input.brand),
         model: emptyToNull(input.model),
         serial_number: emptyToNull(input.serial_number),
-        ...(input.status !== undefined ? { status: input.status } : {}),
         parent_asset_id: input.parent_asset_id ?? null,
         installation_date: input.installation_date ?? null,
         image_blob_path: emptyToNull(input.image_blob_path),
@@ -539,12 +648,11 @@ export async function createAsset(input: CreateAssetInput): Promise<AssetRow> {
 
 export interface UpdateAssetInput {
   name?: string;
-  plant_id?: number;
+  location_id?: number;
   asset_type_id?: number;
   brand?: string | null;
   model?: string | null;
   serial_number?: string | null;
-  status?: string;
   parent_asset_id?: number | null;
   installation_date?: Date | null;
   image_blob_path?: string | null;
@@ -558,13 +666,12 @@ export async function updateAsset(
 ): Promise<void> {
   const changes: Partial<Insertable<Asset>> = { updated_at: new Date() };
   if (input.name !== undefined && input.name.trim()) changes.name = input.name.trim();
-  if (input.plant_id !== undefined) changes.plant_id = input.plant_id;
+  if (input.location_id !== undefined) changes.location_id = input.location_id;
   if (input.asset_type_id !== undefined) changes.asset_type_id = input.asset_type_id;
   if (input.brand !== undefined) changes.brand = emptyToNull(input.brand);
   if (input.model !== undefined) changes.model = emptyToNull(input.model);
   if (input.serial_number !== undefined)
     changes.serial_number = emptyToNull(input.serial_number);
-  if (input.status !== undefined) changes.status = input.status;
   if (input.parent_asset_id !== undefined)
     changes.parent_asset_id = input.parent_asset_id;
   if (input.installation_date !== undefined)
@@ -585,31 +692,13 @@ export async function softDeleteAsset(id: number): Promise<void> {
     .execute();
 }
 
-/**
- * Replace the asset ↔ process M:N in one transaction. The trx inherits the
- * `maint` schema binding — do not re-bind inside.
- */
-export async function setAssetProcesses(
-  assetId: number,
-  processIds: number[],
-): Promise<void> {
-  await db.transaction().execute(async (trx) => {
-    await trx.deleteFrom("asset_process").where("asset_id", "=", assetId).execute();
-    if (processIds.length > 0) {
-      await trx
-        .insertInto("asset_process")
-        .values(processIds.map((pid) => ({ asset_id: assetId, process_id: pid })))
-        .execute();
-    }
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Processes — the catalog moved to the `org` schema in V15 and is administered
 // from the admin panel (`/admin/organization/processes`). Maintenance still
-// needs READ access (the asset↔process picker in the machine detail, the QR
-// flows), so re-export the org reads here to keep import sites stable. The
-// write CRUD lives in `@/modules/org/db/processes`.
+// needs READ access (the type↔process picker in the catalogs tab), so
+// re-export the org reads here to keep import sites stable. The write CRUD
+// lives in `@/modules/org/db/processes`. Since V18 the process link hangs off
+// the asset TYPE (`asset_type_process`) — there is no per-asset link anymore.
 // ---------------------------------------------------------------------------
 export { listProcesses, findProcessById } from "@/modules/org/db/processes";
 

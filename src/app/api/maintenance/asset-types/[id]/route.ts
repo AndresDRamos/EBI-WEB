@@ -3,6 +3,7 @@ import {
   findAssetTypeById,
   updateAssetType,
   deleteAssetType,
+  setAssetTypeProcesses,
 } from "@/modules/maintenance/db";
 import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
@@ -16,7 +17,10 @@ interface PutBody {
   asset_category_id?: unknown;
   code?: unknown;
   name?: unknown;
+  code_prefix?: unknown;
   is_active?: unknown;
+  /** Full replacement of the type ↔ process links when present. */
+  process_ids?: unknown;
 }
 
 /** PUT /api/maintenance/asset-types/[id] — update / soft-delete / restore. */
@@ -42,8 +46,30 @@ export async function PUT(
   }
   if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
   if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
+  if (body.code_prefix !== undefined) {
+    if (
+      typeof body.code_prefix !== "string" ||
+      !/^[A-Za-z0-9]{2,8}$/.test(body.code_prefix.trim())
+    ) {
+      return NextResponse.json(
+        { error: "El prefijo de matrícula debe tener de 2 a 8 caracteres alfanuméricos." },
+        { status: 422 },
+      );
+    }
+    changes.code_prefix = body.code_prefix.trim();
+  }
   if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-  if (Object.keys(changes).length === 0) {
+  let processIds: number[] | undefined;
+  if (body.process_ids !== undefined) {
+    if (
+      !Array.isArray(body.process_ids) ||
+      body.process_ids.some((p) => !Number.isInteger(p) || (p as number) <= 0)
+    ) {
+      return NextResponse.json({ error: "Procesos inválidos." }, { status: 422 });
+    }
+    processIds = body.process_ids as number[];
+  }
+  if (Object.keys(changes).length === 0 && processIds === undefined) {
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
   }
   try {
@@ -51,12 +77,19 @@ export async function PUT(
     if (!(await findAssetTypeById(id))) {
       return NextResponse.json({ error: "Tipo no encontrado." }, { status: 404 });
     }
-    await updateAssetType(id, changes);
+    if (Object.keys(changes).length > 0) await updateAssetType(id, changes);
+    if (processIds !== undefined) await setAssetTypeProcesses(id, processIds);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
     const msg = err instanceof Error ? err.message : "";
+    if (/UQ_asset_type_prefix/i.test(msg)) {
+      return NextResponse.json(
+        { error: "Ese prefijo de matrícula ya lo usa otro tipo." },
+        { status: 409 },
+      );
+    }
     if (/unique/i.test(msg)) {
       return NextResponse.json(
         { error: "Ya existe un tipo con ese código en la categoría." },

@@ -15,7 +15,6 @@ function parseId(raw: string): number | null {
 interface PutBody {
   code?: unknown;
   name?: unknown;
-  code_prefix?: unknown;
   is_active?: unknown;
 }
 
@@ -35,18 +34,6 @@ export async function PUT(
   const changes: Parameters<typeof updateAssetCategory>[1] = {};
   if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
   if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (body.code_prefix !== undefined) {
-    if (
-      typeof body.code_prefix !== "string" ||
-      !/^[A-Za-z0-9]{2,8}$/.test(body.code_prefix.trim())
-    ) {
-      return NextResponse.json(
-        { error: "El prefijo debe ser alfanumérico (2–8 caracteres)." },
-        { status: 422 },
-      );
-    }
-    changes.code_prefix = body.code_prefix.trim();
-  }
   if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
   if (Object.keys(changes).length === 0) {
     return NextResponse.json({ error: "Sin cambios." }, { status: 422 });

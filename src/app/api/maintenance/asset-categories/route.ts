@@ -23,10 +23,10 @@ export async function GET(request: NextRequest) {
 interface CreateBody {
   code?: unknown;
   name?: unknown;
-  code_prefix?: unknown;
 }
 
-/** POST /api/maintenance/asset-categories — create a category. */
+/** POST /api/maintenance/asset-categories — create a category. Since V18 the
+ * matrícula prefix lives on the asset TYPE, not here. */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
   try {
@@ -36,27 +36,15 @@ export async function POST(request: NextRequest) {
   }
   const code = typeof body.code === "string" ? body.code.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const prefix =
-    typeof body.code_prefix === "string" ? body.code_prefix.trim() : "";
-  if (!code || !name || !prefix) {
+  if (!code || !name) {
     return NextResponse.json(
-      { error: "Código, nombre y prefijo son obligatorios." },
-      { status: 422 },
-    );
-  }
-  if (!/^[A-Za-z0-9]{2,8}$/.test(prefix)) {
-    return NextResponse.json(
-      { error: "El prefijo debe ser alfanumérico (2–8 caracteres)." },
+      { error: "Código y nombre son obligatorios." },
       { status: 422 },
     );
   }
   try {
     await requirePermission("maintenance.asset_category:create");
-    const category = await createAssetCategory({
-      code,
-      name,
-      code_prefix: prefix,
-    });
+    const category = await createAssetCategory({ code, name });
     return NextResponse.json({ category }, { status: 201 });
   } catch (err) {
     const res = authErrorResponse(err);
@@ -64,7 +52,7 @@ export async function POST(request: NextRequest) {
     const msg = err instanceof Error ? err.message : "";
     if (/unique/i.test(msg)) {
       return NextResponse.json(
-        { error: "El código o el prefijo ya existen." },
+        { error: "El código ya existe." },
         { status: 409 },
       );
     }

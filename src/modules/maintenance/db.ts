@@ -58,6 +58,22 @@ async function processNamesById(ids: number[]): Promise<Map<number, string>> {
   return new Map(rows.map((r) => [r.process_id, r.name]));
 }
 
+/** Whether an asset type supports a given process — backs the operative-cells
+ * invariant (app-enforced, no triggers) that an asset can only be assigned to
+ * a cell whose declared process its type supports. */
+export async function assetTypeSupportsProcess(
+  assetTypeId: number,
+  processId: number,
+): Promise<boolean> {
+  const row = await db
+    .selectFrom("asset_type_process")
+    .select("asset_type_id")
+    .where("asset_type_id", "=", assetTypeId)
+    .where("process_id", "=", processId)
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
 /** Process ids per asset type (V18: processes are a property of the TYPE,
  * not of each unit — `asset_type_process` replaced `asset_process`). */
 async function typeProcessIdsByType(

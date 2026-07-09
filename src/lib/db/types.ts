@@ -32,11 +32,11 @@ export interface Asset {
   image_blob_path: string | null;
   installation_date: Date | null;
   is_active: Generated<boolean>;
+  location_id: number;
   model: string | null;
   name: string;
   notes: string | null;
   parent_asset_id: number | null;
-  plant_id: number;
   serial_number: string | null;
   status: Generated<string>;
   updated_at: Generated<Date>;
@@ -45,7 +45,6 @@ export interface Asset {
 export interface AssetCategory {
   asset_category_id: Generated<number>;
   code: string;
-  code_prefix: string;
   created_at: Generated<Date>;
   is_active: Generated<boolean>;
   name: string;
@@ -65,7 +64,7 @@ export interface AssetCellAssignment {
 }
 
 export interface AssetCodeSequence {
-  asset_category_id: number;
+  asset_type_id: number;
   next_seq: Generated<number>;
   plant_id: number;
 }
@@ -111,11 +110,6 @@ export interface AssetPlacement {
   y_m: number;
 }
 
-export interface AssetProcess {
-  asset_id: number;
-  process_id: number;
-}
-
 export interface AssetRestriction {
   asset_id: number;
   created_at: Generated<Date>;
@@ -130,10 +124,16 @@ export interface AssetType {
   asset_category_id: number;
   asset_type_id: Generated<number>;
   code: string;
+  code_prefix: string;
   created_at: Generated<Date>;
   is_active: Generated<boolean>;
   name: string;
   updated_at: Generated<Date>;
+}
+
+export interface AssetTypeProcess {
+  asset_type_id: number;
+  process_id: number;
 }
 
 export interface Cell {
@@ -142,6 +142,7 @@ export interface Cell {
   created_at: Generated<Date>;
   is_active: Generated<boolean>;
   line_id: number | null;
+  location_id: number | null;
   name: string;
   plant_id: number;
   sequence_in_line: number | null;
@@ -187,6 +188,16 @@ export interface Invitation {
   invitation_id: Generated<number>;
   token_hash: string;
   user_id: number;
+}
+
+export interface Location {
+  code: string;
+  created_at: Generated<Date>;
+  is_active: Generated<boolean>;
+  location_id: Generated<number>;
+  name: string;
+  plant_id: number;
+  updated_at: Generated<Date>;
 }
 
 export interface MaintenancePlan {
@@ -428,14 +439,15 @@ export interface DB {
   asset_document: AssetDocument;
   asset_footprint: AssetFootprint;
   asset_placement: AssetPlacement;
-  asset_process: AssetProcess;
   asset_restriction: AssetRestriction;
   asset_type: AssetType;
+  asset_type_process: AssetTypeProcess;
   cell: Cell;
   database_firewall_rules: DatabaseFirewallRules;
   department: Department;
   flyway_schema_history: FlywaySchemaHistory;
   invitation: Invitation;
+  location: Location;
   maintenance_plan: MaintenancePlan;
   nav_item: NavItem;
   nav_section: NavSection;

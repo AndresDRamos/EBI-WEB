@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  getCellDetail,
+  cellHasChildren,
   findCellById,
-  findLineById,
+  getCellDetail,
   updateCell,
 } from "@/modules/production/db";
-import { findLocationById } from "@/modules/org/db/locations";
+import { findProcessById } from "@/modules/org/db/processes";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -37,16 +37,22 @@ export async function GET(
 }
 
 interface PatchBody {
-  code?: unknown;
   name?: unknown;
-  plant_id?: unknown;
-  location_id?: unknown;
-  line_id?: unknown;
-  sequence_in_line?: unknown;
+  parent_cell_id?: unknown;
+  size_x_m?: unknown;
+  size_y_m?: unknown;
+  process_id?: unknown;
   is_active?: unknown;
 }
 
-/** PATCH /api/production/cells/[id] — update a production cell. */
+function parsePositiveNumberOrNull(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : NaN;
+}
+
+/** PATCH /api/production/cells/[id] — update a production cell. `code` and
+ * `location_id` are immutable (the code encodes the location). */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -60,35 +66,34 @@ export async function PATCH(
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
   const changes: Parameters<typeof updateCell>[1] = {};
-  if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
   if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (body.plant_id !== undefined) {
-    const plantId = Number(body.plant_id);
-    if (!Number.isInteger(plantId) || plantId <= 0) {
-      return NextResponse.json({ error: "Planta inválida." }, { status: 422 });
+  if (body.parent_cell_id !== undefined) {
+    const parentId = body.parent_cell_id == null ? null : Number(body.parent_cell_id);
+    if (parentId !== null && (!Number.isInteger(parentId) || parentId <= 0)) {
+      return NextResponse.json({ error: "Celda padre inválida." }, { status: 422 });
     }
-    changes.plant_id = plantId;
+    changes.parent_cell_id = parentId;
   }
-  if (body.location_id !== undefined) {
-    const locationId = body.location_id == null ? null : Number(body.location_id);
-    if (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0)) {
-      return NextResponse.json({ error: "Ubicación inválida." }, { status: 422 });
+  if (body.size_x_m !== undefined) {
+    const sizeX = parsePositiveNumberOrNull(body.size_x_m);
+    if (Number.isNaN(sizeX)) {
+      return NextResponse.json({ error: "El tamaño X debe ser mayor a cero." }, { status: 422 });
     }
-    changes.location_id = locationId;
+    changes.size_x_m = sizeX;
   }
-  if (body.line_id !== undefined) {
-    const lineId = body.line_id == null ? null : Number(body.line_id);
-    if (lineId !== null && (!Number.isInteger(lineId) || lineId <= 0)) {
-      return NextResponse.json({ error: "Línea inválida." }, { status: 422 });
+  if (body.size_y_m !== undefined) {
+    const sizeY = parsePositiveNumberOrNull(body.size_y_m);
+    if (Number.isNaN(sizeY)) {
+      return NextResponse.json({ error: "El tamaño Y debe ser mayor a cero." }, { status: 422 });
     }
-    changes.line_id = lineId;
+    changes.size_y_m = sizeY;
   }
-  if (body.sequence_in_line !== undefined) {
-    const seq = body.sequence_in_line == null ? null : Number(body.sequence_in_line);
-    if (seq !== null && (!Number.isInteger(seq) || seq <= 0)) {
-      return NextResponse.json({ error: "Secuencia inválida." }, { status: 422 });
+  if (body.process_id !== undefined) {
+    const processId = body.process_id == null ? null : Number(body.process_id);
+    if (processId !== null && (!Number.isInteger(processId) || processId <= 0)) {
+      return NextResponse.json({ error: "Proceso inválido." }, { status: 422 });
     }
-    changes.sequence_in_line = seq;
+    changes.process_id = processId;
   }
   if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
   if (Object.keys(changes).length === 0) {
@@ -100,29 +105,34 @@ export async function PATCH(
     if (!existing) {
       return NextResponse.json({ error: "Celda no encontrada." }, { status: 404 });
     }
-    // Mirror of CK_cell_sequence_requires_line against the *effective* line
-    // (body wins over the stored row), as a friendly 422.
-    const effectiveLine =
-      changes.line_id !== undefined ? changes.line_id : existing.line_id;
-    const effectiveSeq =
-      changes.sequence_in_line !== undefined
-        ? changes.sequence_in_line
-        : existing.sequence_in_line;
-    if (effectiveSeq !== null && effectiveLine === null) {
-      return NextResponse.json(
-        { error: "La secuencia solo aplica cuando la celda pertenece a una línea." },
-        { status: 422 },
-      );
+    if (changes.process_id != null && !(await findProcessById(changes.process_id))) {
+      return NextResponse.json({ error: "Proceso inválido." }, { status: 422 });
     }
-    if (changes.line_id != null && !(await findLineById(changes.line_id))) {
-      return NextResponse.json({ error: "Línea inválida." }, { status: 422 });
-    }
-    if (changes.location_id != null) {
-      const effectivePlant = changes.plant_id ?? existing.plant_id;
-      const location = await findLocationById(changes.location_id);
-      if (!location || location.plant_id !== effectivePlant) {
+    if (changes.parent_cell_id !== undefined && changes.parent_cell_id !== null) {
+      // Depth-1, both directions: the target parent cannot itself have a
+      // parent, and this cell cannot already have children of its own.
+      const parent = await findCellById(changes.parent_cell_id);
+      if (!parent || !parent.is_active || parent.location_id !== existing.location_id) {
         return NextResponse.json(
-          { error: "La ubicación no pertenece a la planta de la celda." },
+          { error: "La celda padre no está en la misma ubicación o no existe." },
+          { status: 422 },
+        );
+      }
+      if (parent.parent_cell_id !== null) {
+        return NextResponse.json(
+          {
+            error:
+              "Una celda hija no puede tener celdas hijas a su vez (profundidad máxima: 1).",
+          },
+          { status: 422 },
+        );
+      }
+      if (await cellHasChildren(id)) {
+        return NextResponse.json(
+          {
+            error:
+              "Esta celda ya tiene celdas hijas: no puede pasar a ser hija de otra.",
+          },
           { status: 422 },
         );
       }
@@ -133,7 +143,7 @@ export async function PATCH(
     const res = authErrorResponse(err);
     if (res) return res;
     const msg = err instanceof Error ? err.message : "";
-    if (/UQ_cell_line_sequence/i.test(msg)) {
+    if (/UQ_cell_parent_sequence/i.test(msg)) {
       return NextResponse.json(
         { error: "Ya existe una celda con esa secuencia en la línea." },
         { status: 409 },

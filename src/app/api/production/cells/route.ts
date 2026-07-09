@@ -1,6 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { listCells, createCell, findLineById } from "@/modules/production/db";
-import { findLocationById } from "@/modules/org/db/locations";
+import {
+  createCell,
+  listCells,
+  CellCodeOverflowError,
+  CellDepthExceededError,
+  CellLocationInvalidError,
+  CellParentInvalidError,
+} from "@/modules/production/db";
+import { findProcessById } from "@/modules/org/db/processes";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -19,15 +26,22 @@ export async function GET(request: NextRequest) {
 }
 
 interface CreateBody {
-  code?: unknown;
   name?: unknown;
-  plant_id?: unknown;
   location_id?: unknown;
-  line_id?: unknown;
-  sequence_in_line?: unknown;
+  parent_cell_id?: unknown;
+  size_x_m?: unknown;
+  size_y_m?: unknown;
+  process_id?: unknown;
 }
 
-/** POST /api/production/cells — create a production cell. */
+function parsePositiveNumber(v: unknown): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : NaN;
+}
+
+/** POST /api/production/cells — create a production cell, pre-filtered by
+ * location. The code is auto-generated server-side (never accepted here). */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
   try {
@@ -35,62 +49,65 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
-  const code = typeof body.code === "string" ? body.code.trim() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const plantId = Number(body.plant_id);
-  if (!code || !name || !Number.isInteger(plantId) || plantId <= 0) {
+  const locationId = Number(body.location_id);
+  if (!name || !Number.isInteger(locationId) || locationId <= 0) {
     return NextResponse.json(
-      { error: "Código, nombre y planta son obligatorios." },
+      { error: "Nombre y ubicación son obligatorios." },
       { status: 422 },
     );
   }
-  const locationId = body.location_id == null ? null : Number(body.location_id);
-  if (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0)) {
-    return NextResponse.json({ error: "Ubicación inválida." }, { status: 422 });
+  const parentId = body.parent_cell_id == null ? null : Number(body.parent_cell_id);
+  if (parentId !== null && (!Number.isInteger(parentId) || parentId <= 0)) {
+    return NextResponse.json({ error: "Celda padre inválida." }, { status: 422 });
   }
-  const lineId = body.line_id == null ? null : Number(body.line_id);
-  if (lineId !== null && (!Number.isInteger(lineId) || lineId <= 0)) {
-    return NextResponse.json({ error: "Línea inválida." }, { status: 422 });
-  }
-  const seq = body.sequence_in_line == null ? null : Number(body.sequence_in_line);
-  if (seq !== null && (!Number.isInteger(seq) || seq <= 0)) {
-    return NextResponse.json({ error: "Secuencia inválida." }, { status: 422 });
-  }
-  // Mirror of CK_cell_sequence_requires_line, as a friendly 422.
-  if (seq !== null && lineId === null) {
+  const sizeX = parsePositiveNumber(body.size_x_m);
+  const sizeY = parsePositiveNumber(body.size_y_m);
+  if (Number.isNaN(sizeX) || Number.isNaN(sizeY)) {
     return NextResponse.json(
-      { error: "La secuencia solo aplica cuando la celda pertenece a una línea." },
+      { error: "El tamaño debe ser mayor a cero." },
       { status: 422 },
     );
+  }
+  if (sizeX === null || sizeY === null) {
+    return NextResponse.json(
+      { error: "El tamaño X y Y es obligatorio." },
+      { status: 422 },
+    );
+  }
+  const processId = body.process_id == null ? null : Number(body.process_id);
+  if (processId !== null && (!Number.isInteger(processId) || processId <= 0)) {
+    return NextResponse.json({ error: "Proceso inválido." }, { status: 422 });
   }
   try {
     await requirePermission("production.cell:create");
-    if (lineId !== null && !(await findLineById(lineId))) {
-      return NextResponse.json({ error: "Línea inválida." }, { status: 422 });
-    }
-    if (locationId !== null) {
-      const location = await findLocationById(locationId);
-      if (!location || location.plant_id !== plantId) {
-        return NextResponse.json(
-          { error: "La ubicación no pertenece a la planta de la celda." },
-          { status: 422 },
-        );
-      }
+    if (processId !== null && !(await findProcessById(processId))) {
+      return NextResponse.json({ error: "Proceso inválido." }, { status: 422 });
     }
     const cell = await createCell({
-      code,
       name,
-      plant_id: plantId,
       location_id: locationId,
-      line_id: lineId,
-      sequence_in_line: seq,
+      parent_cell_id: parentId,
+      size_x_m: sizeX,
+      size_y_m: sizeY,
+      process_id: processId,
     });
     return NextResponse.json({ cell }, { status: 201 });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
+    if (
+      err instanceof CellLocationInvalidError ||
+      err instanceof CellParentInvalidError ||
+      err instanceof CellDepthExceededError
+    ) {
+      return NextResponse.json({ error: err.message }, { status: 422 });
+    }
+    if (err instanceof CellCodeOverflowError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     const msg = err instanceof Error ? err.message : "";
-    if (/UQ_cell_line_sequence/i.test(msg)) {
+    if (/UQ_cell_parent_sequence/i.test(msg)) {
       return NextResponse.json(
         { error: "Ya existe una celda con esa secuencia en la línea." },
         { status: 409 },

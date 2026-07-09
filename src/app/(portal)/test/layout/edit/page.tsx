@@ -44,10 +44,13 @@ export default async function LayoutEditRoute({
     );
   }
 
-  const [placements, assets] = await Promise.all([
+  const [placements, allAssets] = await Promise.all([
     listByLayout(layout.layout_id, { currentOnly: true }).catch(() => []),
-    listAssets({ plantId: layout.plant_id, activeOnly: true }).catch(() => []),
+    listAssets({ activeOnly: true }).catch(() => []),
   ]);
+  // Plant is derived via the asset's location since V18 — filter here instead
+  // of in SQL (the listAssets plantId filter was replaced by locationId).
+  const assets = allAssets.filter((a) => a.plant_id === layout.plant_id);
   const footprints = await listFootprintsByAssets([
     ...new Set([
       ...assets.map((a) => a.asset_id),

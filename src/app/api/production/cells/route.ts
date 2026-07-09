@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { listCells, createCell, findLineById } from "@/modules/production/db";
+import { findLocationById } from "@/modules/org/db/locations";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -21,6 +22,7 @@ interface CreateBody {
   code?: unknown;
   name?: unknown;
   plant_id?: unknown;
+  location_id?: unknown;
   line_id?: unknown;
   sequence_in_line?: unknown;
 }
@@ -42,6 +44,10 @@ export async function POST(request: NextRequest) {
       { status: 422 },
     );
   }
+  const locationId = body.location_id == null ? null : Number(body.location_id);
+  if (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0)) {
+    return NextResponse.json({ error: "Ubicación inválida." }, { status: 422 });
+  }
   const lineId = body.line_id == null ? null : Number(body.line_id);
   if (lineId !== null && (!Number.isInteger(lineId) || lineId <= 0)) {
     return NextResponse.json({ error: "Línea inválida." }, { status: 422 });
@@ -62,10 +68,20 @@ export async function POST(request: NextRequest) {
     if (lineId !== null && !(await findLineById(lineId))) {
       return NextResponse.json({ error: "Línea inválida." }, { status: 422 });
     }
+    if (locationId !== null) {
+      const location = await findLocationById(locationId);
+      if (!location || location.plant_id !== plantId) {
+        return NextResponse.json(
+          { error: "La ubicación no pertenece a la planta de la celda." },
+          { status: 422 },
+        );
+      }
+    }
     const cell = await createCell({
       code,
       name,
       plant_id: plantId,
+      location_id: locationId,
       line_id: lineId,
       sequence_in_line: seq,
     });

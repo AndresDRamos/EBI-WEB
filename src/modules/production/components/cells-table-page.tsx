@@ -22,12 +22,20 @@ export interface LineOption {
   name: string;
 }
 
+export interface LocationOption {
+  location_id: number;
+  plant_id: number;
+  name: string;
+}
+
 export interface CellsTableRow {
   cell_id: number;
   code: string;
   name: string;
   plant_id: number;
   plant_name: string;
+  location_id: number | null;
+  location_name: string | null;
   line_id: number | null;
   line_code: string | null;
   line_name: string | null;
@@ -39,12 +47,20 @@ export interface CellsTableRow {
 export interface CellsTablePageProps {
   cells: CellsTableRow[];
   plants: PlantOption[];
+  locations: LocationOption[];
   lines: LineOption[];
 }
 
 /** Celdas catalog — logical production posts. A cell optionally belongs to a
- * line (with an Op sequence). Composition is managed in the cell detail. */
-export function CellsTablePage({ cells, plants, lines }: CellsTablePageProps) {
+ * line (with an Op sequence) and to a plant location (required for asset
+ * assignment: an asset only joins cells sharing its location). Composition is
+ * managed in the cell detail. */
+export function CellsTablePage({
+  cells,
+  plants,
+  locations,
+  lines,
+}: CellsTablePageProps) {
   const can = useCan();
   const router = useRouter();
   const [modal, setModal] = React.useState<{
@@ -55,6 +71,7 @@ export function CellsTablePage({ cells, plants, lines }: CellsTablePageProps) {
   const [code, setCode] = React.useState("");
   const [name, setName] = React.useState("");
   const [plantId, setPlantId] = React.useState("");
+  const [locationId, setLocationId] = React.useState("");
   const [lineId, setLineId] = React.useState("");
   const [sequence, setSequence] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -64,6 +81,7 @@ export function CellsTablePage({ cells, plants, lines }: CellsTablePageProps) {
     setCode("");
     setName("");
     setPlantId("");
+    setLocationId("");
     setLineId("");
     setSequence("");
     setError(null);
@@ -74,6 +92,7 @@ export function CellsTablePage({ cells, plants, lines }: CellsTablePageProps) {
     setCode(row.code);
     setName(row.name);
     setPlantId(String(row.plant_id));
+    setLocationId(row.location_id ? String(row.location_id) : "");
     setLineId(row.line_id ? String(row.line_id) : "");
     setSequence(row.sequence_in_line ? String(row.sequence_in_line) : "");
     setError(null);
@@ -103,6 +122,7 @@ export function CellsTablePage({ cells, plants, lines }: CellsTablePageProps) {
           code: code.trim(),
           name: name.trim(),
           plant_id: Number(plantId),
+          location_id: locationId ? Number(locationId) : null,
           line_id: lineId ? Number(lineId) : null,
           sequence_in_line: sequence ? Number(sequence) : null,
         }),
@@ -183,6 +203,18 @@ export function CellsTablePage({ cells, plants, lines }: CellsTablePageProps) {
         accessor: (r) => r.plant_name,
         filter: { kind: "catalog", options: plantOptions },
         className: "w-40",
+      },
+      {
+        key: "location",
+        header: "Ubicación",
+        accessor: (r) => r.location_name ?? "",
+        render: (r) =>
+          r.location_name ? (
+            <span>{r.location_name}</span>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+        className: "w-48",
       },
       {
         key: "line",
@@ -273,21 +305,50 @@ export function CellsTablePage({ cells, plants, lines }: CellsTablePageProps) {
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="cell-plant">Planta *</Label>
-            <Select
-              id="cell-plant"
-              value={plantId}
-              onChange={(e) => setPlantId(e.target.value)}
-              disabled={busy}
-            >
-              <option value="">Selecciona…</option>
-              {plants.map((p) => (
-                <option key={p.plant_id} value={p.plant_id}>
-                  {p.name}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="cell-plant">Planta *</Label>
+              <Select
+                id="cell-plant"
+                value={plantId}
+                onChange={(e) => {
+                  setPlantId(e.target.value);
+                  // A location belongs to one plant — changing plant invalidates it.
+                  setLocationId("");
+                }}
+                disabled={busy}
+              >
+                <option value="">Selecciona…</option>
+                {plants.map((p) => (
+                  <option key={p.plant_id} value={p.plant_id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cell-location">Ubicación</Label>
+              <Select
+                id="cell-location"
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                disabled={busy || !plantId}
+              >
+                <option value="">
+                  {plantId ? "Sin ubicación" : "Selecciona planta primero"}
                 </option>
-              ))}
-            </Select>
+                {locations
+                  .filter((l) => String(l.plant_id) === plantId)
+                  .map((l) => (
+                    <option key={l.location_id} value={l.location_id}>
+                      {l.name}
+                    </option>
+                  ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Solo se pueden asignar equipos a celdas con ubicación.
+              </p>
+            </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

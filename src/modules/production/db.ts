@@ -29,6 +29,16 @@ async function plantNamesById(ids: number[]): Promise<Map<number, string>> {
   return new Map(rows.map((r) => [r.plant_id, r.name]));
 }
 
+async function locationNamesById(ids: number[]): Promise<Map<number, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await orgDb
+    .selectFrom("location")
+    .select(["location_id", "name"])
+    .where("location_id", "in", ids)
+    .execute();
+  return new Map(rows.map((r) => [r.location_id, r.name]));
+}
+
 async function assetRefsById(
   ids: number[],
 ): Promise<Map<number, { code: string; name: string }>> {
@@ -153,6 +163,7 @@ export async function updateLine(
 
 export interface CellListRow extends CellRow {
   plant_name: string;
+  location_name: string | null;
   line_code: string | null;
   line_name: string | null;
   current_asset_count: number;
@@ -171,8 +182,13 @@ export async function listCells(activeOnly = false): Promise<CellListRow[]> {
   const cells = await q.orderBy("cell.code", "asc").execute();
   if (cells.length === 0) return [];
 
-  const [plantNames, counts] = await Promise.all([
+  const [plantNames, locationNames, counts] = await Promise.all([
     plantNamesById([...new Set(cells.map((c) => c.plant_id))]),
+    locationNamesById([
+      ...new Set(
+        cells.flatMap((c) => (c.location_id !== null ? [c.location_id] : [])),
+      ),
+    ]),
     db
       .selectFrom("asset_cell_assignment")
       .select(({ fn }) => ["cell_id", fn.countAll<number>().as("n")])
@@ -191,6 +207,8 @@ export async function listCells(activeOnly = false): Promise<CellListRow[]> {
     line_code: c.line_code ?? null,
     line_name: c.line_name ?? null,
     plant_name: plantNames.get(c.plant_id) ?? "",
+    location_name:
+      c.location_id !== null ? (locationNames.get(c.location_id) ?? null) : null,
     current_asset_count: assetsByCell.get(c.cell_id) ?? 0,
   }));
 }
@@ -264,6 +282,7 @@ export interface CreateCellInput {
   code: string;
   name: string;
   plant_id: number;
+  location_id?: number | null;
   line_id?: number | null;
   sequence_in_line?: number | null;
 }
@@ -275,6 +294,7 @@ export async function createCell(input: CreateCellInput): Promise<CellRow> {
       code: input.code.trim(),
       name: input.name.trim(),
       plant_id: input.plant_id,
+      location_id: input.location_id ?? null,
       line_id: input.line_id ?? null,
       // DB CHECK CK_cell_sequence_requires_line rejects a sequence without a
       // line; normalize here so the API layer's friendly 422 is the only gate.
@@ -292,6 +312,7 @@ export interface UpdateCellInput {
   code?: string;
   name?: string;
   plant_id?: number;
+  location_id?: number | null;
   line_id?: number | null;
   sequence_in_line?: number | null;
   is_active?: boolean;
@@ -305,6 +326,7 @@ export async function updateCell(
   if (input.code !== undefined && input.code.trim()) changes.code = input.code.trim();
   if (input.name !== undefined && input.name.trim()) changes.name = input.name.trim();
   if (input.plant_id !== undefined) changes.plant_id = input.plant_id;
+  if (input.location_id !== undefined) changes.location_id = input.location_id;
   if (input.line_id !== undefined) {
     changes.line_id = input.line_id;
     // Leaving a line always clears the sequence (DB CHECK would reject it).

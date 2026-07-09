@@ -70,11 +70,21 @@ export async function POST(
   }
   try {
     const user = await requirePermission("production.assignment:create");
-    if (!(await findCellById(cellId))) {
+    const cell = await findCellById(cellId);
+    if (!cell) {
       return NextResponse.json({ error: "Celda no encontrada." }, { status: 404 });
     }
-    if (!(await findAssetById(assetId))) {
+    const asset = await findAssetById(assetId);
+    if (!asset) {
       return NextResponse.json({ error: "Equipo inválido." }, { status: 422 });
+    }
+    // Cross-schema invariant (V18, app-enforced — house style, no triggers):
+    // an asset only works in a cell that shares its physical location.
+    if (cell.location_id === null || cell.location_id !== asset.location_id) {
+      return NextResponse.json(
+        { error: "La celda no está en la misma ubicación que el equipo." },
+        { status: 422 },
+      );
     }
     const assignment = await assign({
       asset_id: assetId,

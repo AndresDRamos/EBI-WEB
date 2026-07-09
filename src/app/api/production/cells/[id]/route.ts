@@ -5,6 +5,7 @@ import {
   findLineById,
   updateCell,
 } from "@/modules/production/db";
+import { findLocationById } from "@/modules/org/db/locations";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -39,6 +40,7 @@ interface PatchBody {
   code?: unknown;
   name?: unknown;
   plant_id?: unknown;
+  location_id?: unknown;
   line_id?: unknown;
   sequence_in_line?: unknown;
   is_active?: unknown;
@@ -66,6 +68,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Planta inválida." }, { status: 422 });
     }
     changes.plant_id = plantId;
+  }
+  if (body.location_id !== undefined) {
+    const locationId = body.location_id == null ? null : Number(body.location_id);
+    if (locationId !== null && (!Number.isInteger(locationId) || locationId <= 0)) {
+      return NextResponse.json({ error: "Ubicación inválida." }, { status: 422 });
+    }
+    changes.location_id = locationId;
   }
   if (body.line_id !== undefined) {
     const lineId = body.line_id == null ? null : Number(body.line_id);
@@ -107,6 +116,16 @@ export async function PATCH(
     }
     if (changes.line_id != null && !(await findLineById(changes.line_id))) {
       return NextResponse.json({ error: "Línea inválida." }, { status: 422 });
+    }
+    if (changes.location_id != null) {
+      const effectivePlant = changes.plant_id ?? existing.plant_id;
+      const location = await findLocationById(changes.location_id);
+      if (!location || location.plant_id !== effectivePlant) {
+        return NextResponse.json(
+          { error: "La ubicación no pertenece a la planta de la celda." },
+          { status: 422 },
+        );
+      }
     }
     await updateCell(id, changes);
     return NextResponse.json({ ok: true });

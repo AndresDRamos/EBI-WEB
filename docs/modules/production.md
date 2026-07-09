@@ -1,6 +1,17 @@
 # production
 
-**Last synced:** 2026-07-08 · **Synced from:** plan plant-layout-foundation (branch `feat/plant-layout-foundation`, V13) on top of plan production-cell-assignment (V11) + plan production-schema-rename (V12); `currentCellNamesByAssets` added for the maintenance machines cards view (no schema change); plan equipment-maintenance-attributes (V17) removed the `ASSET_CATEGORIES` enum from `enums.ts` (asset category is now a `maint` DB catalog); plan machines-locations-view (V18) added `cell.location_id` → `org.location` and the app-enforced cell/asset location invariant on assignments
+**Last synced:** 2026-07-09 · **Synced from:** plan plant-layout-foundation
+(branch `feat/plant-layout-foundation`, V13) on top of plan
+production-cell-assignment (V11) + plan production-schema-rename (V12);
+`currentCellNamesByAssets` added for the maintenance machines cards view (no
+schema change); plan equipment-maintenance-attributes (V17) removed the
+`ASSET_CATEGORIES` enum from `enums.ts` (asset category is now a `maint` DB
+catalog); plan machines-locations-view (V18) added `cell.location_id` →
+`org.location` and the app-enforced cell/asset location invariant on
+assignments; **plan production-operative-cells (V19) collapsed the
+line → cell two-level model into a single self-referencing `cell` and
+replaced the old `/production/cells` + `/production/lines` table pages with
+one "Celdas operativas" catalog view**
 
 ## Purpose
 
@@ -8,17 +19,24 @@ Production-structure module of the EBI portal. Separates the physical asset
 (`maint.asset`, owned by maintenance) from the production structure along two
 axes:
 
-- **Logical (V11):** line → cell, with a **temporal, historized M:N
-  assignment** between assets and cells (`production.asset_cell_assignment`).
-  It replaces the free-text `maint.asset.location` as the source of truth for
-  where an asset works (that free-text column was dropped in V17). V11 also
-  added `maint.asset.asset_category` as a CHECK enum — **superseded in V17**,
-  which dropped the column and promoted the domain to the configurable
-  catalogs `maint.asset_category` / `maint.asset_type` (owned by the
-  maintenance module; an asset's category is derived via its type). Since
-  V18 a cell may sit inside a **named plant location** (`cell.location_id`,
-  NULLable FK to `org.location`, owned by the `org` module), and assignments
-  are constrained to cells sharing the asset's location (app-enforced).
+- **Logical (V11, reshaped by V19):** a **single self-referencing hierarchy
+  of "operative cells"** (`production.cell`), depth capped at 1 — a *parent*
+  cell (e.g. a welding line) may have *child* cells (Op10 → Op20 → Op30), and
+  a standalone cell is simply a parent with no children — plus a **temporal,
+  historized M:N assignment** between assets and cells
+  (`production.asset_cell_assignment`). It replaces the free-text
+  `maint.asset.location` as the source of truth for where an asset works
+  (that free-text column was dropped in V17). V11 also added
+  `maint.asset.asset_category` as a CHECK enum — **superseded in V17**, which
+  dropped the column and promoted the domain to the configurable catalogs
+  `maint.asset_category` / `maint.asset_type` (owned by the maintenance
+  module; an asset's category is derived via its type). Since V18 every cell
+  sits inside a **named plant location** (`cell.location_id`, owned by the
+  `org` module) — **NOT NULL since V19** (was optional in V18) — and
+  assignments are constrained to cells sharing the asset's location
+  (app-enforced). Since V19 a cell may also declare a `process_id` → the
+  assignment APIs additionally require the asset's type to support that
+  process (app-enforced, see "Do not touch" below).
 - **Physical (V13, plan plant-layout-foundation):** digitized plant floor
   layouts as **versioned, immutable canvases** (`production.plant_layout`)
   imported from DXF per the CAD contract
@@ -32,15 +50,29 @@ axes:
 ## Responsibilities
 
 - Owns the module slice `src/modules/production/`:
-  - `db.ts` (V11 tables; maintenance consumes its exports — including
-    `currentCellNamesByAssets(assetIds)`, a batched single-query lookup of
-    current cell names per asset from `asset_cell_assignment` where
+  - `db.ts` (cell + assignment tables; maintenance consumes its exports —
+    including `currentCellNamesByAssets(assetIds)`, a batched single-query
+    lookup of current cell names per asset from `asset_cell_assignment` where
     `valid_to IS NULL`, returned as `Map<number, string[]>`, consumed by the
     maintenance machines cards view) plus the V13 data layer
-    `db/{shared,layout,footprint,placement}.ts`. Both
-    bind the client with `withSchema("production")`; cross-schema display
-    names (`org.plant` since V15, `maint.asset`) resolve as separate per-schema
-    queries merged in JS (`db/shared.ts` helpers).
+    `db/{shared,layout,footprint,placement}.ts`. Both bind the client with
+    `withSchema("production")`; cross-schema display names (`org.plant` /
+    `org.location` / `org.process`, `maint.asset`) resolve as separate
+    per-schema queries merged in JS (`db/shared.ts` helpers in the layout
+    layer; `locationRefsById` / `processNamesById` / `assetRefsById` in
+    `db.ts`). **V19 rewrite:** `listLines`/`findLineById`/`createLine`/
+    `updateLine` and the `LineRow`/`LineListRow` types are **gone** (the
+    `production_line` table no longer exists); `createCell` now
+    auto-generates the cell `code` (`{plant.code}-{location.code}-{NN}`,
+    sequential **per location**, claimed under `UPDLOCK + SERIALIZABLE` from
+    the new `production.cell_code_sequence` — mirrors `createAsset`'s
+    matrícula pattern in maintenance) instead of accepting a caller-supplied
+    code/plant/line; `updateCell` never accepts `code` or `location_id`
+    (immutable — the code encodes the location); new `cellHasChildren`,
+    `listCellChildren`, `reorderCellChildren` back the parent/child UI; new
+    typed errors `CellLocationInvalidError` / `CellParentInvalidError` /
+    `CellDepthExceededError` / `CellCodeOverflowError` (the API layer maps
+    them to 422/409).
   - `dxf/` — the **pure** DXF import pipeline (no I/O, no `server-only`):
     `decode.ts` (UTF-8 for `$ACADVER >= AC1021`, `$DWGCODEPAGE` mapping for
     legacy files), `parse.ts` (`dxf-parser`, extracts the `EBI-*` layers),
@@ -58,29 +90,65 @@ axes:
     `ASSET_CATEGORIES` **no longer lives here** (removed in V17; the file
     keeps an explanatory note): the asset-category domain is a configurable
     `maint` catalog owned by the maintenance module.
-  - `components/` — module UI, including the V13 pages: `layout-viewer-page`
-    (+ `layout-canvas`, an SVG canvas with its own pan/zoom — no d3),
-    `layout-editor-page` (+ `layout-palette`: click-to-arm → click-to-place;
-    existing placements drag with pointer capture; ±90° rotation buttons),
-    `layout-import-wizard` (+ `validation-report-view`), `footprints-page`.
+  - `components/` — module UI. **V19 replaced the old table-page components**
+    (`cells-table-page.tsx`, `lines-table-page.tsx`, `cell-detail.tsx` — all
+    deleted) with:
+    - `operative-cells-page.tsx` (`OperativeCellsPage`) — the whole
+      `/production/operative-cells` catalog in one client component: plant
+      tabs (**local `useState`, not routes** — the whole catalog loads in one
+      RSC pass, same approach as the maintenance machines cards page) filter
+      the `org.location` cards shown as an `EntityCard` grid (kit
+      `entity-card.tsx`); clicking a location card expands it (kit
+      `ExpandingModal`) into `LocationCellsModal`.
+    - `location-cells-modal.tsx` (`LocationCellsModal`) — one location's
+      operative cells as cards (top-level cells only; children roll up),
+      with an in-place drill-in per cell (`CellDetailView`): summary
+      (size/process/Op badge), a **read-only "Operaciones de la línea"** list
+      of children for parent cells with reorder buttons (persisted via
+      `POST .../children/reorder`, disabled once the cell has no children —
+      depth 1), and a **read-only "Composición vigente" + history** panel
+      (`CellComposition`, fetched from `GET /cells/[id]/assignments`) — a
+      note in the UI states assignments are *"Se gestiona desde
+      Mantenimiento → Equipos"*. Creation (`CellFormDialog`) is
+      **pre-filtered by location**: the form only asks name/size X·Y/process
+      — no code, plant or location input; the code is server-generated.
+    - the V13 pages are unchanged by V19: `layout-viewer-page` (+
+      `layout-canvas`, an SVG canvas with its own pan/zoom — no d3),
+      `layout-editor-page` (+ `layout-palette`: click-to-arm → click-to-place;
+      existing placements drag with pointer capture; ±90° rotation buttons),
+      `layout-import-wizard` (+ `validation-report-view`), `footprints-page`.
 - Owns `/api/production/**`. Reads require any authenticated user
   (`requireUser`); mutations are gated by
-  `requirePermission("production.<resource>:<action>")`. V11 routes:
-  `lines[/[id]]`, `cells[/[id]]`, `cells/[id]/assignments`,
-  `assignments/[id]/{close,reassign}`. V18 amendments to those routes:
-  - Cell create/PATCH carry a nullable `location_id`; the API validates the
-    location exists, is active and **belongs to the cell's plant** (422). The
-    cells UI (`cells-table-page.tsx`) filters the location select by the
-    chosen plant and clears it when the plant changes; `listCells` resolves
-    `location_name` via an `org`-bound lookup.
-  - Assignment **create and reassign enforce the cross-schema invariant
-    `cell.location_id === maint.asset.location_id`** (the cell must be linked
-    to a location and it must be the asset's own) — 422 otherwise,
-    app-enforced, no triggers. The complementary side lives in maintenance:
-    its asset PATCH auto-closes current assignments when the asset's location
-    changes.
+  `requirePermission("production.<resource>:<action>")`. **V19 route
+  surface** (replacing the V11 `lines[/[id]]` + `cells[/[id]]` pair):
+  - `lines[/[id]]` routes are **deleted** — there is no more line entity.
+  - `GET/POST /cells`, `GET/PATCH /cells/[id]` — cell CRUD. `POST` accepts
+    `name`, `location_id` (required), `parent_cell_id` (optional),
+    `size_x_m`/`size_y_m` (required on create), `process_id` (optional) —
+    **no `code` and no `plant_id`**; validates the location is active,
+    validates the parent (if any) shares the location and is itself a
+    top-level cell (depth 1), then generates the code inside the same
+    transaction that claims `cell_code_sequence`. `PATCH` accepts `name`,
+    `parent_cell_id`, `size_x_m`/`size_y_m`, `process_id`, `is_active` —
+    never `code` or `location_id`. Reassigning `parent_cell_id` is checked
+    **both directions**: the target parent must not itself have a parent,
+    and the cell being reparented must not already have children of its own
+    (`cellHasChildren`).
+  - `POST /cells/[id]/children/reorder` (new, V19,
+    `production.cell:update`) — persists a full new Op10/Op20… order for one
+    parent's children; the body must list exactly the parent's current
+    children (any status) or it 422s; `reorderCellChildren` applies it in two
+    passes (negative temp sequences, then the final `(i+1)*10`) to dodge the
+    filtered unique index `UQ_cell_parent_sequence` mid-update.
+  - `cells/[id]/assignments`, `assignments/[id]/{close,reassign}` — unchanged
+    surface from V11, but the **create/reassign validations gained a second
+    check in V19**: alongside the V18 location match
+    (`cell.location_id === asset.location_id`), when `cell.process_id` is
+    set the asset's type must support that process
+    (`assetTypeSupportsProcess(asset.asset_type_id, cell.process_id)` from
+    `modules/maintenance/db.ts`) — 422 otherwise, app-enforced, no triggers.
 
-  V13 routes:
+  V13 routes (unchanged by V19):
   - `GET /layouts` — versions per plant, **excluding the `geometry` LOB**
     (list discipline); `GET /layouts/[id]` returns the parsed geometry.
   - `POST /layouts/import` (`layout:create`) — multipart DXF (max 50 MB →
@@ -111,10 +179,16 @@ axes:
     (`footprint:manage`) — PUT is dual-mode: JSON `source_kind: "rectangle"`
     (0 < m ≤ 100) or multipart DXF (422 + report on contract failure;
     blob archived only on success).
-- Owns the `(portal)/production/*` UI: `/production` redirects to the cell
-  catalog; `Líneas`/`Celdas` list pages and the cell detail (V11). The segment
-  `layout.tsx` gates that tree with `requireSectionOrRedirect("production")`
-  (per-page nav authz, ADR 0008 supersedes 0005).
+- Owns the `(portal)/production/*` UI. **V19 replaced the whole surface**:
+  `/production` now redirects straight to `/production/operative-cells`
+  (`page.tsx` — `redirect("/production/operative-cells")`); the old
+  `Líneas`/`Celdas` table pages and the standalone cell-detail view are
+  **deleted**. `/production/operative-cells/page.tsx` is the only route: one
+  RSC pass loads `listCells` + `listPlants` + `listLocations` +
+  `listProcesses` and hands them to `OperativeCellsPage` (client component,
+  see Responsibilities above). The segment `layout.tsx` still gates that tree
+  with `requireSectionOrRedirect("production")` (per-page nav authz, ADR 0008
+  supersedes 0005) — unchanged by V19.
 - **The layout UI is dark-parked under `(portal)/test/*`** (re-scope decision
   2026-07-06, V14): `/test/layout` (viewer), `/test/layout/import` (wizard),
   `/test/layout/edit` (editor), `/test/footprints` (reached via a header
@@ -131,29 +205,37 @@ axes:
   current (`false` → API 409). `activateDraft`/`archiveActive`/`discardDraft`
   in `db/layout.ts` are the only layout lifecycle mutations; geometry is
   never updated in place.
-- Uses (does not own) `src/lib/storage/blob.ts`, generalized by this plan:
-  `BLOB_CONTAINERS = { maintenance, production }` are **code constants**, not
-  env vars (user decision 2026-07-06 — env vars are for secrets only; the
-  single env input is `AZURE_STORAGE_CONNECTION_STRING`;
-  `AZURE_STORAGE_CONTAINER_MAINT` was removed and maintenance call sites
-  updated). Uploads go through `uploadBlob(container, key, …)` +
-  `buildBlobKey(prefix, filename)`.
+- Uses (does not own) `src/lib/storage/blob.ts`, generalized by the
+  plant-layout-foundation plan: `BLOB_CONTAINERS = { maintenance, production }`
+  are **code constants**, not env vars (user decision 2026-07-06 — env vars
+  are for secrets only; the single env input is
+  `AZURE_STORAGE_CONNECTION_STRING`). Uploads go through
+  `uploadBlob(container, key, …)` + `buildBlobKey(prefix, filename)`.
 - Does **not** own assets (`maint.asset`), plants (`org.plant` since V15) or
   locations (`org.location`, V18) — placements/footprints/assignments/cells
-  reference them; `findAssetById` from `maintenance/db.ts` and
-  `findLocationById` from `org/db/locations.ts` back the API layer's 422
-  validations.
+  reference them; `findAssetById` from `maintenance/db.ts` and location/
+  process lookups from `org/db/locations.ts` / `org/db/processes.ts` back the
+  API layer's 422 validations. **Assignments (asset ↔ cell) are managed
+  exclusively from the maintenance equipment modal** (the Ubicación row in
+  `machine-modal.tsx`) — this was already the case before V19; V19's
+  `LocationCellsModal` composition panel is explicitly **read-only** and
+  says so in the UI copy.
 
 ## Dependency flow
 
-- `(portal)/production/*` pages → `modules/production/db.ts` + `db/*.ts` +
-  `modules/org/db/org.ts` (plant options) + `modules/maintenance/db.ts`
-  (asset pickers — app-layer composition, allowed by the blueprint).
+- `(portal)/production/operative-cells/page.tsx` → `modules/production/db.ts`
+  (`listCells`) + `modules/org/db/org.ts` (`listPlants`) +
+  `modules/org/db/locations.ts` (`listLocations`) +
+  `modules/org/db/processes.ts` (`listProcesses`) — app-layer composition,
+  allowed by the blueprint. The V13 `(portal)/test/*` pages keep their own
+  dependency shape (`db/*.ts` + `modules/org/db/org.ts` +
+  `modules/maintenance/db.ts` for asset pickers), unchanged by V19.
 - `/api/production/**` → `modules/production/db{.ts,/}` +
   `modules/production/dxf` (import routes) + `lib/storage/blob.ts` (blob
-  archiving) + `maintenance/db.findAssetById` and `org/db/locations
-  .findLocationById` (422 validations — asset existence, location∈plant,
-  cell/asset location match).
+  archiving) + `maintenance/db.{findAssetById,assetTypeSupportsProcess}` and
+  `org/db/{locations.findLocationById,processes.findProcessById}` (422
+  validations — asset existence, location∈plant, cell/asset location match,
+  cell/asset process match).
 - `modules/production/dxf/` is pure and side-effect-free: imported by API
   routes, UI copy and tests alike; blob archiving and DB rows are strictly
   the API layer's job (ADR 0006).
@@ -162,10 +244,13 @@ axes:
   cross-schema joins are not expressible with the flattened codegen keys).
 - Module-code direction with maintenance is **one-way, maintenance →
   production** for reads (`listHistoryByAsset` for the Ubicación tab,
-  `currentCellNamesByAssets` for the machines cards view); the former enums
-  re-export (`ASSET_CATEGORIES`) was removed in V17. Nothing in
-  `src/modules/production/`
-  imports from `src/modules/maintenance/` (only app routes compose both).
+  `currentCellNamesByAssets` for the machines cards view). The reverse
+  direction (`production → maintenance`, added V19) is the two new 422
+  validations in the assignment routes calling
+  `maintenance/db.{findAssetById,assetTypeSupportsProcess}` — API-route-level
+  composition, not a module import: `src/modules/production/` still does not
+  import from `src/modules/maintenance/`. The former enums re-export
+  (`ASSET_CATEGORIES`) was removed in V17.
 
 ## Related ADRs
 
@@ -214,15 +299,51 @@ axes:
   PATCH auto-closes assignments when the asset moves. Adding a new assignment
   code path without that check silently breaks the invariant — there are no
   triggers backing it.
+- **The cell/asset process invariant is app-enforced in the same two places**
+  (V19): when `cell.process_id IS NOT NULL`, assignment create and
+  `reassign` both 422 unless `assetTypeSupportsProcess(asset.asset_type_id,
+  cell.process_id)` returns true. A cell with `process_id = NULL` accepts any
+  asset type (no gate). Adding a new assignment code path must repeat both
+  checks (location **and** process) — neither is backed by a trigger.
+- **Cell hierarchy depth is capped at 1, app-enforced only** (V19, no CHECK
+  can express it): `createCell` rejects a `parent_cell_id` whose target
+  already has a parent (`CellDepthExceededError`); `updateCell`'s API route
+  (`PATCH /api/production/cells/[id]`) additionally rejects setting
+  `parent_cell_id` on a cell that already has children
+  (`cellHasChildren`). The DB only backs `CK_cell_not_self_parent`
+  (`parent_cell_id ≠ cell_id`) — it has no way to express "no grandparents".
+  Any new cell-creation/reparenting code path must repeat both directions of
+  this check.
+- **`cell.code` is app-generated and immutable — never accept it from a
+  caller, never let `updateCell` change it or `location_id`.** `createCell`
+  claims `production.cell_code_sequence.next_seq` (keyed by `location_id`)
+  under `UPDLOCK + SERIALIZABLE` inside the insert transaction, mirroring
+  `maint.asset`'s matrícula generator (V17/V18). `CellCodeOverflowError`
+  when the 2-digit sequence (max 99 per location) would overflow.
+- **`cell.sequence_in_parent` requires `parent_cell_id`**
+  (`CK_cell_sequence_requires_parent`, renamed from
+  `CK_cell_sequence_requires_line` in V19); `db.ts` normalizes (clears the
+  sequence when the parent is cleared) — keep that normalization if you touch
+  `createCell`/`updateCell`. `reorderCellChildren` writes negative temporary
+  sequences before the final `(i+1)*10` pass — do not collapse that into a
+  single pass, it exists to dodge `UQ_cell_parent_sequence` mid-update.
+  `sequence_in_parent` (like the old `sequence_in_line`) is a hint for
+  ordering, not a slot reservation — the API does not currently prevent
+  gaps or reassigning the same numeric slot to two different Op steps at
+  different times (only true duplicates at the same instant, via the
+  filtered unique index).
 - **Nav-cache gotcha after migrations that seed nav rows** (applies to the
-  V13 `Layout` item exactly as to V11): seeded rows do **not** invalidate the
-  persisted `unstable_cache` tagged `"nav"` — trigger any `/api/nav/*`
-  mutation or restart with a cold cache, or the section guard keeps
-  redirecting even for admins.
-- **`cell.sequence_in_line` requires `line_id`**
-  (`CK_cell_sequence_requires_line`); `db.ts` normalizes (clears the sequence
-  when the line is cleared) — keep that normalization if you touch
-  `createCell`/`updateCell`.
+  V19 `Celdas operativas` item exactly as to V11/V13): seeded rows do **not**
+  invalidate the persisted `unstable_cache` tagged `"nav"` — trigger any
+  `/api/nav/*` mutation or restart with a cold cache, or the section guard
+  keeps redirecting even for admins.
+- **Assignment management lives only in the maintenance equipment modal.**
+  `LocationCellsModal`'s composition panel (`CellComposition`) is
+  **read-only by design** (fetches `GET /cells/[id]/assignments`, no create/
+  close/reassign UI) — do not add assignment mutation controls there without
+  first checking whether this decision (plan production-operative-cells) has
+  been revisited; duplicating the flow would fork the location/process
+  validation logic across two UIs.
 - **Blob container names are code constants** (`BLOB_CONTAINERS` in
   `lib/storage/blob.ts`) — do not reintroduce per-container env vars;
   per-environment separation comes from the connection string.

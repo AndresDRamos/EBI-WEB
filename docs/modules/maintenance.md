@@ -1,6 +1,6 @@
 # maintenance
 
-**Last synced:** 2026-07-08 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11) + plan org-schema-plant-process (process catalog moved to `org`, V15) + machines cards view (kit `EntityCard`, no schema change) + `design/Equipos.dc.html` fidelity pass (full-page layout, no schema change) + plan equipment-maintenance-attributes (asset catalog redesign: configurable category/type catalogs + app-generated matrícula + asset photo, V17) + plan equipment-detail-modal (detail page → expanding modal, no schema change) + plan machines-locations-view (`org.location` anchor, type-owned prefix/processes, modal redesign + QR landing `/asset/[code]`, V18)
+**Last synced:** 2026-07-09 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11) + plan org-schema-plant-process (process catalog moved to `org`, V15) + machines cards view (kit `EntityCard`, no schema change) + `design/Equipos.dc.html` fidelity pass (full-page layout, no schema change) + plan equipment-maintenance-attributes (asset catalog redesign: configurable category/type catalogs + app-generated matrícula + asset photo, V17) + plan equipment-detail-modal (detail page → expanding modal, no schema change) + plan machines-locations-view (`org.location` anchor, type-owned prefix/processes, modal redesign + QR landing `/asset/[code]`, V18) + plan production-operative-cells (adds `assetTypeSupportsProcess` to `db.ts`, backing the cell/asset process invariant on assignments; no `maintenance` schema change, V19)
 
 ## Purpose
 
@@ -60,6 +60,20 @@ permission codes.
   an optional `locationId` filter) / `getAssetDetail` join type + category
   names and resolve `location_name` + the derived plant via an `org`-bound
   lookup (`locationRefsById`).
+- Owns `assetTypeSupportsProcess(assetTypeId, processId)` in `db.ts` (added
+  by plan production-operative-cells, V19) — a single-row existence check
+  against `maint.asset_type_process`. It backs the **cell/asset process
+  invariant** enforced by the `production` module's assignment routes (`POST
+  /api/production/cells/[id]/assignments` and `POST
+  /api/production/assignments/[id]/reassign`): when the target
+  `production.cell.process_id` is set, the asset being assigned must have a
+  type linked to that process, or the route 422s
+  ("El tipo del equipo no soporta el proceso de la celda."). This is the one
+  place `production` reads from `maintenance/db.ts` at the route-composition
+  level (see `docs/modules/production.md`, Dependency flow) — no schema
+  change on this side, and no equivalent check runs from the maintenance
+  modal itself (the assignment mutation always goes through the production
+  API, which is the sole enforcement point).
 - Owns blob upload/download for asset documents (ADR 0002): DB stores
   metadata + `blob_path`; bytes live in the private `maintenance` container;
   downloads are 302 redirects to 15-minute SAS URLs. The blob helper
@@ -155,7 +169,11 @@ permission codes.
   ubicación select · celda select (cells filtered to the asset's location;
   shown only when the user holds both `production.assignment:create` **and**
   `:close`, and synced after save through the production APIs: close the
-  current assignment, open the new one). **Status is neither shown nor
+  current assignment, open the new one). Since V19 that save can 422 if the
+  chosen cell declares a `process_id` the asset's type doesn't support
+  (`assetTypeSupportsProcess`, checked server-side by the production API,
+  not pre-filtered client-side) — the modal surfaces the API's error message
+  generically (no dedicated UI for this case). **Status is neither shown nor
   settable**; criticality is not captured (both columns still exist). Header
   actions are icon-only — QR (`qr-modal.tsx`), delete (`Trash2`, AlertDialog
   + soft-delete), edit (`Pencil`, inline edit mode). Tabs: **Mantenimiento**
@@ -171,9 +189,13 @@ permission codes.
 - Does **not** own plants/locations (module `org`: `org.plant`,
   `org.location`) nor the process catalog (module `org`, `org.process` since
   V15) — assets and `asset_type_process` reference them cross-schema. Does not own users (`auth.app_user`) — document
-  uploads and future work orders reference them. Does not own
-  lines/cells/assignments (module `production`, schema `production` since V12) —
-  it only reads them for display.
+  uploads and future work orders reference them. Does not own operative
+  cells/assignments (module `production`, schema `production` since V12;
+  since V19 a single self-referencing `cell` hierarchy replaced the old
+  line/cell split) — it only reads them for display; assignment
+  create/reassign call back into `maintenance/db.ts`
+  (`findAssetById`/`assetTypeSupportsProcess`) for 422 validation, but that
+  is `production`-route composition, not ownership.
 - Restrictions are managed through dedicated sub-routes
   (`/api/maintenance/assets/[id]/restrictions[/...]`), not inside the asset
   PATCH payload (executor's choice per plan step 5).

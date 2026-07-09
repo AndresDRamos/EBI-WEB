@@ -33,18 +33,22 @@ columns unchanged). May later map to EPS plant IDs.
 | postal_code | nvarchar(16) | yes | | Optional postal/ZIP code (added V4) |
 
 Incoming cross-schema FKs: `auth.user_plant.plant_id`,
-`maint.asset_code_sequence.plant_id`, `production.production_line.plant_id`,
-`production.cell.plant_id`, `production.plant_layout.plant_id` →
+`maint.asset_code_sequence.plant_id`, `production.plant_layout.plant_id` →
 `org.plant.plant_id` (all no cascade). `maint.asset.plant_id` was dropped in
 V18 — an asset's plant is now derived via `org.location`.
+`production.cell.plant_id` and `production.production_line.plant_id` are
+likewise gone since V19 — `production.production_line` was dropped and a
+cell's plant is now derived via `production.cell.location_id → org.plant`
+(see [production.md](production.md)).
 
 ## `org.location`
 
 Named locations **within** a plant ("Nave 2", "Almacén MP"), added by V18
 (plan machines-locations-view). The anchor for physical location:
 `maint.asset.location_id` (NOT NULL — the asset's plant is derived through
-it) and `production.cell.location_id` (NULLable) both point here. Administered
-from the admin panel's Plantas tab (Planta → Ubicaciones grouped table).
+it) and `production.cell.location_id` (NOT NULL since V19; was NULLable in
+V18) both point here. Administered from the admin panel's Plantas tab
+(Planta → Ubicaciones grouped table).
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|

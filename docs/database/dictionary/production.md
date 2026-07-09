@@ -1,70 +1,99 @@
 # Data dictionary — schema `production`
 
 > Maintained by the `docs-sync` sub-agent. Do not edit by hand.
-> Last synced: 2026-07-08 (V1–V18; V18 sourced from the adopted-from-live
-> migration file `V18__org_locations_type_processes.sql` + regenerated Kysely
-> types, not direct introspection). Index: [`_index.md`](_index.md).
+> Last synced: 2026-07-09 (V1–V19; sourced from the applied migration file
+> `V19__production_operative_cells.sql` + regenerated Kysely types, not direct
+> introspection — `ebi-sql-dev` MCP not used this session). Index:
+> [`_index.md`](_index.md).
 > V15 left `production`'s tables unchanged but transferred `auth.plant` →
 > `org.plant`, so the `plant_id` FKs below now cross to `org.plant`. V18 added
-> `cell.location_id` (NULLable FK to the new `org.location`).
+> `cell.location_id` (NULLable FK to the new `org.location`). **V19 collapsed
+> the two-level model (line → cell) into a single self-referencing
+> `production.cell`** — see below.
 
 Production module (created as `produccion` by V11, plan
 production-cell-assignment; renamed to `production` by V12, plan
 production-schema-rename; plant-layout tables added by V13, plan
-plant-layout-foundation): logical production structure (line → cell) plus a
-temporal, historized M:N bridge between `maint.asset` and cells — the source
-of truth for where an asset physically works, replacing the free-text
-`maint.asset.location` — and, since V13, the **physical** side: versioned
-immutable plant-layout canvases (from DXF, ADR 0006), per-asset top-view
-footprints and temporal, historized placements of assets on a layout. Same
-house patterns as `maint`: named CHECK constraints, soft-delete via
-`is_active` on catalogs, app-maintained `updated_at` (no triggers), FKs
-NO ACTION.
+plant-layout-foundation; collapsed to a single self-referencing cell entity by
+V19, plan production-operative-cells): logical production structure (a
+hierarchy of "operative cells", depth ≤ 1) plus a temporal, historized M:N
+bridge between `maint.asset` and cells — the source of truth for where an
+asset physically works, replacing the free-text `maint.asset.location` — and,
+since V13, the **physical** side: versioned immutable plant-layout canvases
+(from DXF, ADR 0006), per-asset top-view footprints and temporal, historized
+placements of assets on a layout. Same house patterns as `maint`: named CHECK
+constraints, soft-delete via `is_active` on catalogs, app-maintained
+`updated_at` (no triggers), FKs NO ACTION.
 See `docs/modules/production.md` and `docs/database/erd/production.md`.
 
-## `production.production_line`
+## `production.production_line` — dropped in V19
 
-Optional sequencing container for cells (e.g. a welding line with
-Op 10 → Op 20 → Op 30). Not every cell needs one.
-
-| Column | Type | Nullable | Constraints | Description |
-|---|---|---|---|---|
-| line_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
-| code | nvarchar(32) | no | UQ | Short line code |
-| name | nvarchar(160) | no | | Line name |
-| plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15) | Plant the line belongs to |
-| is_active | bit | no | DEFAULT 1 | Soft-delete flag |
-| created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
-| updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
-
-Indexes: `IX_production_line_plant (plant_id, is_active)`.
+`production_line` (V11) was the optional sequencing container for cells. V19
+**collapsed it into `production.cell`**: every line row became a *parent*
+cell (its `code`/`name`/`is_active` carried over; its `plant_id` resolved to a
+`location_id` via a deterministic per-plant backfill — see the migration
+header) and `DROP TABLE production.production_line` followed. The line ↔ cell
+relationship survives only as `cell.parent_cell_id`; the original `line_id`
+identity values are gone. This conversion was verified against dev data (1
+line, 4 cells, 0 assignments) before the drop; production was empty, so the
+conversion was a safe no-op there.
 
 ## `production.cell`
 
-Logical production post/function. `line_id` is nullable: standalone cells
-(e.g. "Laser 1", "Laser 2") belong to no line. Since V18 a cell may also sit
-inside a named plant location (`location_id`, NULLable); the API validates
-that the location belongs to the cell's plant (422).
+Logical production post/function, now a **single self-referencing entity**
+(V19, plan production-operative-cells) with hierarchy depth **capped at 1**:
+a *parent* cell (`parent_cell_id IS NULL`) may have *child* cells
+(`parent_cell_id` pointing at it), but a child cell may not itself have
+children — **app-enforced only** (not expressible as a CHECK; the repo bans
+triggers), backed by `CK_cell_not_self_parent` at the DB level for the one
+invariant SQL *can* express. `location_id` is **NOT NULL since V19** (every
+cell now sits inside a named plant location; the plant is **derived** via
+`location_id → org.location.plant_id`, same move V18 made on `maint.asset` —
+`cell.plant_id` was dropped). `code` is **app-generated**
+(`{plant.code}-{location.code}-{NN}`, sequential per location, claimed from
+`production.cell_code_sequence`) — never user-typed.
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
 | cell_id | int | no | PK, IDENTITY(1,1) | Surrogate primary key |
-| code | nvarchar(32) | no | UQ | Short cell code |
+| code | nvarchar(32) | no | UQ | App-generated cell code (`{plant.code}-{location.code}-{NN}`, V19) |
 | name | nvarchar(160) | no | | Cell name |
-| plant_id | int | no | FK → org.plant (no cascade; cross-schema since V15) | Plant the cell belongs to |
-| line_id | int | yes | FK → production.production_line (no cascade) | Owning line; NULL = standalone cell |
-| sequence_in_line | int | yes | CHECK > 0 (or NULL); CHECK requires line_id set (`CK_cell_sequence_requires_line`) | Position within the line (Op order) |
-| location_id | int | yes | FK → org.location (no cascade; cross-schema) (added V18) | Named location the cell sits in; NULL = not linked |
+| location_id | int | no | FK → org.location (no cascade; cross-schema); NOT NULL since V19 (was nullable in V18) | Named location the cell sits in; plant derives through it |
+| parent_cell_id | int | yes | FK → production.cell (self, no cascade), CHECK ≠ cell_id (`CK_cell_not_self_parent`) (added V19) | Parent cell; NULL = top-level (parent or standalone) cell. App-enforced depth ≤ 1: a cell with a non-NULL `parent_cell_id` cannot itself be a parent |
+| sequence_in_parent | int | yes | CHECK > 0 (or NULL); CHECK requires parent_cell_id set (`CK_cell_sequence_requires_parent`) (renamed from `sequence_in_line` in V19) | Position among siblings (Op10, Op20…) |
+| size_x_m | decimal(9,3) | yes | CHECK > 0 (or NULL) (`CK_cell_size_x`) (added V19) | Footprint width, meters |
+| size_y_m | decimal(9,3) | yes | CHECK > 0 (or NULL) (`CK_cell_size_y`) (added V19) | Footprint depth, meters |
+| process_id | int | yes | FK → org.process (no cascade; cross-schema) (added V19) | Declared process the cell performs; gates which asset types may be assigned (app-enforced, see `production.asset_cell_assignment`) |
 | is_active | bit | no | DEFAULT 1 | Soft-delete flag |
 | created_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC creation timestamp |
 | updated_at | datetime2(0) | no | DEFAULT SYSUTCDATETIME() | UTC last-modified timestamp |
 
-Indexes: `IX_cell_plant (plant_id, is_active)`,
-`IX_cell_line (line_id) WHERE line_id IS NOT NULL`,
-`IX_cell_location (location_id) WHERE location_id IS NOT NULL` (V18, filtered
-— only linked rows pay),
-`UQ_cell_line_sequence (line_id, sequence_in_line) UNIQUE WHERE line_id IS NOT NULL`
-(no duplicate "Op 20" within a line; cells without a line stay unconstrained).
+**Dropped in V19:** `plant_id` (plant is now derived via `location_id`);
+`line_id` (superseded by `parent_cell_id`). **Renamed in V19:**
+`sequence_in_line` → `sequence_in_parent`.
+
+Indexes: `IX_cell_location (location_id, is_active)` (V19 — unfiltered now
+that `location_id` is NOT NULL; was a filtered index in V18),
+`IX_cell_parent (parent_cell_id) WHERE parent_cell_id IS NOT NULL` (V19,
+filtered — only children pay),
+`UQ_cell_parent_sequence (parent_cell_id, sequence_in_parent) UNIQUE WHERE parent_cell_id IS NOT NULL AND sequence_in_parent IS NOT NULL`
+(V19, successor of `UQ_cell_line_sequence`, filtered on **both** columns — no
+duplicate "Op 20" under one parent; parent cells and unsequenced children stay
+unconstrained).
+
+## `production.cell_code_sequence`
+
+Race-safe per-**location** counter (V19) backing the app-generated cell code
+`{plant.code}-{location.code}-{NN}` — mirrors `maint.asset_code_sequence`
+(V17/V18). `next_seq` is the NEXT value to hand out; the app locks and
+increments the row (`UPDLOCK + SERIALIZABLE`) inside the cell-insert
+transaction (`createCell` in `modules/production/db.ts`). No triggers, no DB
+default on `cell.code`.
+
+| Column | Type | Nullable | Constraints | Description |
+|---|---|---|---|---|
+| location_id | int | no | PK, FK → org.location (no cascade; cross-schema) | Location reference |
+| next_seq | int | no | DEFAULT 1, CHECK ≥ 1 (`CK_cell_code_sequence_next`) | Next sequence value to hand out |
 
 ## `production.asset_cell_assignment`
 
@@ -80,6 +109,11 @@ Since V18 the create/reassign APIs enforce the cross-schema invariant
 location and it must be the asset's own — 422 otherwise; app-enforced, no
 triggers). When an asset moves to another location, the maintenance asset
 PATCH auto-closes its current assignments (historized close, never a delete).
+Since V19 the same routes also enforce
+`cell.process_id IS NULL OR maint.asset_type_process(asset.asset_type_id, cell.process_id)`
+— when a cell declares a process, only asset types linked to that process may
+be assigned to it (422 otherwise; `assetTypeSupportsProcess` in
+`modules/maintenance/db.ts`, app-enforced, no triggers).
 
 | Column | Type | Nullable | Constraints | Description |
 |---|---|---|---|---|
@@ -193,15 +227,20 @@ position. Physical truth = current placement JOIN layout WHERE
 plant. On activation the app closes the outgoing layout's open rows and
 carries them forward onto the new version).
 
-## Seeds (V11, data in `auth`)
+## Seeds (V11, data in `auth`) — nav items retired in V19
 
 - `auth.nav_section` `production` (dark-launched `is_active = 0`, icon
   `Factory`, base path `/production`, sort 30) + `auth.nav_item` rows
   `Líneas` (`/production/lines`, `Layers`) and `Celdas` (`/production/cells`,
-  `LayoutGrid`).
+  `LayoutGrid`). **Both nav items were DELETEd by V19** (cascades to
+  `auth.role_nav_item`, V16) — see Seeds (V19) below for their replacement.
 - 6 `auth.permission` codes: `production.line:{create,update}`,
   `production.cell:{create,update}`, `production.assignment:{create,close}`.
   No `role_permission` seeds (admin bypasses at app layer, ADR 0004).
+  **`production.line:{create,update}` were DELETEd by V19** (the line entity
+  no longer exists; the DELETE cascades to `role_permission`, none seeded so
+  nothing to cascade in practice) — `production.cell:*` and
+  `production.assignment:*` are unaffected.
 
 ## Seeds (V13, data in `auth`)
 
@@ -215,10 +254,23 @@ carries them forward onto the new version).
   `layout:archive` is retiring an active layout WITHOUT a successor. No
   `role_permission` seeds (ADR 0004).
 
+## Seeds (V19, data in `auth`)
+
+- Retires the two V11 nav items `Líneas` (`/production/lines`) and `Celdas`
+  (`/production/cells`) — guarded DELETE by section code + href (same pattern
+  as V14/V15) — and seeds `Celdas operativas`
+  (`/production/operative-cells`, icon `LayoutGrid`, sort 10) in their place.
+- Deletes the two `production.line:{create,update}` permission codes (the
+  line entity no longer exists); `production.cell:*` and
+  `production.assignment:*` stay untouched.
+
 ## Grants (schema scope)
 
 `GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::production TO ebi_app`;
 `GRANT SELECT ON SCHEMA::production TO ebi_agent_ro` (guarded; originally
 issued on `produccion` by V11, re-issued on `production` by V12 — schema-scoped
 grants do not survive the schema drop). V13 adds **no** new GRANT statements:
-the V12 schema-level grants cover the three new tables automatically.
+the V12 schema-level grants cover the three new tables automatically. V19
+re-issues the same two guarded grants idempotently (belt-and-suspenders,
+V17/V18 precedent) — `cell_code_sequence` is already covered by the
+schema-scoped grants.

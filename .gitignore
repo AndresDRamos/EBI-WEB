@@ -41,3 +41,5 @@ coverage/
 # Salidas temporales de agentes
 .opencode/cache/
 .claude/traces/
+.claude/skills/
+skills-lock.json

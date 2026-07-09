@@ -1,12 +1,11 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
 import type { Selectable } from "kysely";
 import type { PlantProcess } from "@/lib/db/types";
+import { orgDb as db } from "@/lib/db/schema-clients";
 
 // `org.plant_process` (V15): N:M bridge "which plant runs which process". A
 // process_id repeats freely across plants (a single "Corte láser" assigned to
-// plants 1, 2, 6). Link-row only — unassign = delete the row. Bind to `org`.
-const db = rootDb.withSchema("org");
+// plants 1, 2, 6). Link-row only — unassign = delete the row.
 
 export type PlantProcessRow = Selectable<PlantProcess>;
 

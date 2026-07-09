@@ -1,7 +1,8 @@
 # maintenance
 
-**Last synced:** 2026-07-09 (V19) · **Synced from:** see the ledger in
-[docs/plans/README.md](../plans/README.md) for the full plan history.
+**Last synced:** 2026-07-09 (production-db-unify) · **Synced from:** see the
+ledger in [docs/plans/README.md](../plans/README.md) for the full plan
+history.
 
 ## Purpose
 
@@ -97,8 +98,9 @@ permission codes.
     `asset_type_id` / `image_blob_path` / `installation_date` and rejects
     `code` / `plant_id` / `status` / `location` / `criticality`. When the
     PATCH changes `location_id`, it **auto-closes the asset's current cell
-    assignments** (historized close via `production/db`, never a delete) —
-    they no longer share the location.
+    assignments** (historized close via `production/db/assignment.ts`
+    (`closeAssignment`), reached through the `@/modules/production/db`
+    barrel, never a delete) — they no longer share the location.
   - `POST /api/maintenance/assets/image` — photo upload → returns `blob_path`
     (Azure Blob container `maintenance`). Asset-agnostic (the photo is
     uploaded before the row exists in the create flow), so the gate is an
@@ -206,9 +208,11 @@ permission codes.
 - `(portal)/maintenance/*` pages → `src/modules/maintenance/db.ts` +
   `src/modules/org/db/locations.ts` (location options — V18; plant options
   via `org.ts` where still needed); the machines list page also →
-  `modules/production/db.{currentCellNamesByAssets,listCells}` (cell names
-  for the cards footer + cell options for the modal's Ubicación row —
-  app-layer composition). Pages no longer compute a `canManage`/`isAdmin`
+  `modules/production/db.{currentCellNamesByAssets,listCells}` (from
+  `db/assignment.ts` and `db/cell.ts` respectively, both reached through the
+  `@/modules/production/db` barrel — cell names for the cards footer + cell
+  options for the modal's Ubicación row, app-layer composition). Pages no
+  longer compute a `canManage`/`isAdmin`
   prop: action visibility is gated client-side by `useCan()` from
   `PermissionsProvider` (seeded in `(portal)/layout.tsx`); the API re-checks
   with `requirePermission` per request.
@@ -236,11 +240,14 @@ permission codes.
   `maint.asset_document.uploaded_by` → `auth.app_user` (cross-schema queries
   resolved as separate per-schema queries merged in JS — a typed cross-schema
   join is not expressible with the flattened codegen keys; location/plant
-  names in `listAssets` / `getAssetDetail` resolve via the `org`-bound
-  `locationRefsById`, same technique as `plantNamesById`).
+  names in `listAssets` / `getAssetDetail` resolve via `locationRefsById`
+  from the shared `src/lib/db/refs.ts` — since plan production-db-unify this
+  helper's single home is domain-blind infra, not a `maintenance`-local
+  function; `production` imports the same one).
 - **maintenance → production (one-way, justified):** the machines list page
   (`(portal)/maintenance/machines/page.tsx`) and the QR landing page read
-  `currentCellNamesByAssets` / `listCells` from `modules/production/db.ts`;
+  `currentCellNamesByAssets` / `listCells` from `modules/production/db`
+  (`db/assignment.ts` / `db/cell.ts` via the barrel);
   the asset GET/PATCH API routes read `listCurrentByAsset` /
   `listHistoryByAsset` and call `closeAssignment` (auto-close on location
   move). Nothing in `src/modules/production/` imports from

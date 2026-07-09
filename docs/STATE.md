@@ -40,9 +40,17 @@ For stack, auth, data access, migrations, and hard rules, see
 - **Auth.js: two files.** `auth.config.ts` is edge-safe (middleware, no
   Kysely/argon2); `auth.ts` is Node runtime (Credentials provider + DB
   callbacks). Mixing imports breaks the edge bundling.
-- **Schema `auth` is bound manually** (`rootDb.withSchema("auth")`) —
-  `kysely-codegen` flattens schemas out of `DB` keys, so without it SQL
-  Server resolves under `dbo` and throws 208. A `trx` inherits its schema.
+- **Schemas are bound in one shared file, not per module.**
+  `kysely-codegen` flattens schemas out of `DB` keys (`app_user`, not
+  `auth.app_user`), so a bare table name resolves under `dbo` and throws 208
+  unless the client is schema-bound. `src/lib/db/schema-clients.ts` is the
+  single home for the four per-schema Kysely clients (`authDb`, `orgDb`,
+  `maintDb`, `productionDb`) plus `emptyToNull`; every module imports the
+  bound client it needs from there instead of calling `rootDb.withSchema(...)`
+  locally. Cross-schema ref lookups shared by more than one module
+  (location/process/asset identity) live the same way in `src/lib/db/refs.ts`
+  (`locationRefsById`/`processNamesById`/`assetRefsById`, shared by
+  `maintenance` and `production`). A `trx` inherits its schema.
 - **MSSQL inserts use `.output("inserted.<pk>")`** — Kysely MSSQL doesn't
   populate `.insertId`.
 - **Dependency direction (modules-first):** `app → modules → kit/ui/lib`,

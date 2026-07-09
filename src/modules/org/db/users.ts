@@ -1,19 +1,13 @@
 import "server-only";
 import { randomBytes, createHash } from "node:crypto";
-import { db as rootDb } from "@/lib/db/client";
 import type { Selectable, Insertable, Transaction } from "kysely";
 import type { DB, AppUser, Invitation } from "@/lib/db/types";
+import { authDb as db, orgDb } from "@/lib/db/schema-clients";
 
-// Every table in this module lives in the `auth` schema. kysely-codegen flattened
-// the schema out of the generated keys (the DB type has `app_user`, not
-// `auth.app_user`), so bind the client to the schema here. Without this, SQL
-// Server resolves the bare names under the default schema (dbo) and fails with
-// "Invalid object name 'app_user'" (error 208). Transactions inherit the schema.
-const db = rootDb.withSchema("auth");
-// `plant` moved to the `org` schema in V15 (see org.ts); `user_plant` stays in
-// `auth`, so plant names are fetched from this schema separately and joined
-// in JS instead of a single cross-schema SQL join.
-const orgDb = rootDb.withSchema("org");
+// Every table in this module lives in the `auth` schema. Transactions inherit
+// the schema. `plant` moved to the `org` schema in V15 (see org.ts);
+// `user_plant` stays in `auth`, so plant names are fetched from this schema
+// separately and joined in JS instead of a single cross-schema SQL join.
 
 export type AuthUserRow = Selectable<AppUser>;
 

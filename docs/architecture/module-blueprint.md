@@ -18,9 +18,16 @@
 
 ## 2. Data layer (✅ pattern proven)
 
-- `src/modules/<module>/db.ts` (or `db/` when it grows) binding
-  `rootDb.withSchema("<module>")` at the top. SQL lives only there and in
-  `src/lib/db/` (infra: client + generated types).
+- `src/modules/<module>/db.ts` (or `db/` when it grows — one file per
+  aggregate, `org` and `production` are the reference examples) importing its
+  per-schema client from `src/lib/db/schema-clients.ts` (single home for
+  `authDb`/`orgDb`/`maintDb`/`productionDb` + `emptyToNull`; a module that
+  needs a schema not yet listed there adds it in that one file, not with a
+  local `rootDb.withSchema(...)` call). Cross-schema ref lookups shared by
+  more than one module (location/process/asset identity) live in
+  `src/lib/db/refs.ts`. SQL lives only in `src/lib/db/` (infra: client +
+  generated types + these two shared-plumbing files) and
+  `src/modules/*/db{.ts,/*.ts}`.
 - Kysely only; types regenerated with `pnpm db:gen` after every migration.
 - MSSQL inserts via `.output("inserted.<pk>")`; transactions inherit the bound schema.
 

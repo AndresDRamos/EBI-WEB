@@ -1,12 +1,9 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
 import type { Selectable } from "kysely";
 import type { Permission } from "@/lib/db/types";
+import { authDb as db } from "@/lib/db/schema-clients";
 
-// Permission tables live in the `auth` schema. See the note in users.ts /
-// org.ts: kysely-codegen flattens the schema out of the generated keys, so
-// bind the client here or SQL Server resolves under dbo and 208s.
-const db = rootDb.withSchema("auth");
+// Permission tables live in the `auth` schema.
 
 export type PermissionRow = Selectable<Permission>;
 

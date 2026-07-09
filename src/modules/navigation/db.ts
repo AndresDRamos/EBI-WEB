@@ -1,12 +1,9 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
 import type { Selectable, Insertable } from "kysely";
 import type { NavSection, NavItem } from "@/lib/db/types";
+import { authDb as db } from "@/lib/db/schema-clients";
 
-// Nav tables live in the `auth` schema (role-coupled). See the note in
-// users.ts / org.ts: kysely-codegen flattens the schema out of the generated
-// keys, so bind the client here or SQL Server resolves under dbo and 208s.
-const db = rootDb.withSchema("auth");
+// Nav tables live in the `auth` schema (role-coupled).
 
 export type NavSectionRow = Selectable<NavSection>;
 export type NavItemRow = Selectable<NavItem>;

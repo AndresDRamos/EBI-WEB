@@ -1,12 +1,9 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
 import type { Selectable, Insertable } from "kysely";
 import type { Location } from "@/lib/db/types";
+import { orgDb } from "@/lib/db/schema-clients";
 
-// `location` lives in the `org` schema (V18). kysely-codegen drops the schema
-// from the generated keys, so bind the client or SQL Server resolves under
-// dbo and 208s.
-const orgDb = rootDb.withSchema("org");
+// `location` lives in the `org` schema (V18).
 
 export type LocationRow = Selectable<Location>;
 

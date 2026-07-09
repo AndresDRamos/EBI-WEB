@@ -43,27 +43,9 @@ import {
 import { useCan } from "@/components/providers/permissions-provider";
 import { cn } from "@/lib/utils";
 import type { LocationCardOption } from "@/modules/production/components/operative-cells-page";
+import type { OperativeCellRow } from "@/modules/production/db";
 
-/** Cell list row as the operative-cells RSC page maps it (production.cell +
- * derived plant + parent/children/process merges from `listCells`). */
-export interface OperativeCellRow {
-  cell_id: number;
-  code: string;
-  name: string;
-  location_id: number;
-  location_name: string;
-  plant_id: number;
-  plant_name: string;
-  parent_cell_id: number | null;
-  sequence_in_parent: number | null;
-  size_x_m: number | null;
-  size_y_m: number | null;
-  process_id: number | null;
-  process_name: string | null;
-  child_count: number;
-  current_asset_count: number;
-  is_active: boolean;
-}
+export type { OperativeCellRow };
 
 export interface ProcessOption {
   process_id: number;

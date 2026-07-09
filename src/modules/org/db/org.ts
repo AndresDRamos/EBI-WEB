@@ -1,14 +1,10 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
 import type { Selectable, Insertable, Transaction } from "kysely";
 import type { Plant, Department, Role } from "@/lib/db/types";
+import { authDb as db, orgDb } from "@/lib/db/schema-clients";
 
 // `role` and `department` live in the `auth` schema; `plant` moved to the new
-// `org` schema in V15 (organization vs identity split). See the note in
-// users.ts: kysely-codegen drops the schema from the generated keys, so bind
-// the client to the right schema or SQL Server looks under dbo and 208s.
-const db = rootDb.withSchema("auth");
-const orgDb = rootDb.withSchema("org");
+// `org` schema in V15 (organization vs identity split).
 
 export type PlantRow = Selectable<Plant>;
 export type DepartmentRow = Selectable<Department>;

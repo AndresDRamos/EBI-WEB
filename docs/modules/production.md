@@ -1,21 +1,8 @@
 # production
 
-**Last synced:** 2026-07-09 · **Synced from:** plan plant-layout-foundation
-(branch `feat/plant-layout-foundation`, V13) on top of plan
-production-cell-assignment (V11) + plan production-schema-rename (V12);
-`currentCellNamesByAssets` added for the maintenance machines cards view (no
-schema change); plan equipment-maintenance-attributes (V17) removed the
-`ASSET_CATEGORIES` enum from `enums.ts` (asset category is now a `maint` DB
-catalog); plan machines-locations-view (V18) added `cell.location_id` →
-`org.location` and the app-enforced cell/asset location invariant on
-assignments; **plan production-operative-cells (V19) collapsed the
-line → cell two-level model into a single self-referencing `cell` and
-replaced the old `/production/cells` + `/production/lines` table pages with
-one "Celdas operativas" catalog view**; plan production-db-unify (no schema
-change) split `db.ts` into `db/cell.ts` + `db/assignment.ts` (one file per
-aggregate, `db/index.ts` barrel) and moved `withSchema(...)`/`emptyToNull`
-to the shared `src/lib/db/schema-clients.ts` and cross-schema ref lookups to
-`src/lib/db/refs.ts`
+**Last synced:** 2026-07-09 (production-db-unify) · **Synced from:** see the
+ledger in [docs/plans/README.md](../plans/README.md) for the full plan
+history.
 
 ## Purpose
 

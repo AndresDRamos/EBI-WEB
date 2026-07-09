@@ -75,7 +75,6 @@ export function MachineCatalogsPage({
   }>({ open: false, editId: null });
   const [typeCode, setTypeCode] = React.useState("");
   const [typeName, setTypeName] = React.useState("");
-  const [typePrefix, setTypePrefix] = React.useState("");
   const [typeCategoryId, setTypeCategoryId] = React.useState<string>("");
   const [typeProcessId, setTypeProcessId] = React.useState<string>("");
   const [typeError, setTypeError] = React.useState<string | null>(null);
@@ -166,7 +165,6 @@ export function MachineCatalogsPage({
   function openCreateType(g: CategoryGroupRow) {
     setTypeCode("");
     setTypeName("");
-    setTypePrefix("");
     setTypeCategoryId(String(g.asset_category_id));
     setTypeProcessId("");
     setTypeError(null);
@@ -176,7 +174,6 @@ export function MachineCatalogsPage({
   function openEditType(t: TypeChildRow) {
     setTypeCode(t.code);
     setTypeName(t.name);
-    setTypePrefix(t.code_prefix);
     setTypeCategoryId(String(t.asset_category_id));
     setTypeProcessId(t.process_ids[0] ? String(t.process_ids[0]) : "");
     setTypeError(null);
@@ -189,8 +186,10 @@ export function MachineCatalogsPage({
       setTypeError("Categoría, código y nombre son obligatorios.");
       return;
     }
-    if (!/^[A-Za-z0-9]{2,8}$/.test(typePrefix.trim())) {
-      setTypeError("El prefijo de matrícula debe ser alfanumérico (2–8 caracteres).");
+    if (!/^[A-Za-z0-9]{2,8}$/.test(typeCode.trim())) {
+      setTypeError(
+        "El código debe ser alfanumérico (2–8 caracteres): también se usa como prefijo de la matrícula.",
+      );
       return;
     }
     setTypeBusy(true);
@@ -203,9 +202,8 @@ export function MachineCatalogsPage({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             asset_category_id: Number(typeCategoryId),
-            code: typeCode.trim(),
+            code: typeCode.trim().toUpperCase(),
             name: typeName.trim(),
-            code_prefix: typePrefix.trim().toUpperCase(),
             process_ids: typeProcessId ? [Number(typeProcessId)] : [],
           }),
         },
@@ -243,7 +241,7 @@ export function MachineCatalogsPage({
         key: "name",
         header: "Tipo de equipo",
         render: (t) => <span className="font-medium">{t.name}</span>,
-        className: "w-64",
+        className: "w-[34%]",
       },
       {
         key: "prefix",
@@ -253,7 +251,7 @@ export function MachineCatalogsPage({
             {t.code_prefix}
           </span>
         ),
-        className: "w-24",
+        className: "w-[13%]",
       },
       {
         key: "process",
@@ -270,7 +268,7 @@ export function MachineCatalogsPage({
           ) : (
             <span className="text-muted-foreground">Sin proceso</span>
           ),
-        className: "w-52",
+        className: "w-[30%]",
       },
       {
         key: "code",
@@ -278,6 +276,7 @@ export function MachineCatalogsPage({
         render: (t) => (
           <span className="font-mono text-xs text-muted-foreground">{t.code}</span>
         ),
+        className: "w-[17%]",
       },
     ],
     [],
@@ -438,7 +437,7 @@ export function MachineCatalogsPage({
           if (!open) setTypeError(null);
         }}
         title={typeModal.editId === null ? "Nuevo tipo de equipo" : "Editar tipo de equipo"}
-        description="El prefijo forma la matrícula de los equipos de este tipo (p. ej. LSR-P1-0001). El proceso aplica a todos los equipos del tipo."
+        description="El código del tipo también sirve como prefijo de la matrícula automática de sus equipos (p. ej. CL-P1-0001). El proceso aplica a todos los equipos del tipo."
         busy={typeBusy}
         error={typeError}
         onSubmit={onSubmitType}
@@ -480,51 +479,36 @@ export function MachineCatalogsPage({
               <Input
                 id="type-code"
                 value={typeCode}
-                onChange={(e) => setTypeCode(e.target.value)}
-                maxLength={40}
-                disabled={typeBusy}
-                placeholder="p. ej. laser_cutting"
-              />
-              <p className="text-xs text-muted-foreground">
-                Único dentro de la categoría.
-              </p>
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="type-prefix">Prefijo de matrícula *</Label>
-              <Input
-                id="type-prefix"
-                value={typePrefix}
-                onChange={(e) => setTypePrefix(e.target.value.toUpperCase())}
+                onChange={(e) => setTypeCode(e.target.value.toUpperCase())}
                 maxLength={8}
                 disabled={typeBusy}
-                placeholder="p. ej. LSR"
+                placeholder="p. ej. CL"
                 className="font-mono uppercase"
               />
               <p className="text-xs text-muted-foreground">
-                Único entre todos los tipos.
+                2–8 caracteres alfanuméricos. Único entre todos los tipos: también es
+                el prefijo de la matrícula.
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="type-process">Proceso</Label>
-              <Select
-                id="type-process"
-                value={typeProcessId}
-                onChange={(e) => setTypeProcessId(e.target.value)}
-                disabled={typeBusy}
-              >
-                <option value="">Sin proceso</option>
-                {processes.map((p) => (
-                  <option key={p.process_id} value={p.process_id}>
-                    {p.name}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Proceso que realiza este tipo de máquina.
-              </p>
-            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="type-process">Proceso</Label>
+            <Select
+              id="type-process"
+              value={typeProcessId}
+              onChange={(e) => setTypeProcessId(e.target.value)}
+              disabled={typeBusy}
+            >
+              <option value="">Sin proceso</option>
+              {processes.map((p) => (
+                <option key={p.process_id} value={p.process_id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Proceso que realiza este tipo de máquina.
+            </p>
           </div>
         </div>
       </EntityFormDialog>

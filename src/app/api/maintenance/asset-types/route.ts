@@ -21,13 +21,13 @@ interface CreateBody {
   asset_category_id?: unknown;
   code?: unknown;
   name?: unknown;
-  code_prefix?: unknown;
   /** Process links (N:M in DB; the UI sends 0 or 1 for now). */
   process_ids?: unknown;
 }
 
-/** POST /api/maintenance/asset-types — create a type under a category, with
- * its matrícula prefix (V18) and optional process link. */
+/** POST /api/maintenance/asset-types — create a type under a category. The
+ * matrícula prefix (V18) is not a separate input: it is always derived from
+ * `code` (uppercased), so `code` alone must satisfy the prefix format. */
 export async function POST(request: NextRequest) {
   let body: CreateBody;
   try {
@@ -36,19 +36,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
   }
   const categoryId = Number(body.asset_category_id);
-  const code = typeof body.code === "string" ? body.code.trim() : "";
+  const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
   const name = typeof body.name === "string" ? body.name.trim() : "";
-  const prefix =
-    typeof body.code_prefix === "string" ? body.code_prefix.trim() : "";
   if (!Number.isInteger(categoryId) || categoryId <= 0 || !code || !name) {
     return NextResponse.json(
       { error: "Categoría, código y nombre son obligatorios." },
       { status: 422 },
     );
   }
-  if (!/^[A-Za-z0-9]{2,8}$/.test(prefix)) {
+  if (!/^[A-Za-z0-9]{2,8}$/.test(code)) {
     return NextResponse.json(
-      { error: "El prefijo de matrícula debe tener de 2 a 8 caracteres alfanuméricos." },
+      {
+        error:
+          "El código debe tener de 2 a 8 caracteres alfanuméricos: también se usa como prefijo de matrícula.",
+      },
       { status: 422 },
     );
   }
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
       asset_category_id: categoryId,
       code,
       name,
-      code_prefix: prefix,
+      code_prefix: code,
       process_ids: processIds,
     });
     return NextResponse.json({ type }, { status: 201 });

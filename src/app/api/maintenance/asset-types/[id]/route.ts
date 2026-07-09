@@ -17,7 +17,6 @@ interface PutBody {
   asset_category_id?: unknown;
   code?: unknown;
   name?: unknown;
-  code_prefix?: unknown;
   is_active?: unknown;
   /** Full replacement of the type ↔ process links when present. */
   process_ids?: unknown;
@@ -44,20 +43,22 @@ export async function PUT(
     }
     changes.asset_category_id = categoryId;
   }
-  if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
-  if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (body.code_prefix !== undefined) {
-    if (
-      typeof body.code_prefix !== "string" ||
-      !/^[A-Za-z0-9]{2,8}$/.test(body.code_prefix.trim())
-    ) {
+  if (typeof body.code === "string" && body.code.trim()) {
+    const code = body.code.trim().toUpperCase();
+    if (!/^[A-Za-z0-9]{2,8}$/.test(code)) {
       return NextResponse.json(
-        { error: "El prefijo de matrícula debe tener de 2 a 8 caracteres alfanuméricos." },
+        {
+          error:
+            "El código debe tener de 2 a 8 caracteres alfanuméricos: también se usa como prefijo de matrícula.",
+        },
         { status: 422 },
       );
     }
-    changes.code_prefix = body.code_prefix.trim();
+    // The matrícula prefix (V18) is not a separate input: it always mirrors `code`.
+    changes.code = code;
+    changes.code_prefix = code;
   }
+  if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
   if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
   let processIds: number[] | undefined;
   if (body.process_ids !== undefined) {

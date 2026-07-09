@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -265,7 +264,14 @@ export function GroupedDataTable<G, C>({
                 return (
                   <React.Fragment key={String(gid)}>
                     <TableRow className="bg-gray-50/80 hover:bg-gray-100/80">
-                      <TableCell colSpan={childColumns.length} className="py-2">
+                      <TableCell colSpan={childColumns.length} className="relative py-2">
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "absolute inset-y-0 left-0 w-[3px] bg-ezi-orange transition-opacity duration-150",
+                            isCollapsed ? "opacity-0" : "opacity-100",
+                          )}
+                        />
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -274,11 +280,12 @@ export function GroupedDataTable<G, C>({
                             aria-label={isCollapsed ? "Expandir grupo" : "Colapsar grupo"}
                             aria-expanded={!isCollapsed}
                           >
-                            {isCollapsed ? (
-                              <ChevronRight className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
+                            <ChevronRight
+                              className={cn(
+                                "h-4 w-4 transition-transform duration-200",
+                                !isCollapsed && "rotate-90 text-ezi-orange",
+                              )}
+                            />
                           </button>
                           {renderGroupTitle(group)}
                           {!gActive ? <Badge variant="muted">inactivo</Badge> : null}
@@ -322,7 +329,10 @@ export function GroupedDataTable<G, C>({
                     </TableRow>
                     {!isCollapsed
                       ? children.map((child) => (
-                          <TableRow key={String(getChildId(child))}>
+                          <TableRow
+                            key={String(getChildId(child))}
+                            className="animate-row-in"
+                          >
                             {childColumns.map((col, i) => (
                               <TableCell
                                 key={col.key}
@@ -347,7 +357,7 @@ export function GroupedDataTable<G, C>({
                         ))
                       : null}
                     {!isCollapsed && children.length === 0 ? (
-                      <TableRow>
+                      <TableRow className="animate-row-in">
                         <TableCell
                           colSpan={totalCols}
                           className="pl-10 text-xs text-muted-foreground"

@@ -1,7 +1,7 @@
 # maintenance
 
-**Last synced:** 2026-07-09 (production-db-unify) · **Synced from:** see the
-ledger in [docs/plans/README.md](../plans/README.md) for the full plan
+**Last synced:** 2026-07-10 (ui-monoliths-decomposition) · **Synced from:** see
+the ledger in [docs/plans/README.md](../plans/README.md) for the full plan
 history.
 
 ## Purpose
@@ -136,7 +136,8 @@ permission codes.
   design-matching empty state ("No se encontraron equipos" + "Limpiar
   filtros") when filters yield zero rows. Editar / Desactivar / Reactivar
   live in a **right-click context menu** per card (shadcn `ContextMenu`),
-  each item gated by its permission, Desactivar confirmed via `AlertDialog`
+  each item gated by its permission, Desactivar confirmed via the kit
+  `ConfirmDialog` (`src/components/kit/confirm-dialog.tsx`)
   and Reactivar direct (reversible). Menu actions defer to the next tick
   before opening dialogs — opening one synchronously from `onSelect` races
   the Radix menu close and strands `pointer-events: none` on the body,
@@ -159,7 +160,8 @@ permission codes.
   seeded by V9.
 - **Equipment detail is an expanding modal, not a page** (plan
   equipment-detail-modal; redesigned by V18): clicking a card expands it
-  in-place into `machine-modal.tsx` via the kit `ExpandingModal`
+  in-place into `machine-modal.tsx` (the orchestrator: header, tabs,
+  `MachineModal`) via the kit `ExpandingModal`
   (`src/components/kit/expanding-modal.tsx`), deep-linkable through
   `/maintenance/machines?asset=<code>`. The old
   `/maintenance/machines/[code]` page is a **redirect shim** to that
@@ -178,8 +180,8 @@ permission codes.
   not pre-filtered client-side) — the modal surfaces the API's error message
   generically (no dedicated UI for this case). **Status is neither shown nor
   settable**; criticality is not captured (both columns still exist). Header
-  actions are icon-only — QR (`qr-modal.tsx`), delete (`Trash2`, AlertDialog
-  + soft-delete), edit (`Pencil`, inline edit mode). Tabs: **Mantenimiento**
+  actions are icon-only — QR (`qr-modal.tsx`), delete (`Trash2`, the kit
+  `ConfirmDialog` + soft-delete), edit (`Pencil`, inline edit mode). Tabs: **Mantenimiento**
   (two representative disabled buttons, preventivo/autónomo, until those
   phases ship) / **Documentación** / **Restricciones** — the former
   **Procesos and Ubicación tabs are retired** (processes ride on the type;
@@ -188,7 +190,14 @@ permission codes.
   dialog: photo uploads through the image endpoint before save, **no code
   field** (an auto-generate hint replaces it), **required location select**
   (V18; no plant field — the plant derives), and **no per-asset process
-  select** (removed in V18).
+  select** (removed in V18). **`machine-modal.tsx` was split** (pure UI
+  refactor, ui-monoliths-decomposition, no behavior change): the identity
+  fields + photo + Planta→Ubicación→Celda cascade + Detalles section now
+  live in `machine-summary-fields.tsx` (`SummaryFields`, plus private
+  `FieldSlot`/`ReadValue` helpers); the pending-cell-choice state and the
+  fetch logic that closes/opens `asset_cell_assignment` rows on save moved
+  into the hook `hooks/use-cell-assignment.ts` (`useCellAssignment`),
+  previously inlined in the modal component.
 - Does **not** own plants/locations (module `org`: `org.plant`,
   `org.location`) nor the process catalog (module `org`, `org.process` since
   V15) — assets and `asset_type_process` reference them cross-schema. Does not own users (`auth.app_user`) — document

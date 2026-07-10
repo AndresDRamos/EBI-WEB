@@ -1,7 +1,7 @@
 # production
 
-**Last synced:** 2026-07-09 (production-db-unify) · **Synced from:** see the
-ledger in [docs/plans/README.md](../plans/README.md) for the full plan
+**Last synced:** 2026-07-10 (ui-monoliths-decomposition) · **Synced from:** see
+the ledger in [docs/plans/README.md](../plans/README.md) for the full plan
 history.
 
 ## Purpose
@@ -112,16 +112,28 @@ axes:
       `ExpandingModal`) into `LocationCellsModal`.
     - `location-cells-modal.tsx` (`LocationCellsModal`) — one location's
       operative cells as cards (top-level cells only; children roll up),
-      with an in-place drill-in per cell (`CellDetailView`): summary
-      (size/process/Op badge), a **read-only "Operaciones de la línea"** list
-      of children for parent cells with reorder buttons (persisted via
-      `POST .../children/reorder`, disabled once the cell has no children —
-      depth 1), and a **read-only "Composición vigente" + history** panel
-      (`CellComposition`, fetched from `GET /cells/[id]/assignments`) — a
-      note in the UI states assignments are *"Se gestiona desde
-      Mantenimiento → Equipos"*. Creation (`CellFormDialog`) is
-      **pre-filtered by location**: the form only asks name/size X·Y/process
-      — no code, plant or location input; the code is server-generated.
+      with an in-place drill-in per cell. **Split** (pure UI refactor,
+      ui-monoliths-decomposition, no behavior change) into:
+      `location-cells-modal.tsx` itself (orchestrator: `LocationCellsModal`,
+      `CellCardsList`, `ExpandTransition`, the `OperativeCellRow`/
+      `ProcessOption`/`FormTarget` types, `formatSize()`), `cell-detail-view.tsx`
+      (`CellDetailView` — summary (size/process/Op badge), a **read-only
+      "Operaciones de la línea"** list of children for parent cells with
+      reorder buttons persisted via `POST .../children/reorder`, disabled
+      once the cell has no children — depth 1; the reorder helper comes from
+      the shared `src/lib/reorder.ts`, not a local copy), `cell-composition.tsx`
+      (`CellComposition` + `AssignmentItem` type — the **read-only**
+      "Composición vigente" + history panel, fetched from
+      `GET /cells/[id]/assignments`, with a note in the UI stating
+      assignments are *"Se gestiona desde Mantenimiento → Equipos"*) and
+      `cell-form-dialog.tsx` (`CellFormDialog` + `CellFormDialogInner` —
+      creation is **pre-filtered by location**: the form only asks
+      name/size X·Y/process — no code, plant or location input; the code is
+      server-generated). `CellDetailView`'s local draft-order state
+      (`order`/`committedIds`) no longer resets via a
+      setState-during-render watchdog keyed on a `prevIdsKey` — the caller
+      (`location-cells-modal.tsx`) now passes `key={cellId}:{sortedChildIds}`
+      so the component remounts fresh instead.
     - the V13 pages are unchanged by V19: `layout-viewer-page` (+
       `layout-canvas`, an SVG canvas with its own pan/zoom — no d3),
       `layout-editor-page` (+ `layout-palette`: click-to-arm → click-to-place;
@@ -355,7 +367,8 @@ axes:
   `/api/nav/*` mutation or restart with a cold cache, or the section guard
   keeps redirecting even for admins.
 - **Assignment management lives only in the maintenance equipment modal.**
-  `LocationCellsModal`'s composition panel (`CellComposition`) is
+  `LocationCellsModal`'s composition panel (`CellComposition`, its own file
+  `cell-composition.tsx` since the ui-monoliths-decomposition split) is
   **read-only by design** (fetches `GET /cells/[id]/assignments`, no create/
   close/reassign UI) — do not add assignment mutation controls there without
   first checking whether this decision (plan production-operative-cells) has

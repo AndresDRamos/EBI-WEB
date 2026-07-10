@@ -1,6 +1,6 @@
 # Navigation (portal layout & DB-driven nav registry)
 
-**Last synced:** 2026-07-08 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005) + plan admin-panel-regroup + unified permission manager redesign (nav structure CRUD + role grants folded into `PermissionManager`'s "Estructura del menú" panel, replacing the Módulos tab entirely) + plan admin-permissions-portal (per-page nav authorization, ADR 0008 supersedes 0005: `auth.role_nav_item` V16, `x-pathname`-driven guard, `/api/roles/[id]/items`)
+**Last synced:** 2026-07-09 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005) + plan admin-panel-regroup + unified permission manager redesign (nav structure CRUD + role grants folded into `PermissionManager`'s "Estructura del menú" panel, replacing the Módulos tab entirely) + plan admin-permissions-portal (per-page nav authorization, ADR 0008 supersedes 0005: `auth.role_nav_item` V16, `x-pathname`-driven guard, `/api/org/roles/[id]/items`) + plan 5-cerrar-fronteras (layer-boundaries refactor: `portal-shell.tsx`/`admin-nav.ts` moved into this module, `NavIcon`/`NAV_ICON_NAMES` moved to the shared kit, routes renamed `/api/nav/*` → `/api/navigation/nav/*`)
 
 ## Purpose
 
@@ -28,10 +28,16 @@ module that introduces them.
   `getCachedNav` / `navRoleKey` + `getCachedNavRegistry` — the role-independent
   registry of active item hrefs + section refs used by the page guard; both
   shared by the shell, the home page and the guard), the per-page route guard
-  (`guard.ts`: `requireSectionOrRedirect`), the topbar/sidebar components
-  (`components/`: `portal-topbar.tsx`, `portal-sidebar.tsx`), the sidebar pin
-  cookie (`pin-action.ts` / `pin-cookie.ts`) and the curated icon map
-  (`icons.tsx`).
+  (`guard.ts`: `requireSectionOrRedirect`), the topbar/sidebar/shell components
+  (`components/`: `portal-shell.tsx`, `portal-topbar.tsx`, `portal-sidebar.tsx`
+  — since plan 5-cerrar-fronteras `portal-shell.tsx` lives here, not under
+  `src/components/layout/`), the sidebar pin cookie (`pin-action.ts` /
+  `pin-cookie.ts`) and the admin nav rail builder (`admin-nav.ts`, also moved
+  here from `src/components/layout/` by plan 5-cerrar-fronteras). The curated
+  icon map (`NavIcon` / `NAV_ICON_NAMES`) is no longer this module's own
+  `icons.tsx` — since plan 5-cerrar-fronteras it lives in the shared kit,
+  `src/components/kit/nav-icon.tsx` (multiple modules — nav rendering and the
+  admin nav-structure editor — need it, so it moved up to `kit`).
   The module no longer has its own admin structure panels — the former
   `nav-sections-table-page.tsx` / `nav-items-panel.tsx` (Módulos tab) and,
   before them, `nav-grants-panel.tsx` were all retired. Structure editing
@@ -43,28 +49,31 @@ module that introduces them.
   dialogs and per-page eye toggles, plus icons in the edit modals), backed by
   this module's data functions:
   - **Structure** (read/write): `listSections`/`listItems` (read),
-    `updateSection`, `create/update/deleteItem`, via `/api/nav/sections/[id]`
-    and `/api/nav/items[/id]`. Creating a page (`POST /api/nav/items`) also
-    calls `grantItemToSectionRoles` so the new page auto-grants to every role
-    that already sees ≥1 page of that section (instead of being invisible
-    until re-granted).
+    `updateSection`, `create/update/deleteItem`, via
+    `/api/navigation/nav/sections/[id]` and `/api/navigation/nav/items[/id]`
+    (renamed from `/api/nav/*` by plan 5-cerrar-fronteras). Creating a page
+    (`POST /api/navigation/nav/items`) also calls `grantItemToSectionRoles`
+    so the new page auto-grants to every role that already sees ≥1 page of
+    that section (instead of being invisible until re-granted).
   - **Page visibility** (the V16 grant, ADR 0008): `listRoleItemGrants` /
     `setRoleItemGrants` over `auth.role_nav_item`, via
-    `GET/PUT /api/roles/[id]/items` — role-centric, PUT gated by
+    `GET/PUT /api/org/roles/[id]/items` — role-centric, PUT gated by
     `navigation.grants:update`, 409 for the protected `admin` role, revalidates
     tag `"nav"`. This is what the eye toggles + intra-section page order write.
   - **Section order** (no longer a grant): `listRoleSectionGrants` /
     `setRoleSectionGrants` (+ the per-section `listSectionGrants` /
     `setSectionGrants`) over `auth.role_nav_section`, via
-    `GET/PUT /api/roles/[id]/sections` (dual of `/api/nav/sections/[id]/grants`)
-    — now only persists the per-role topbar section order/priority.
+    `GET/PUT /api/org/roles/[id]/sections` (dual of
+    `/api/navigation/nav/sections/[id]/grants`) — now only persists the
+    per-role topbar section order/priority.
   - **Registry helpers** for the guard: `listActiveItemRefs` /
     `listSectionRefs` feed `getCachedNavRegistry`.
 
-  `src/components/layout/portal-shell.tsx` (global chrome) composes the
-  topbar/sidebar pieces — the layer allowed to import from this module for
-  rendering; `modules/org` imports this module's `db.ts` functions and types
-  directly for the permission manager's tree.
+  `src/modules/navigation/components/portal-shell.tsx` (global chrome,
+  moved here from `src/components/layout/` by plan 5-cerrar-fronteras)
+  composes the topbar/sidebar pieces — the layer allowed to import from this
+  module for rendering; `modules/org` imports this module's `db.ts`
+  functions and types directly for the permission manager's tree.
 - **Owns page authorization** (plan admin-permissions-portal, ADR 0008,
   supersedes 0005): `requireSectionOrRedirect(code)` now enforces at **page**
   granularity — a route is reachable only if the page owning it resolves
@@ -83,7 +92,8 @@ module that introduces them.
   `src/middleware.ts` (default-deny, no per-prefix allowlist); `/admin/*` keeps
   `assertAdminOrRedirect` (a role gate, not a nav grant).
 - The admin panel reuses this module's `PortalSidebar`, fed the code-built
-  `ADMIN_NAV_SECTION` (`src/components/layout/admin-nav.ts`) — no bespoke admin
+  `ADMIN_NAV_SECTION` (`src/modules/navigation/admin-nav.ts`, moved here from
+  `src/components/layout/` by plan 5-cerrar-fronteras) — no bespoke admin
   rail. `PortalShell` renders `PortalSidebar` for both the portal and `/admin/*`.
   Since plan admin-panel-regroup the section has **two grouped entries** —
   Organización (`/admin/organization`: Usuarios · Departamentos y roles ·
@@ -117,10 +127,10 @@ getCachedNav + getCachedNavRegistry (cache.ts — unstable_cache, tags:["nav"])
 PortalShell → PortalTopbar (sections) + PortalSidebar (active section's items)
 ```
 
-Every `/api/nav/*` mutation — and `PUT /api/roles/[id]/items` +
-`PUT /api/roles/[id]/sections` — calls `revalidateTag("nav")` so the next
-shell render (and the next guard resolution) picks up the change without a
-manual cache-bust.
+Every `/api/navigation/nav/*` mutation — and `PUT /api/org/roles/[id]/items`
++ `PUT /api/org/roles/[id]/sections` — calls `revalidateTag("nav")` so the
+next shell render (and the next guard resolution) picks up the change
+without a manual cache-bust.
 
 ## Related ADRs
 
@@ -162,7 +172,7 @@ into an ADR. This module doc carries the live truth.
   intentional (the API 409s on it).
 - **Reactivation is now form state, not a row action.** The redesign's
   `SectionEditDialog` (in `permission-manager.tsx`) puts `is_active` back as
-  a plain checkbox in the edit form (PUT `/api/nav/sections/[id]`) — this
+  a plain checkbox in the edit form (PUT `/api/navigation/nav/sections/[id]`) — this
   supersedes the 0006-era `onRestore`/`DataTable` pattern, which no longer
   applies now that the Módulos tab's table pages are gone. `ItemEditDialog`
   only shows the `is_active` checkbox when editing an existing item (not on

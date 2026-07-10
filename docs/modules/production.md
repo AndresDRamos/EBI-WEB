@@ -11,7 +11,10 @@ catalog); plan machines-locations-view (V18) added `cell.location_id` →
 assignments; **plan production-operative-cells (V19) collapsed the
 line → cell two-level model into a single self-referencing `cell` and
 replaced the old `/production/cells` + `/production/lines` table pages with
-one "Celdas operativas" catalog view**
+one "Celdas operativas" catalog view**; plan 5-cerrar-fronteras (layer-
+boundaries refactor) extracted the reparenting invariant checks out of the
+`PATCH /api/production/cells/[id]` route handler into `assertCellCanReparent`
+in `db.ts` (no schema change)
 
 ## Purpose
 
@@ -71,8 +74,15 @@ axes:
     (immutable — the code encodes the location); new `cellHasChildren`,
     `listCellChildren`, `reorderCellChildren` back the parent/child UI; new
     typed errors `CellLocationInvalidError` / `CellParentInvalidError` /
-    `CellDepthExceededError` / `CellCodeOverflowError` (the API layer maps
-    them to 422/409).
+    `CellDepthExceededError` / `CellCodeOverflowError` / `CellHasChildrenError`
+    (the API layer maps them to 422/409). Since plan 5-cerrar-fronteras,
+    `assertCellCanReparent(cellId, locationId, parentCellId)` in `db.ts`
+    owns the max-depth-1 reparenting invariant end-to-end (target parent
+    active + same location + itself parentless, throwing
+    `CellParentInvalidError`/`CellDepthExceededError`; `cellId` must not
+    already have children, throwing `CellHasChildrenError`) — this used to
+    be inline validation logic in the `PATCH /api/production/cells/[id]`
+    route handler.
   - `dxf/` — the **pure** DXF import pipeline (no I/O, no `server-only`):
     `decode.ts` (UTF-8 for `$ACADVER >= AC1021`, `$DWGCODEPAGE` mapping for
     legacy files), `parse.ts` (`dxf-parser`, extracts the `EBI-*` layers),
@@ -130,7 +140,8 @@ axes:
     top-level cell (depth 1), then generates the code inside the same
     transaction that claims `cell_code_sequence`. `PATCH` accepts `name`,
     `parent_cell_id`, `size_x_m`/`size_y_m`, `process_id`, `is_active` —
-    never `code` or `location_id`. Reassigning `parent_cell_id` is checked
+    never `code` or `location_id`. Reassigning `parent_cell_id` calls
+    `assertCellCanReparent` (`db.ts`, plan 5-cerrar-fronteras), which checks
     **both directions**: the target parent must not itself have a parent,
     and the cell being reparented must not already have children of its own
     (`cellHasChildren`).
@@ -198,7 +209,9 @@ axes:
   section, no items). V13 seeded a `Layout` nav item; **V14 removed it** —
   the module returns to the portal nav only when its practical use is
   validated (re-seed + move pages back). The `Map` icon stays in the curated
-  set (`src/modules/navigation/icons.tsx`) for that future re-entry.
+  set (`src/components/kit/nav-icon.tsx` — moved here from
+  `src/modules/navigation/icons.tsx` by plan 5-cerrar-fronteras) for that
+  future re-entry.
 - Owns the temporal invariants: `reassign` (assignments) and `movePose`
   (placements) are the only sanctioned "moves" — close + insert in one
   transaction; `closeAssignment`/`closePlacement` only touch rows still
@@ -307,13 +320,15 @@ axes:
   checks (location **and** process) — neither is backed by a trigger.
 - **Cell hierarchy depth is capped at 1, app-enforced only** (V19, no CHECK
   can express it): `createCell` rejects a `parent_cell_id` whose target
-  already has a parent (`CellDepthExceededError`); `updateCell`'s API route
-  (`PATCH /api/production/cells/[id]`) additionally rejects setting
-  `parent_cell_id` on a cell that already has children
-  (`cellHasChildren`). The DB only backs `CK_cell_not_self_parent`
-  (`parent_cell_id ≠ cell_id`) — it has no way to express "no grandparents".
-  Any new cell-creation/reparenting code path must repeat both directions of
-  this check.
+  already has a parent (`CellDepthExceededError`); the `PATCH
+  /api/production/cells/[id]` route calls `assertCellCanReparent` (`db.ts`,
+  centralized by plan 5-cerrar-fronteras — previously inline in the route)
+  which additionally rejects setting `parent_cell_id` on a cell that already
+  has children (`cellHasChildren` → `CellHasChildrenError`). The DB only
+  backs `CK_cell_not_self_parent` (`parent_cell_id ≠ cell_id`) — it has no
+  way to express "no grandparents". Any new cell-creation/reparenting code
+  path must repeat both directions of this check (via `assertCellCanReparent`
+  for the reparent case).
 - **`cell.code` is app-generated and immutable — never accept it from a
   caller, never let `updateCell` change it or `location_id`.** `createCell`
   claims `production.cell_code_sequence.next_seq` (keyed by `location_id`)
@@ -335,8 +350,8 @@ axes:
 - **Nav-cache gotcha after migrations that seed nav rows** (applies to the
   V19 `Celdas operativas` item exactly as to V11/V13): seeded rows do **not**
   invalidate the persisted `unstable_cache` tagged `"nav"` — trigger any
-  `/api/nav/*` mutation or restart with a cold cache, or the section guard
-  keeps redirecting even for admins.
+  `/api/navigation/nav/*` mutation or restart with a cold cache, or the
+  section guard keeps redirecting even for admins.
 - **Assignment management lives only in the maintenance equipment modal.**
   `LocationCellsModal`'s composition panel (`CellComposition`) is
   **read-only by design** (fetches `GET /cells/[id]/assignments`, no create/

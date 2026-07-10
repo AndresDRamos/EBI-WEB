@@ -52,7 +52,7 @@ RBAC actions precede the next business module.
 | Schemas | Medallion: `staging` (ETL landing) → `core` / `planeacion` (consumption). |
 | ETL | EPS is **read-only**. Never write to EPS. |
 | Admin UI | **Generic kit tables** (`src/components/kit/`: `data-table.tsx`, `grouped-data-table.tsx`, `page-tabs.tsx`, `entity-card.tsx`); per-entity modals; the `/admin` panel = 2 tabbed groups (Organización / Portal, tabs as real routes) behind the shared `PortalSidebar` fed the code-built `ADMIN_NAV_SECTION` (no bespoke rail). |
-| Repo layout | **Modules-first** (2026-07-02): `app/` = thin routing only; `modules/<m>/` owns each domain (db + components); `components/kit|ui|layout` shared UI; `lib/` domain-blind infra. Business-module APIs namespaced (`/api/maintenance/...`). |
+| Repo layout | **Modules-first** (2026-07-02): `app/` = thin routing only; `modules/<m>/` owns each domain (db + components); `components/kit|ui|layout` shared UI; `lib/` domain-blind infra. Business-module APIs namespaced (`/api/maintenance/...`, `/api/org/...`, `/api/navigation/...`; `/api/auth/[...nextauth]` is the one framework exception) — closed off 2026-07-10 (`org`/`navigation` flat routes moved under their namespace, `src/lib` no longer imports `@/modules`, no cross-module value imports remain). |
 | Unproven modules | `(portal)/test/*` (founded 2026-07-06): admin-only proving ground, outside the nav registry, for modules whose portal-fit isn't settled yet. First tenant: plant-layout (`docs/modules/production.md`). Promote by moving pages back + re-seeding the nav item. |
 
 ## Code conventions (non-trivial — violating them breaks things)

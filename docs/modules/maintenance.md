@@ -1,6 +1,6 @@
 # maintenance
 
-**Last synced:** 2026-07-09 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11) + plan org-schema-plant-process (process catalog moved to `org`, V15) + machines cards view (kit `EntityCard`, no schema change) + `design/Equipos.dc.html` fidelity pass (full-page layout, no schema change) + plan equipment-maintenance-attributes (asset catalog redesign: configurable category/type catalogs + app-generated matrícula + asset photo, V17) + plan equipment-detail-modal (detail page → expanding modal, no schema change) + plan machines-locations-view (`org.location` anchor, type-owned prefix/processes, modal redesign + QR landing `/asset/[code]`, V18) + plan production-operative-cells (adds `assetTypeSupportsProcess` to `db.ts`, backing the cell/asset process invariant on assignments; no `maintenance` schema change, V19)
+**Last synced:** 2026-07-09 · **Synced from:** plan 0004 (Fase A build) + plan 0006 (RBAC actions pilot) + plan portal-home-nav-authz (nav items V9 + section guard) + plan production-cell-assignment (asset_category + Ubicación tab, V11) + plan org-schema-plant-process (process catalog moved to `org`, V15) + machines cards view (kit `EntityCard`, no schema change) + `design/Equipos.dc.html` fidelity pass (full-page layout, no schema change) + plan equipment-maintenance-attributes (asset catalog redesign: configurable category/type catalogs + app-generated matrícula + asset photo, V17) + plan equipment-detail-modal (detail page → expanding modal, no schema change) + plan machines-locations-view (`org.location` anchor, type-owned prefix/processes, modal redesign + QR landing `/asset/[code]`, V18) + plan production-operative-cells (adds `assetTypeSupportsProcess` to `db.ts`, backing the cell/asset process invariant on assignments; no `maintenance` schema change, V19) + plan 5-cerrar-fronteras (layer-boundaries refactor: extracted `types.ts` and `view-models.ts`, dropped the `listProcesses`/`findProcessById` re-export, `updateAsset` gained the `movingLocation` transactional option; no schema change)
 
 ## Purpose
 
@@ -34,7 +34,17 @@ permission codes.
 - Owns the module slice `src/modules/maintenance/` — `db.ts` is the only
   place that queries `maint.*` tables; `components/` holds the module UI;
   `enums.ts` mirrors the schema CHECKs that remain fixed (status, criticality,
-  restriction/doc types). **The asset category/type domain is no longer an
+  restriction/doc types). Since plan 5-cerrar-fronteras, two more files sit
+  alongside `db.ts`: `types.ts` declares `MachineRow` / `LocationOption` /
+  `CellOption` / `ParentOption` as `Pick`s off the real DB row types
+  (`AssetListRow`, `LocationWithPlant`, `CellRow`) instead of the
+  hand-declared duplicates that used to live in page/component files, and
+  `view-models.ts` exports `getMachinesCatalogViewModel()` — the shared
+  data-assembly (assets + plants + locations + cells + categories/types +
+  current cell names, joined into `MachineRow[]`/`ParentOption[]`) consumed
+  by both `(portal)/maintenance/machines/page.tsx` and the QR landing page
+  `src/app/asset/[code]/page.tsx`, deduping what used to be two
+  near-identical blocks. **The asset category/type domain is no longer an
   enum**: since V17 it lives in the DB catalogs `maint.asset_category` /
   `maint.asset_type`, served by `listAssetCategories` / `listAssetTypes` (+
   full CRUD: create/update/softDelete/delete for both) in `db.ts`. Since V18
@@ -95,9 +105,15 @@ permission codes.
     status is not user-settable). `PATCH .../[id]` accepts `location_id` /
     `asset_type_id` / `image_blob_path` / `installation_date` and rejects
     `code` / `plant_id` / `status` / `location` / `criticality`. When the
-    PATCH changes `location_id`, it **auto-closes the asset's current cell
-    assignments** (historized close via `production/db`, never a delete) —
-    they no longer share the location.
+    PATCH changes `location_id`, it calls `updateAsset(id, input, {
+    movingLocation: true })` — since plan 5-cerrar-fronteras this flag makes
+    `updateAsset` itself wrap the asset row update and the **auto-close of
+    the asset's current cell assignments** in one Kysely transaction
+    (`rootDb.transaction()`, reaching into `production.asset_cell_assignment`
+    directly, same cross-schema pattern `production/db.ts` uses in reverse);
+    this used to be a separate loop in the route handler calling
+    `production/db`'s `closeAssignment` per row — the historized close
+    (never a delete) is unchanged, only where it's transactionally owned.
   - `POST /api/maintenance/assets/image` — photo upload → returns `blob_path`
     (Azure Blob container `maintenance`). Asset-agnostic (the photo is
     uploaded before the row exists in the create flow), so the gate is an
@@ -202,22 +218,28 @@ permission codes.
 
 ## Dependency flow
 
-- `(portal)/maintenance/*` pages → `src/modules/maintenance/db.ts` +
-  `src/modules/org/db/locations.ts` (location options — V18; plant options
-  via `org.ts` where still needed); the machines list page also →
-  `modules/production/db.{currentCellNamesByAssets,listCells}` (cell names
-  for the cards footer + cell options for the modal's Ubicación row —
-  app-layer composition). Pages no longer compute a `canManage`/`isAdmin`
-  prop: action visibility is gated client-side by `useCan()` from
-  `PermissionsProvider` (seeded in `(portal)/layout.tsx`); the API re-checks
-  with `requirePermission` per request.
+- `(portal)/maintenance/machines/page.tsx` and `src/app/asset/[code]/page.tsx`
+  both call `src/modules/maintenance/view-models.ts`'s
+  `getMachinesCatalogViewModel()` (added by plan 5-cerrar-fronteras), which
+  internally composes `src/modules/maintenance/db.ts` (`listAssets`,
+  `listAssetCategories`, `listAssetTypes`) + `src/modules/org/db/org.ts`
+  (`listPlants`) + `src/modules/org/db/locations.ts` (`listLocations`) +
+  `modules/production/db.{listCells,currentCellNamesByAssets}` (cell options
+  + cell names — app-layer composition) into the shared `MachineRow[]` /
+  `ParentOption[]` shape (types in `modules/maintenance/types.ts`). Other
+  `(portal)/maintenance/*` pages still call `src/modules/maintenance/db.ts`
+  directly. Pages no longer compute a `canManage`/`isAdmin` prop: action
+  visibility is gated client-side by `useCan()` from `PermissionsProvider`
+  (seeded in `(portal)/layout.tsx`); the API re-checks with
+  `requirePermission` per request.
 - `/api/maintenance/{assets,asset-categories,asset-types}/**` →
   `modules/maintenance/db.ts`; document and image routes also →
-  `src/lib/storage/blob.ts` (Azure Blob, `maintenance` container). (Process CRUD is
-  `/api/org/processes/**` → `modules/org/db/processes.ts` since V15;
-  `maintenance/db.ts` keeps only thin `org`-bound reads `listProcesses` /
-  `findProcessById`, re-exported from `modules/org/db/processes`, for the
-  machine-detail picker.)
+  `src/lib/storage/blob.ts` (Azure Blob, `maintenance` container). (Process
+  CRUD is `/api/org/processes/**` → `modules/org/db/processes.ts` since V15.
+  Since plan 5-cerrar-fronteras `maintenance/db.ts` no longer re-exports
+  `listProcesses`/`findProcessById` — callers that need the process catalog
+  (e.g. `machine-catalogs-page.tsx`'s type-process picker) import them
+  directly from `@/modules/org/db/processes`.)
 - QR (V18): `modules/maintenance/qr.ts` (`buildAssetQrDataUrl`, `qrcode`
   server-side data URL) encodes `{base}/asset/{code}` — a **layout-less,
   authenticated landing page** `src/app/asset/[code]/page.tsx` (outside the

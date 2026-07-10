@@ -2,16 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/kit/confirm-dialog";
 import { MachineModal } from "@/modules/maintenance/components/machine-modal";
 import type { MachineRow } from "@/modules/maintenance/components/machines-cards-page";
 import type {
@@ -109,7 +100,7 @@ export function MachineStandaloneView({
         />
       </div>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmTarget !== null}
         onOpenChange={(o) => {
           if (!o) {
@@ -117,36 +108,17 @@ export function MachineStandaloneView({
             setConfirmError(null);
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Desactivar el equipo?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmTarget
-                ? `${confirmTarget.code} — ${confirmTarget.name} se marcará como inactivo. Podrás reactivarlo después.`
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {confirmError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {confirmError}
-            </p>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={confirmBusy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-ezi-orange"
-              disabled={confirmBusy}
-              onClick={(e) => {
-                e.preventDefault();
-                void deactivate();
-              }}
-            >
-              {confirmBusy ? "Procesando…" : "Desactivar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="¿Desactivar el equipo?"
+        description={
+          confirmTarget
+            ? `${confirmTarget.code} — ${confirmTarget.name} se marcará como inactivo. Podrás reactivarlo después.`
+            : ""
+        }
+        confirmLabel="Desactivar"
+        busy={confirmBusy}
+        error={confirmError}
+        onConfirm={deactivate}
+      />
     </div>
   );
 }

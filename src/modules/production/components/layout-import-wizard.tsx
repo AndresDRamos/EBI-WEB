@@ -198,7 +198,11 @@ export function LayoutImportWizard({ plants }: { plants: PlantOption[] }) {
             </div>
           </div>
           {failedReport ? <ValidationReportView report={failedReport} /> : null}
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
           <Button onClick={onImport} disabled={busy || !file || !plantId}>
             <FileUp className="mr-2 h-4 w-4" />
             {busy ? "Procesando…" : "Importar y validar"}
@@ -241,7 +245,11 @@ export function LayoutImportWizard({ plants }: { plants: PlantOption[] }) {
             </p>
           ) : null}
           <ValidationReportView report={draft.report} />
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
           <div className="h-[60vh] rounded-lg border border-border bg-white">
             <LayoutCanvas geometry={draft.geometry} />
           </div>

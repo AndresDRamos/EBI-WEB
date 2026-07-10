@@ -11,12 +11,13 @@ import {
   Wrench,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { cn } from "@/lib/utils";
 import { useCan } from "@/components/providers/permissions-provider";
 import {
   DOC_TYPES,
@@ -214,7 +215,7 @@ export function RestriccionesTab({
                     <button
                       type="button"
                       onClick={() => void onDeactivate(r)}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
+                      className={cn(buttonVariants({ variant: "ghost-ezi", size: "icon-sm" }))}
                       aria-label="Desactivar restricción"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -386,7 +387,7 @@ export function DocumentosTab({
                 <button
                   type="button"
                   onClick={() => void onDelete(d)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
+                  className={cn(buttonVariants({ variant: "ghost-ezi", size: "icon-sm" }))}
                   aria-label={`Eliminar ${d.title}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

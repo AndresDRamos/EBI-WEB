@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Factory, Boxes, MapPin, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { EmptyState } from "@/components/kit/empty-state";
 import { EntityCard, EntityCardGrid } from "@/components/kit/entity-card";
 import type { ExpandingModalRect } from "@/components/kit/expanding-modal";
 import {
@@ -53,11 +54,7 @@ export function MachineCardsGrid({
   const hasMenu = Boolean(onEdit || onDeactivate || onRestore);
   const cardRefs = React.useRef(new Map<number, HTMLElement>());
   if (machines.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No hay equipos para mostrar.
-      </p>
-    );
+    return <EmptyState variant="inline" title="No hay equipos para mostrar." />;
   }
   return (
     <EntityCardGrid>

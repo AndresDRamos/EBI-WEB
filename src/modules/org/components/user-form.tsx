@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Copy, Check } from "lucide-react";
+import { EmptyState } from "@/components/kit/empty-state";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
 import { apiMutate } from "@/lib/api-client";
 
@@ -66,9 +67,11 @@ function MultiSelect({
       <Label>{label}</Label>
       <div className="max-h-44 overflow-auto rounded-sm border bg-white p-2">
         {items.length === 0 ? (
-          <p className="px-1 py-1 text-sm text-muted-foreground">
-            No hay elementos. Solicítelos al administrador del catálogo.
-          </p>
+          <EmptyState
+            variant="inline"
+            className="px-1 py-1"
+            title="No hay elementos. Solicítelos al administrador del catálogo."
+          />
         ) : (
           <ul className="space-y-1">
             {items.map((item) => (

@@ -12,16 +12,8 @@ import {
   SearchX,
   X,
 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/kit/confirm-dialog";
+import { EmptyState } from "@/components/kit/empty-state";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -345,7 +337,10 @@ export function MachinesCardsPage({
                   type="button"
                   onClick={chip.clear}
                   title="Quitar filtro"
-                  className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
+                  className={cn(
+                    buttonVariants({ variant: "ghost-ezi" }),
+                    "h-[18px] w-[18px] rounded-full",
+                  )}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -377,25 +372,23 @@ export function MachinesCardsPage({
       {/* Cards grid — the only region that scrolls. */}
       <div className="flex-1 overflow-y-auto py-4">
         {pageItems.length === 0 && activeFilterCount > 0 ? (
-          <div className="flex flex-col items-center justify-center gap-1 py-16 text-center text-muted-foreground">
-            <SearchX className="h-10 w-10 text-gray-300" />
-            <p className="mt-2 text-sm font-semibold text-ezi-gray">
-              No se encontraron equipos
-            </p>
-            <p className="text-xs">
-              Ajuste o limpie los filtros para ver más resultados.
-            </p>
-            <button
-              type="button"
-              onClick={() => setFilters(EMPTY_FILTERS)}
-              className={cn(
-                buttonVariants({ variant: "outline", size: "sm" }),
-                "mt-3",
-              )}
-            >
-              Limpiar filtros
-            </button>
-          </div>
+          <EmptyState
+            icon={SearchX}
+            title="No se encontraron equipos"
+            description="Ajuste o limpie los filtros para ver más resultados."
+            action={
+              <button
+                type="button"
+                onClick={() => setFilters(EMPTY_FILTERS)}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "mt-3",
+                )}
+              >
+                Limpiar filtros
+              </button>
+            }
+          />
         ) : (
           <MachineCardsGrid
             machines={pageItems}
@@ -467,7 +460,7 @@ export function MachinesCardsPage({
         ) : null}
       </ExpandingModal>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmTarget !== null}
         onOpenChange={(o) => {
           if (!o) {
@@ -475,36 +468,17 @@ export function MachinesCardsPage({
             setConfirmError(null);
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Desactivar el equipo?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmTarget
-                ? `${confirmTarget.code} — ${confirmTarget.name} se marcará como inactivo. Podrás reactivarlo después.`
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {confirmError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {confirmError}
-            </p>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={confirmBusy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-ezi-orange"
-              disabled={confirmBusy}
-              onClick={(e) => {
-                e.preventDefault();
-                void deactivate();
-              }}
-            >
-              {confirmBusy ? "Procesando…" : "Desactivar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="¿Desactivar el equipo?"
+        description={
+          confirmTarget
+            ? `${confirmTarget.code} — ${confirmTarget.name} se marcará como inactivo. Podrás reactivarlo después.`
+            : ""
+        }
+        confirmLabel="Desactivar"
+        busy={confirmBusy}
+        error={confirmError}
+        onConfirm={deactivate}
+      />
     </div>
   );
 }

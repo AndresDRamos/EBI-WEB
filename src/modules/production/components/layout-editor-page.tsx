@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Move, RotateCcw, RotateCw, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SectionHeader } from "@/components/kit/section-header";
 import { cn } from "@/lib/utils";
 import { apiMutate } from "@/lib/api-client";
 import { useCan } from "@/components/providers/permissions-provider";
@@ -274,16 +275,17 @@ export function LayoutEditorPage({
     <div className="flex h-[calc(100vh-4rem)] flex-col gap-3 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Move className="h-5 w-5 text-[#ff5c35]" />
-          <div>
-            <h1 className="text-lg font-semibold">
-              Colocaciones — {layout.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              v{layout.version} · {layout.width_m} × {layout.height_m} m · snap{" "}
-              {SNAP_M} m
-            </p>
-          </div>
+          <SectionHeader
+            as="h1"
+            icon={Move}
+            title={`Colocaciones — ${layout.name}`}
+            description={
+              <>
+                v{layout.version} · {layout.width_m} × {layout.height_m} m · snap{" "}
+                {SNAP_M} m
+              </>
+            }
+          />
           <Badge variant="secondary">{placements.length} colocados</Badge>
         </div>
         <div className="flex items-center gap-2">
@@ -335,7 +337,11 @@ export function LayoutEditorPage({
         </div>
       </div>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 gap-3">
         <div

@@ -1,6 +1,6 @@
 # RBAC actions (resource+action permissions)
 
-**Last synced:** 2026-07-10 · **Synced from:** plan 0006-rbac-actions + plan admin-panel-regroup + unified permission manager redesign (`PermissionManager`, two-panel Claude Design mockup — supersedes the first unified-matrix iteration) + plan ui-monoliths-decomposition (`permission-manager.tsx` split into orchestrator + `permissions-panel.tsx` + `nav-access-tree.tsx` + `section-edit-dialog.tsx` + `item-edit-dialog.tsx`; pure UI refactor, no schema/behavior change)
+**Last synced:** 2026-07-10 · **Synced from:** plan 0006-rbac-actions + plan admin-panel-regroup + unified permission manager redesign (`PermissionManager`, two-panel Claude Design mockup — supersedes the first unified-matrix iteration) + plan 5-cerrar-fronteras (layer-boundaries refactor: `rbac.ts` port/composition-root split, `/api/org/*` + `/api/navigation/nav/*` route namespacing) + plan ui-monoliths-decomposition (`permission-manager.tsx` split into orchestrator + `permissions-panel.tsx` + `nav-access-tree.tsx` + `section-edit-dialog.tsx` + `item-edit-dialog.tsx`; pure UI refactor, no schema/behavior change)
 
 ## Purpose
 
@@ -43,7 +43,7 @@ with no grant rows — the bypass keys on the role **name**, never on
     catalog as a collapsible accordion per module (sticky header,
     "X/Y concedidos" counter), **collapsed by default**, each
     `module.resource` row a pill/chip toggle per action (not checkboxes).
-    "Guardar permisos" PUTs `/api/roles/[id]/permissions`. Scrolls
+    "Guardar permisos" PUTs `/api/org/roles/[id]/permissions`. Scrolls
     internally (bounded panel height).
   - Right ("Estructura del menú"): a drag-and-drop tree (native HTML5 drag
     events, no DnD library) of nav sections → top-level items → child items.
@@ -61,8 +61,9 @@ with no grant rows — the bypass keys on the role **name**, never on
     edit a section's label/icon/global sort_order/active and to
     create/edit/delete nav pages and children (the icon is rendered next to
     its selector) — this inline CRUD replaced the deleted Módulos-tab tables.
-    "Guardar visibilidad y orden" PUTs both `/api/roles/[id]/items` (page
-    grants + per-role order) and `/api/roles/[id]/sections` (section order).
+    "Guardar visibilidad y orden" PUTs both `/api/org/roles/[id]/items` (page
+    grants + per-role order) and `/api/org/roles/[id]/sections` (section
+    order).
 
   Selecting the protected `admin` role shows an "Acceso total" card in place
   of the matrix, and the tree shows every section/page ungated with the eye
@@ -71,15 +72,23 @@ with no grant rows — the bypass keys on the role **name**, never on
   until re-granted. Page `(portal)/admin/portal/permissions`, the sole screen
   under `/admin/portal` (`/admin/portal` redirects there directly — the old
   Módulos/Permisos tab split and its `layout.tsx` `PageTabs` are gone).
-  API: `/api/permissions`, `/api/roles/[id]/permissions` (replace-set),
-  `/api/roles/[id]/items` (page grants + order, replace-set) and
-  `/api/roles/[id]/sections` (section order, replace-set; both owned by
-  `modules/navigation`), plus `/api/nav/items` + `/api/nav/items/[id]`
-  (PUT/POST/DELETE for the inline CRUD) and `/api/nav/sections/[id]`.
+  API (namespaced under `/api/org/*` since plan 5-cerrar-fronteras):
+  `/api/org/permissions`, `/api/org/roles/[id]/permissions` (replace-set),
+  `/api/org/roles/[id]/items` (page grants + order, replace-set) and
+  `/api/org/roles/[id]/sections` (section order, replace-set; both owned by
+  `modules/navigation`), plus `/api/navigation/nav/items` +
+  `/api/navigation/nav/items/[id]` (PUT/POST/DELETE for the inline CRUD) and
+  `/api/navigation/nav/sections/[id]`.
 - Owns the enforcement primitives: `requirePermission(code)` in
   `src/lib/auth/rbac.ts` (server, per-request DB resolution) and `useCan()`
   from `src/components/providers/permissions-provider.tsx` (client, seeded
-  server-side in `(portal)/layout.tsx`, cache tag `"permissions"`).
+  server-side in `(portal)/layout.tsx`, cache tag `"permissions"`). Since
+  plan 5-cerrar-fronteras, `rbac.ts` no longer imports
+  `modules/org/db/permissions.ts` directly — it stays domain-blind and
+  exposes a `configurePermissionCodesLookup(lookup)` port
+  (`(roles: string[]) => Promise<string[]>`); the composition root
+  `src/auth.ts` wires it to `getPermissionCodesForRoles`
+  (`modules/org/db/permissions.ts`) at module init.
 - Does **not** own: the permission catalog content — each module's migration
   seeds its own permission rows (V8 seeded org/reports/navigation/maintenance
   retroactively; V11 added `production.*`; V15 added
@@ -99,15 +108,17 @@ module migration (Vn) → seeds auth.permission rows
 auth.role_permission   (admin panel /admin/portal/permissions: replace-set per profile)
       │
       ├─ server: requirePermission(code) — API mutation routes (lib/auth/rbac.ts
-      │           → modules/org/db/permissions.ts; admin short-circuits, no query)
+      │           → configurePermissionCodesLookup port, wired by src/auth.ts to
+      │             modules/org/db/permissions.ts; admin short-circuits, no query)
       └─ client: (portal)/layout.tsx loads codes per role-set
                  (unstable_cache tag "permissions") → PermissionsProvider → useCan()
 ```
 
-Mutations that change grants (`PUT /api/roles/[id]/permissions`,
-`DELETE /api/roles/[id]`) call `revalidateTag("permissions")`; nav-visibility
-mutations (`PUT /api/roles/[id]/items`, `.../sections`) revalidate `"nav"`, and
-role delete revalidates both (it clears `role_nav_item` + `role_nav_section`).
+Mutations that change grants (`PUT /api/org/roles/[id]/permissions`,
+`DELETE /api/org/roles/[id]`) call `revalidateTag("permissions")`;
+nav-visibility mutations (`PUT /api/org/roles/[id]/items`, `.../sections`)
+revalidate `"nav"`, and role delete revalidates both (it clears
+`role_nav_item` + `role_nav_section`).
 
 ## Related ADRs
 

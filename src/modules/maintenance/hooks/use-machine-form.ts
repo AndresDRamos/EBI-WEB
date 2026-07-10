@@ -3,9 +3,9 @@
 import * as React from "react";
 import type {
   MachineFormAsset,
-  ParentOption,
   TypeOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
+import type { ParentOption } from "@/modules/maintenance/types";
 import { apiMutate } from "@/lib/api-client";
 
 export const MONTHS_ES = [

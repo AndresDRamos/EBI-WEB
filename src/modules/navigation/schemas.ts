@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
+import { NAV_ICON_NAMES } from "@/components/kit/nav-icon";
 
 const INVALID_GRANTS = "Formato de visibilidad inválido.";
 
@@ -8,7 +8,7 @@ const grantEntry = z.object({
   priority: z.preprocess((v) => Number(v), z.number().int()),
 });
 
-/** PUT /api/roles/[id]/items and /api/roles/[id]/sections body (shared shape). */
+/** PUT /api/org/roles/[id]/items and /api/org/roles/[id]/sections body (shared shape). */
 export const roleGrantsSchema = z.object({
   grants: z.array(grantEntry, { message: INVALID_GRANTS }),
 });
@@ -21,14 +21,14 @@ const roleSectionGrantEntry = z.object({
 });
 
 /**
- * PUT /api/roles/[id]/sections body. Structurally parallel to
+ * PUT /api/org/roles/[id]/sections body. Structurally parallel to
  * `roleGrantsSchema` (same shape, `section_id` instead of `item_id`) — kept
  * as its own schema rather than reused, since `sections/route.ts` is still a
  * near-duplicate sibling of `items/route.ts` pending a future grants-handler
  * collapse; merging the schemas now would make that later refactor harder to
  * review, not easier. Not to be confused with `sectionGrantsSchema` below,
  * which is the role-centric/item-centric dual for a different route
- * (`/api/nav/sections/[id]/grants`).
+ * (`/api/navigation/nav/sections/[id]/grants`).
  */
 export const roleSectionGrantsSchema = z.object({
   grants: z.array(roleSectionGrantEntry, { message: INVALID_ROLE_SECTION_GRANTS }),
@@ -40,7 +40,7 @@ const sectionGrantEntry = z.object({
 });
 
 /**
- * PUT /api/nav/sections/[id]/grants body — role-centric axis (dual of
+ * PUT /api/navigation/nav/sections/[id]/grants body — role-centric axis (dual of
  * `roleGrantsSchema`, which is item-centric). Validated manually with
  * `badRequest` (400) in the route, not via `parseBody`'s schema arg: the
  * legacy handler used 400 for a malformed grants array, not 422.
@@ -50,7 +50,7 @@ export const sectionGrantsSchema = z.object({
 });
 
 /**
- * POST /api/nav/items body. `href` must live under the target section's
+ * POST /api/navigation/nav/items body. `href` must live under the target section's
  * `base_path`, but that's a cross-row rule checked against the DB inside the
  * route handler (after the permission guard) — not expressible here.
  */
@@ -100,7 +100,7 @@ export const createNavItemSchema = z
   });
 
 /**
- * PUT /api/nav/items/[id] body — sparse partial update. Mirrors the legacy
+ * PUT /api/navigation/nav/items/[id] body — sparse partial update. Mirrors the legacy
  * handler's silent-skip semantics: a field with the wrong type is simply
  * omitted from the result rather than rejected (only an out-of-catalog
  * `icon` is a hard error). `href`'s section-`base_path` cross-check stays in
@@ -144,7 +144,7 @@ export const updateNavItemSchema = z
   });
 
 /**
- * PUT /api/nav/sections/[id] body — same sparse partial-update semantics as
+ * PUT /api/navigation/nav/sections/[id] body — same sparse partial-update semantics as
  * `updateNavItemSchema`. `base_path`/`code` are intentionally not accepted:
  * routes are owned by code, not the admin panel.
  */

@@ -8,6 +8,7 @@ import type {
   AssetRestriction,
   Process,
 } from "@/lib/db/types";
+import { db as rootDb } from "@/lib/db/client";
 import { maintDb as db, orgDb, emptyToNull } from "@/lib/db/schema-clients";
 import { locationRefsById, processNamesById } from "@/lib/db/refs";
 
@@ -629,9 +630,19 @@ export interface UpdateAssetInput {
   is_active?: boolean;
 }
 
+/**
+ * Update an asset. When `movingLocation` is set (the caller already compared
+ * `location_id` against the existing row), the update and the closing of the
+ * asset's current cell assignments run in one transaction: the location
+ * changed under them, so they no longer share it (physically the machine
+ * left those cells — historized close, never a delete). Reaches into the
+ * `production` schema directly via `rootDb`, same as `production/db.ts`
+ * reaching into `maint` for its own reads — schemas share one database.
+ */
 export async function updateAsset(
   id: number,
   input: UpdateAssetInput,
+  options?: { movingLocation?: boolean },
 ): Promise<void> {
   const changes: Partial<Insertable<Asset>> = { updated_at: new Date() };
   if (input.name !== undefined && input.name.trim()) changes.name = input.name.trim();
@@ -649,7 +660,38 @@ export async function updateAsset(
     changes.image_blob_path = emptyToNull(input.image_blob_path);
   if (input.notes !== undefined) changes.notes = emptyToNull(input.notes);
   if (input.is_active !== undefined) changes.is_active = input.is_active;
-  await db.updateTable("asset").set(changes).where("asset_id", "=", id).execute();
+
+  if (!options?.movingLocation) {
+    await db.updateTable("asset").set(changes).where("asset_id", "=", id).execute();
+    return;
+  }
+
+  await rootDb.transaction().execute(async (trx) => {
+    await trx
+      .withSchema("maint")
+      .updateTable("asset")
+      .set(changes)
+      .where("asset_id", "=", id)
+      .execute();
+    const current = await trx
+      .withSchema("production")
+      .selectFrom("asset_cell_assignment")
+      .select("assignment_id")
+      .where("asset_id", "=", id)
+      .where("valid_to", "is", null)
+      .execute();
+    await Promise.all(
+      current.map((a) =>
+        trx
+          .withSchema("production")
+          .updateTable("asset_cell_assignment")
+          .set({ valid_to: new Date() })
+          .where("assignment_id", "=", a.assignment_id)
+          .where("valid_to", "is", null)
+          .execute(),
+      ),
+    );
+  });
 }
 
 /** Soft-delete: assets are history-bearing (plans/WOs reference them). */
@@ -660,16 +702,6 @@ export async function softDeleteAsset(id: number): Promise<void> {
     .where("asset_id", "=", id)
     .execute();
 }
-
-// ---------------------------------------------------------------------------
-// Processes — the catalog moved to the `org` schema in V15 and is administered
-// from the admin panel (`/admin/organization/processes`). Maintenance still
-// needs READ access (the type↔process picker in the catalogs tab), so
-// re-export the org reads here to keep import sites stable. The write CRUD
-// lives in `@/modules/org/db/processes`. Since V18 the process link hangs off
-// the asset TYPE (`asset_type_process`) — there is no per-asset link anymore.
-// ---------------------------------------------------------------------------
-export { listProcesses, findProcessById } from "@/modules/org/db/processes";
 
 // ---------------------------------------------------------------------------
 // Restrictions

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { ApiError, apiMutate } from "@/lib/api-client";
 
 /**
- * Self-service password change. Calls POST /api/profile/password. On success
+ * Self-service password change. Calls POST /api/org/profile/password. On success
  * other sessions (and other tabs of this session) are invalidated via the
  * token_version bump enforced in src/auth.ts.
  */
@@ -44,7 +44,7 @@ export function ChangePasswordForm() {
     }
     setBusy(true);
     try {
-      await apiMutate("/api/profile/password", {
+      await apiMutate("/api/org/profile/password", {
         body: { current_password: current, new_password: next },
         fallback: "No se pudo cambiar la contraseña.",
       });

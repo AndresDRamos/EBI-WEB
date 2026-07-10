@@ -341,7 +341,7 @@ export async function deleteItem(id: number): Promise<void> {
  * Role-centric grant set: `role_nav_item` (pages) and `role_nav_section`
  * (sections) are the same shape (`role_id` + one FK + `priority`), replaced
  * wholesale in a transaction — this is the one function behind both
- * `PUT /api/roles/[id]/items` and `PUT /api/roles/[id]/sections`.
+ * `PUT /api/org/roles/[id]/items` and `PUT /api/org/roles/[id]/sections`.
  */
 export type RoleGrantResource = "item" | "section";
 

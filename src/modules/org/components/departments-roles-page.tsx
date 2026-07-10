@@ -45,8 +45,8 @@ interface Group extends DepartmentGroupRow {
  * its roles as child rows (a role only exists inside a department). Roles
  * with `department_id NULL` fall into a synthetic "Sin departamento" group
  * that only renders while such roles exist — the intent is to assign them,
- * not to keep them there. Department CRUD → /api/departments; role CRUD →
- * /api/roles (same endpoints as the retired flat tables).
+ * not to keep them there. Department CRUD → /api/org/departments; role CRUD →
+ * /api/org/roles (same endpoints as the retired flat tables).
  */
 export function DepartmentsRolesPage({
   departments,
@@ -58,11 +58,11 @@ export function DepartmentsRolesPage({
   const router = useRouter();
 
   const deptCrud = useEntityCrud<DepartmentGroupRow>({
-    basePath: "/api/departments",
+    basePath: "/api/org/departments",
     getId: (d) => d.department_id,
   });
   const roleCrud = useEntityCrud<RoleChildRow, { departmentId: number | null }>({
-    basePath: "/api/roles",
+    basePath: "/api/org/roles",
     getId: (r) => r.role_id,
   });
 

@@ -6,7 +6,13 @@ import {
   findAuthUserById,
   getUserRolesById,
 } from "@/modules/org/db/users";
+import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";
 import { verifyPassword } from "@/lib/auth/password";
+import { configurePermissionCodesLookup } from "@/lib/auth/rbac";
+
+// Composition root: wires rbac's permission-lookup port to the org module's
+// implementation. Keeps `src/lib/auth/rbac.ts` domain-blind.
+configurePermissionCodesLookup(getPermissionCodesForRoles);
 
 /**
  * Full Auth.js v5 config (Node runtime). Extends the edge-safe `authConfig`

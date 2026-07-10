@@ -4,11 +4,13 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/kit/confirm-dialog";
 import { MachineModal } from "@/modules/maintenance/components/machine-modal";
-import type { MachineRow } from "@/modules/maintenance/components/machines-cards-page";
 import type {
   CellOption,
   LocationOption,
+  MachineRow,
   ParentOption,
+} from "@/modules/maintenance/types";
+import type {
   PlantOption,
   TypeOption,
 } from "@/modules/maintenance/components/machine-form-dialog";

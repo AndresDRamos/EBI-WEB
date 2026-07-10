@@ -32,7 +32,7 @@ export interface LocationChildRow {
 /**
  * Plantas y ubicaciones — one grouped table: each plant is a group with its
  * locations ("Nave de producción 1", "Almacén de materia prima", …) as child
- * rows. Plant CRUD keeps the flat-table endpoints (/api/plants); location
+ * rows. Plant CRUD keeps the flat-table endpoints (/api/org/plants); location
  * CRUD goes to /api/org/locations (org.location:* permissions).
  */
 export function PlantsLocationsPage({
@@ -45,7 +45,7 @@ export function PlantsLocationsPage({
   const router = useRouter();
 
   const plantCrud = useEntityCrud<PlantGroupRow>({
-    basePath: "/api/plants",
+    basePath: "/api/org/plants",
     getId: (p) => p.plant_id,
   });
   const locCrud = useEntityCrud<LocationChildRow, { plantId: number }>({

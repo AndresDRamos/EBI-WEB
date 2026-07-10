@@ -6,7 +6,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
-import { NavIcon, NAV_ICON_NAMES } from "@/modules/navigation/icons";
+import { NavIcon, NAV_ICON_NAMES } from "@/components/kit/nav-icon";
 import { apiMutate } from "@/lib/api-client";
 import type { SectionRow } from "@/modules/org/components/permission-manager";
 
@@ -77,7 +77,7 @@ export function SectionEditDialog({
     setBusy(true);
     setError(null);
     try {
-      await apiMutate(`/api/nav/sections/${section.section_id}`, {
+      await apiMutate(`/api/navigation/nav/sections/${section.section_id}`, {
         method: "PUT",
         body: {
           label: label.trim(),

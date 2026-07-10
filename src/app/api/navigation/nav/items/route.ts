@@ -10,13 +10,13 @@ import { createNavItemSchema } from "@/modules/navigation/schemas";
 import { requireAnyRole, requirePermission } from "@/lib/auth/rbac";
 import { created, handleRoute, notFound, parseBody, unprocessable } from "@/lib/api/handler";
 
-/** GET /api/nav/items — list every sidebar item across sections (admin). */
+/** GET /api/navigation/nav/items — list every sidebar item across sections (admin). */
 export async function GET() {
   return handleRoute(
     {
       guard: () => requireAnyRole(["admin"]),
       fail: "No se pudieron cargar los ítems.",
-      label: "GET /api/nav/items",
+      label: "GET /api/navigation/nav/items",
     },
     async () => {
       const items = await listItems();
@@ -26,9 +26,9 @@ export async function GET() {
 }
 
 /**
- * POST /api/nav/items — create a sidebar item under an existing section
- * (admin). `href` must live under the section's `base_path` — that cross-row
- * rule can't be a DB CHECK, so it's enforced here.
+ * POST /api/navigation/nav/items — create a sidebar item under an existing
+ * section (admin). `href` must live under the section's `base_path` — that
+ * cross-row rule can't be a DB CHECK, so it's enforced here.
  */
 export async function POST(request: NextRequest) {
   const body = await parseBody(request, createNavItemSchema);
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       guard: () => requirePermission("navigation.item:create"),
       uniqueFallback: "Ya existe un ítem con esa ruta en la sección.",
       fail: "No se pudo crear el ítem.",
-      label: "POST /api/nav/items",
+      label: "POST /api/navigation/nav/items",
     },
     async () => {
       const section = await findSectionById(section_id);

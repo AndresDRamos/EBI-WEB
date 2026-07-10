@@ -24,13 +24,16 @@ import { useAssetDetail } from "@/modules/maintenance/hooks/use-asset-detail";
 import { useCellAssignment } from "@/modules/maintenance/hooks/use-cell-assignment";
 import { SummaryFields } from "@/modules/maintenance/components/machine-summary-fields";
 import {
-  type CellOption,
-  type LocationOption,
   type MachineFormAsset,
-  type ParentOption,
   type PlantOption,
   type TypeOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
+import type {
+  CellOption,
+  LocationOption,
+  MachineRow,
+  ParentOption,
+} from "@/modules/maintenance/types";
 import {
   DocumentosTab,
   MantenimientoTab,
@@ -38,7 +41,6 @@ import {
 } from "@/modules/maintenance/components/machine-tabs";
 import { QrModal } from "@/modules/maintenance/components/qr-modal";
 import { ParentPickerModal } from "@/modules/maintenance/components/parent-picker-modal";
-import type { MachineRow } from "@/modules/maintenance/components/machines-cards-page";
 import { cn } from "@/lib/utils";
 
 type TabId = "mantenimiento" | "documentacion" | "restricciones";

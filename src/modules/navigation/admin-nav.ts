@@ -7,7 +7,7 @@ import type { ResolvedNavSection } from "@/modules/navigation/db";
  * DB nav registry — `/admin/*` is gated by `assertAdminOrRedirect`, not by a
  * section grant — so the ids are synthetic negatives to never collide with
  * real `nav_section`/`nav_item` rows. Icons must exist in the curated
- * `NavIcon` map (`src/modules/navigation/icons.tsx`).
+ * `NavIcon` map (`src/components/kit/nav-icon.tsx`).
  *
  * Keep the entries reconciled with the real pages under `src/app/(portal)/admin/`.
  */

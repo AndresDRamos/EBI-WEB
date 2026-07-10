@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/kit/confirm-dialog";
 import { SectionHeader } from "@/components/kit/section-header";
-import { NavIcon } from "@/modules/navigation/icons";
+import { NavIcon } from "@/components/kit/nav-icon";
 import { SectionEditDialog } from "@/modules/org/components/section-edit-dialog";
 import { ItemEditDialog } from "@/modules/org/components/item-edit-dialog";
 import type { ItemRow, SectionRow } from "@/modules/org/components/permission-manager";
@@ -137,8 +137,8 @@ export function NavAccessTree({
       setSaved(false);
       try {
         const [itemsRes, sectionsRes] = await Promise.all([
-          fetch(`/api/roles/${roleId}/items`),
-          fetch(`/api/roles/${roleId}/sections`),
+          fetch(`/api/org/roles/${roleId}/items`),
+          fetch(`/api/org/roles/${roleId}/sections`),
         ]);
         if (!itemsRes.ok || !sectionsRes.ok) throw new Error();
         const itemsData = (await itemsRes.json()) as { grants?: { item_id: number; priority: number }[] };
@@ -314,12 +314,12 @@ export function NavAccessTree({
         .map((id, idx) => ({ section_id: id, priority: idx * 10 }));
 
       await Promise.all([
-        apiMutate(`/api/roles/${roleId}/items`, {
+        apiMutate(`/api/org/roles/${roleId}/items`, {
           method: "PUT",
           body: { grants },
           fallback: "No se pudo guardar el acceso/orden.",
         }),
-        apiMutate(`/api/roles/${roleId}/sections`, {
+        apiMutate(`/api/org/roles/${roleId}/sections`, {
           method: "PUT",
           body: { grants: sectionGrants },
           fallback: "No se pudo guardar el acceso/orden.",
@@ -347,7 +347,7 @@ export function NavAccessTree({
   async function deleteItem() {
     if (deleteItemId === null) return;
     setDeleteItemBusy(true);
-    await fetch(`/api/nav/items/${deleteItemId}`, { method: "DELETE" });
+    await fetch(`/api/navigation/nav/items/${deleteItemId}`, { method: "DELETE" });
     setDeleteItemBusy(false);
     setDeleteItemId(null);
     router.refresh();

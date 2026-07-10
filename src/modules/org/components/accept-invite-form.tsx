@@ -9,7 +9,7 @@ import { apiMutate } from "@/lib/api-client";
 
 /**
  * Set-password form for invitation acceptance. Posts the one-time token +
- * new password to /api/invite/accept, then sends the user to /login.
+ * new password to /api/org/invite/accept, then sends the user to /login.
  */
 export function AcceptInviteForm({
   token,
@@ -38,7 +38,7 @@ export function AcceptInviteForm({
     }
     setBusy(true);
     try {
-      await apiMutate("/api/invite/accept", {
+      await apiMutate("/api/org/invite/accept", {
         body: { token, password },
         fallback: "No se pudo completar el registro.",
       });

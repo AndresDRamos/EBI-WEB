@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Pin, PinOff } from "lucide-react";
-import { NavIcon } from "@/modules/navigation/icons";
+import { NavIcon } from "@/components/kit/nav-icon";
 import type { ResolvedNavItem, ResolvedNavSection } from "@/modules/navigation/db";
 import { cn } from "@/lib/utils";
 import { setSidebarPinned } from "@/modules/navigation/pin-action";

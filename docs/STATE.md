@@ -31,6 +31,7 @@ None currently — see the ledger in `docs/plans/README.md` for history.
 |---|---|
 | Admin UI | **Generic kit tables** (`src/components/kit/`: `data-table.tsx`, `grouped-data-table.tsx`, `page-tabs.tsx`, `entity-card.tsx`); per-entity modals; `/admin` = 2 tabbed groups (Organización / Portal) behind the shared `PortalSidebar` fed by the code-built `ADMIN_NAV_SECTION`. |
 | Unproven modules | `(portal)/test/*` (founded 2026-07-06): admin-only proving ground, outside the nav registry, for modules whose portal-fit isn't settled. Promote by moving pages back + re-seeding the nav item. |
+| API namespacing | Business-module APIs namespaced (`/api/maintenance/...`, `/api/org/...`, `/api/navigation/...`; `/api/auth/[...nextauth]` is the one framework exception) — closed off 2026-07-10: `org`/`navigation` flat routes moved under their namespace, `src/lib` no longer imports `@/modules`, no cross-module value imports remain. |
 
 For stack, auth, data access, migrations, and hard rules, see
 [AGENTS.md](../AGENTS.md) — do not repeat them here.
@@ -54,8 +55,9 @@ For stack, auth, data access, migrations, and hard rules, see
 - **MSSQL inserts use `.output("inserted.<pk>")`** — Kysely MSSQL doesn't
   populate `.insertId`.
 - **Dependency direction (modules-first):** `app → modules → kit/ui/lib`,
-  never the reverse; `kit`/`ui` never import modules or `lib/db`.
-  `components/layout` is the one exception (composes `modules/navigation`).
+  never the reverse; `kit`/`ui`/`lib` never import modules — `portal-shell`/
+  `admin-nav` (navigation's own composition) live in `modules/navigation`,
+  not `components/layout`, for exactly this reason.
 - **One sidebar (`PortalSidebar`)**, rendered by `PortalShell` for both the
   portal and `/admin/*` (code-built `ADMIN_NAV_SECTION`) — no bespoke rail.
 - **Page grants authorize pages** (ADR 0008): a route is reachable only if

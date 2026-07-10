@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { NavIcon } from "@/modules/navigation/icons";
+import { NavIcon } from "@/components/kit/nav-icon";
 import type { ResolvedNavSection } from "@/modules/navigation/db";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/auth/rbac";

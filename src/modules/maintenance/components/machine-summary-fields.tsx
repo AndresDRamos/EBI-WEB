@@ -11,11 +11,8 @@ import {
   MONTHS_ES,
   useMachineForm,
 } from "@/modules/maintenance/hooks/use-machine-form";
-import type {
-  CellOption,
-  LocationOption,
-  PlantOption,
-} from "@/modules/maintenance/components/machine-form-dialog";
+import type { PlantOption } from "@/modules/maintenance/components/machine-form-dialog";
+import type { CellOption, LocationOption } from "@/modules/maintenance/types";
 
 /** `YYYY-MM-…` → "marzo 2021" (the day is a placeholder, always 01). */
 function installationLabel(iso: string | null): string | null {

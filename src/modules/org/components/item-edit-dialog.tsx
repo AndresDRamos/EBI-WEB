@@ -43,7 +43,7 @@ export function ItemEditDialog({
     setBusy(true);
     setError(null);
     try {
-      const url = item ? `/api/nav/items/${item.item_id}` : "/api/nav/items";
+      const url = item ? `/api/navigation/nav/items/${item.item_id}` : "/api/navigation/nav/items";
       const method = item ? "PUT" : "POST";
       const body: Record<string, unknown> = {
         label: label.trim(),

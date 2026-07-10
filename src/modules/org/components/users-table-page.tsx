@@ -142,7 +142,7 @@ export function UsersTablePage({
     // Lazy-fetch full detail (role_ids/plant_ids/department_ids) — the row
     // only carries names + ids for the table view; the modal form needs the
     // ids to preselect assignments.
-    const res = await fetch(`/api/users/${row.user_id}`, { method: "GET" }).catch(
+    const res = await fetch(`/api/org/users/${row.user_id}`, { method: "GET" }).catch(
       () => null,
     );
     if (!res || !res.ok) return;
@@ -180,7 +180,7 @@ export function UsersTablePage({
     row: UsersTableRow,
   ): Promise<{ error?: string }> {
     try {
-      await apiMutate(`/api/users/${row.user_id}`, {
+      await apiMutate(`/api/org/users/${row.user_id}`, {
         method: "PATCH",
         body: { is_active: false },
         fallback: "No se pudo desactivar el usuario.",
@@ -202,7 +202,7 @@ export function UsersTablePage({
     row: UsersTableRow,
   ): Promise<{ error?: string }> {
     try {
-      await apiMutate(`/api/users/${row.user_id}`, {
+      await apiMutate(`/api/org/users/${row.user_id}`, {
         method: "PATCH",
         body: { is_active: true },
         fallback: "No se pudo reactivar el usuario.",

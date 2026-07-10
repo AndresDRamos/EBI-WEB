@@ -6,8 +6,9 @@ import { requirePermission } from "@/lib/auth/rbac";
 import { badRequest, handleRoute, notFound, parseBody, parseId, unprocessable } from "@/lib/api/handler";
 
 /**
- * PUT /api/nav/items/[id] — update a sidebar item (admin). If `href` changes,
- * it's re-validated against the item's (unchangeable) section base_path.
+ * PUT /api/navigation/nav/items/[id] — update a sidebar item (admin). If
+ * `href` changes, it's re-validated against the item's (unchangeable)
+ * section base_path.
  */
 export async function PUT(
   request: NextRequest,
@@ -23,7 +24,7 @@ export async function PUT(
       guard: () => requirePermission("navigation.item:update"),
       uniqueFallback: "Ya existe un ítem con esa ruta en la sección.",
       fail: "No se pudo actualizar el ítem.",
-      label: "PUT /api/nav/items/[id]",
+      label: "PUT /api/navigation/nav/items/[id]",
     },
     async () => {
       const current = await findItemById(id);
@@ -44,7 +45,7 @@ export async function PUT(
   );
 }
 
-/** DELETE /api/nav/items/[id] — hard delete. */
+/** DELETE /api/navigation/nav/items/[id] — hard delete. */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -56,7 +57,7 @@ export async function DELETE(
     {
       guard: () => requirePermission("navigation.item:delete"),
       fail: "No se pudo eliminar el ítem.",
-      label: "DELETE /api/nav/items/[id]",
+      label: "DELETE /api/navigation/nav/items/[id]",
     },
     async () => {
       const current = await findItemById(id);

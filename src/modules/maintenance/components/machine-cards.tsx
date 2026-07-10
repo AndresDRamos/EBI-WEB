@@ -11,7 +11,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import type { MachineRow } from "@/modules/maintenance/components/machines-cards-page";
+import type { MachineRow } from "@/modules/maintenance/types";
 
 export interface MachineCardsGridProps {
   machines: MachineRow[];

@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  cellHasChildren,
+  assertCellCanReparent,
+  CellDepthExceededError,
+  CellHasChildrenError,
+  CellParentInvalidError,
   findCellById,
   getCellDetail,
   updateCell,
@@ -67,19 +70,17 @@ export async function PATCH(
         return unprocessable("Proceso inválido.");
       }
       if (changes.parent_cell_id !== undefined && changes.parent_cell_id !== null) {
-        // Depth-1, both directions: the target parent cannot itself have a
-        // parent, and this cell cannot already have children of its own.
-        const parent = await findCellById(changes.parent_cell_id);
-        if (!parent || !parent.is_active || parent.location_id !== existing.location_id) {
-          return unprocessable("La celda padre no está en la misma ubicación o no existe.");
-        }
-        if (parent.parent_cell_id !== null) {
-          return unprocessable(
-            "Una celda hija no puede tener celdas hijas a su vez (profundidad máxima: 1).",
-          );
-        }
-        if (await cellHasChildren(id)) {
-          return unprocessable("Esta celda ya tiene celdas hijas: no puede pasar a ser hija de otra.");
+        try {
+          await assertCellCanReparent(id, existing.location_id, changes.parent_cell_id);
+        } catch (err) {
+          if (
+            err instanceof CellParentInvalidError ||
+            err instanceof CellDepthExceededError ||
+            err instanceof CellHasChildrenError
+          ) {
+            return unprocessable(err.message);
+          }
+          throw err;
         }
       }
       await updateCell(id, changes);

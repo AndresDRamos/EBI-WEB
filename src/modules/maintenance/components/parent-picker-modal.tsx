@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { normalizeForMatch } from "@/components/kit/table-utils";
 import { cn } from "@/lib/utils";
-import type { ParentOption } from "@/modules/maintenance/components/machine-form-dialog";
+import type { ParentOption } from "@/modules/maintenance/types";
 
 export interface ParentPickerModalProps {
   choices: ParentOption[];

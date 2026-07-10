@@ -139,7 +139,7 @@ export function UserFormDialog({
     setError(null);
     try {
       const data = await apiMutate<{ invite_token?: string }>(
-        `/api/users/${initial.user_id}/invite`,
+        `/api/org/users/${initial.user_id}/invite`,
         { method: "POST", fallback: "No se pudo generar la invitación." },
       );
       if (!data.invite_token) {
@@ -188,7 +188,7 @@ export function UserFormDialog({
 
     try {
       if (isEdit) {
-        await apiMutate(`/api/users/${initial!.user_id}`, {
+        await apiMutate(`/api/org/users/${initial!.user_id}`, {
           method: "PATCH",
           body: payload,
           fallback: "No se pudo actualizar.",
@@ -197,7 +197,7 @@ export function UserFormDialog({
         onOpenChange(false);
       } else {
         const data = await apiMutate<{ invite_token?: string | null }>(
-          "/api/users",
+          "/api/org/users",
           { method: "POST", body: payload, fallback: "No se pudo crear." },
         );
         router.refresh();

@@ -51,7 +51,7 @@ export function PermissionsPanel({
       setDirty(false);
       setSaved(false);
       try {
-        const res = await fetch(`/api/roles/${roleId}/permissions`);
+        const res = await fetch(`/api/org/roles/${roleId}/permissions`);
         if (!res.ok) throw new Error();
         const d = (await res.json()) as { permission_ids?: number[] };
         if (cancelled) return;
@@ -128,7 +128,7 @@ export function PermissionsPanel({
     setBusy(true);
     setError(null);
     try {
-      await apiMutate(`/api/roles/${roleId}/permissions`, {
+      await apiMutate(`/api/org/roles/${roleId}/permissions`, {
         method: "PUT",
         body: { permission_ids: [...granted] },
         fallback: "No se pudieron guardar los permisos.",

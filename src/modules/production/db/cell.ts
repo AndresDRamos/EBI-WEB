@@ -36,6 +36,15 @@ export class CellDepthExceededError extends Error {
   }
 }
 
+/** Thrown when a cell reparent targets a cell that already has children of
+ * its own — it can't become a child while it is itself a parent. */
+export class CellHasChildrenError extends Error {
+  constructor() {
+    super("Esta celda ya tiene celdas hijas: no puede pasar a ser hija de otra.");
+    this.name = "CellHasChildrenError";
+  }
+}
+
 export class CellCodeOverflowError extends Error {
   constructor() {
     super("Se alcanzó el máximo de celdas para esta ubicación.");
@@ -178,6 +187,29 @@ export async function cellHasChildren(cellId: number): Promise<boolean> {
     .where("parent_cell_id", "=", cellId)
     .executeTakeFirst();
   return row !== undefined;
+}
+
+/**
+ * Enforces the cell hierarchy invariant (max depth 1) for reparenting
+ * `cellId` under `parentCellId`: the target parent must be active, in the
+ * same location, and itself parentless; `cellId` must not already have
+ * children of its own. Throws one of the `Cell*Error` classes above.
+ */
+export async function assertCellCanReparent(
+  cellId: number,
+  locationId: number,
+  parentCellId: number,
+): Promise<void> {
+  const parent = await findCellById(parentCellId);
+  if (!parent || !parent.is_active || parent.location_id !== locationId) {
+    throw new CellParentInvalidError();
+  }
+  if (parent.parent_cell_id !== null) {
+    throw new CellDepthExceededError();
+  }
+  if (await cellHasChildren(cellId)) {
+    throw new CellHasChildrenError();
+  }
 }
 
 /** Child cells of a parent, ordered by their sequence (Op10, Op20…). */

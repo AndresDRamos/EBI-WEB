@@ -6,7 +6,7 @@ import { requirePermission } from "@/lib/auth/rbac";
 import { badRequest, handleRoute, notFound, parseBody, parseId, unprocessable } from "@/lib/api/handler";
 
 /**
- * PUT /api/nav/sections/[id] — update label / icon / sort_order / is_active
+ * PUT /api/navigation/nav/sections/[id] — update label / icon / sort_order / is_active
  * (admin). `base_path` and `code` are not accepted: routes are owned by code,
  * not the admin panel.
  */
@@ -23,7 +23,7 @@ export async function PUT(
     {
       guard: () => requirePermission("navigation.section:update"),
       fail: "No se pudo actualizar la sección.",
-      label: "PUT /api/nav/sections/[id]",
+      label: "PUT /api/navigation/nav/sections/[id]",
     },
     async () => {
       const current = await findSectionById(id);
@@ -38,7 +38,7 @@ export async function PUT(
   );
 }
 
-/** DELETE /api/nav/sections/[id] — hard delete; cascades items + grants (V7). */
+/** DELETE /api/navigation/nav/sections/[id] — hard delete; cascades items + grants (V7). */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -50,7 +50,7 @@ export async function DELETE(
     {
       guard: () => requirePermission("navigation.section:delete"),
       fail: "No se pudo eliminar la sección.",
-      label: "DELETE /api/nav/sections/[id]",
+      label: "DELETE /api/navigation/nav/sections/[id]",
     },
     async () => {
       const current = await findSectionById(id);

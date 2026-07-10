@@ -1,9 +1,6 @@
 import { PageTabs } from "@/components/kit/page-tabs";
-import {
-  listAssetCategories,
-  listAssetTypes,
-  listProcesses,
-} from "@/modules/maintenance/db";
+import { listAssetCategories, listAssetTypes } from "@/modules/maintenance/db";
+import { listProcesses } from "@/modules/org/db/processes";
 import { MachineCatalogsPage } from "@/modules/maintenance/components/machine-catalogs-page";
 import { MACHINES_TABS } from "@/modules/maintenance/components/machines-tabs";
 

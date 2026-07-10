@@ -44,38 +44,17 @@ import {
   type ExpandingModalRect,
 } from "@/components/kit/expanding-modal";
 import {
-  type CellOption,
-  type LocationOption,
   type PlantOption,
   type TypeOption,
-  type ParentOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
+import type {
+  CellOption,
+  LocationOption,
+  MachineRow,
+  ParentOption,
+} from "@/modules/maintenance/types";
 import { MachineCardsGrid } from "@/modules/maintenance/components/machine-cards";
 import { MachineModal } from "@/modules/maintenance/components/machine-modal";
-
-export interface MachineRow {
-  asset_id: number;
-  code: string;
-  name: string;
-  brand: string | null;
-  model: string | null;
-  serial_number: string | null;
-  location_id: number;
-  location_name: string;
-  /** Derived via the location (V18) — kept for filters and card footers. */
-  plant_id: number;
-  plant_name: string;
-  asset_type_id: number;
-  type_name: string;
-  category_name: string;
-  parent_asset_id: number | null;
-  installation_date: string | null;
-  image_blob_path: string | null;
-  notes: string | null;
-  process_names: string[];
-  cell_names: string[];
-  is_active: boolean;
-}
 
 interface Filters {
   search: string;

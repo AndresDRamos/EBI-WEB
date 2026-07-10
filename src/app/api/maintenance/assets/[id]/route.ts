@@ -6,11 +6,7 @@ import {
   softDeleteAsset,
 } from "@/modules/maintenance/db";
 import { findLocationById } from "@/modules/org/db/locations";
-import {
-  listCurrentByAsset,
-  listHistoryByAsset,
-  closeAssignment,
-} from "@/modules/production/db";
+import { listHistoryByAsset } from "@/modules/production/db";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
 
@@ -143,17 +139,9 @@ export async function PATCH(
         return NextResponse.json({ error: "Ubicación inválida." }, { status: 422 });
       }
     }
-    await updateAsset(id, changes);
-    if (movingLocation) {
-      // The location changed under the asset's cell assignments — close them
-      // (physically the machine left those cells). Same historized close the
-      // cell detail uses; permission-wise it rides on maintenance.asset:update
-      // because it is a consequence of moving the asset, not a standalone act.
-      const current = await listCurrentByAsset(id).catch(() => []);
-      for (const a of current) {
-        await closeAssignment(a.assignment_id).catch(() => undefined);
-      }
-    }
+    // Permission-wise the cascade rides on maintenance.asset:update because
+    // it is a consequence of moving the asset, not a standalone act.
+    await updateAsset(id, changes, { movingLocation });
     return NextResponse.json({ ok: true });
   } catch (err) {
     const res = authErrorResponse(err);

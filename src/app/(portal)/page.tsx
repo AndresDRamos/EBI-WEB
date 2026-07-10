@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { getCachedNav, navRoleKey } from "@/modules/navigation/cache";
-import { NavIcon } from "@/modules/navigation/icons";
+import { NavIcon } from "@/components/kit/nav-icon";
 import { cn } from "@/lib/utils";
 
 /**

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PortalTopbar } from "@/modules/navigation/components/portal-topbar";
 import { PortalSidebar } from "@/modules/navigation/components/portal-sidebar";
-import { ADMIN_NAV_SECTION } from "@/components/layout/admin-nav";
+import { ADMIN_NAV_SECTION } from "@/modules/navigation/admin-nav";
 import type { ResolvedNavSection } from "@/modules/navigation/db";
 import type { SessionUser } from "@/lib/auth/rbac";
 

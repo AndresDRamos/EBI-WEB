@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { unstable_cache } from "next/cache";
 import { auth } from "@/auth";
-import { PortalShell } from "@/components/layout/portal-shell";
+import { PortalShell } from "@/modules/navigation/components/portal-shell";
 import { PermissionsProvider } from "@/components/providers/permissions-provider";
 import { getCachedNav, navRoleKey } from "@/modules/navigation/cache";
 import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";

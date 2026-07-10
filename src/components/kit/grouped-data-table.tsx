@@ -7,7 +7,7 @@ import {
   ChevronsUpDown,
   Plus,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -22,10 +22,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ActionsCell,
-  ActiveInactiveToggle,
-} from "@/components/kit/data-table";
+import { ActiveInactiveToggle } from "@/components/kit/data-table";
+import { ActionsCell } from "@/components/kit/data-table-actions";
+import { KitTableHeaderBand } from "@/components/kit/kit-table-header-band";
 import { cn } from "@/lib/utils";
 
 export interface GroupedChildColumn<C> {
@@ -176,54 +175,50 @@ export function GroupedDataTable<G, C>({
 
   return (
     <div className="flex flex-col rounded-lg border bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
-        <div className="flex items-center gap-3">
-          {Icon ? <Icon className="h-5 w-5 text-ezi-orange" /> : null}
-          <div>
-            <h2 className="font-semibold leading-tight">{title}</h2>
-            {subtitle ? (
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
-            ) : null}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <ActiveInactiveToggle
-            showInactive={showInactive}
-            onChange={setShowInactive}
-            activeCount={activeCount}
-            inactiveCount={inactiveCount}
-          />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={toggleAll}
-                aria-label={anyExpanded ? "Colapsar todo" : "Expandir todo"}
-              >
-                {anyExpanded ? (
-                  <ChevronsDownUp className="h-4 w-4" />
-                ) : (
-                  <ChevronsUpDown className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {anyExpanded ? "Colapsar todo" : "Expandir todo"}
-            </TooltipContent>
-          </Tooltip>
-          {onAddGroup ? (
+      <KitTableHeaderBand
+        icon={Icon}
+        title={title}
+        subtitle={subtitle}
+        right={
+          <>
+            <ActiveInactiveToggle
+              showInactive={showInactive}
+              onChange={setShowInactive}
+              activeCount={activeCount}
+              inactiveCount={inactiveCount}
+            />
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="icon" onClick={onAddGroup} aria-label={addGroupLabel}>
-                  <Plus className="h-4 w-4" />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleAll}
+                  aria-label={anyExpanded ? "Colapsar todo" : "Expandir todo"}
+                >
+                  {anyExpanded ? (
+                    <ChevronsDownUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronsUpDown className="h-4 w-4" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">{addGroupLabel}</TooltipContent>
+              <TooltipContent side="top">
+                {anyExpanded ? "Colapsar todo" : "Expandir todo"}
+              </TooltipContent>
             </Tooltip>
-          ) : null}
-        </div>
-      </div>
+            {onAddGroup ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon" onClick={onAddGroup} aria-label={addGroupLabel}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{addGroupLabel}</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </>
+        }
+      />
 
       <div className="flex max-h-[calc(100vh-14rem)] flex-col overflow-auto">
         <Table className="table-fixed">
@@ -303,7 +298,7 @@ export function GroupedDataTable<G, C>({
                                 <button
                                   type="button"
                                   onClick={() => onAddChild?.(group)}
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
+                                  className={cn(buttonVariants({ variant: "ghost-ezi", size: "icon-sm" }))}
                                   aria-label={addChildLabel}
                                 >
                                   <Plus className="h-3.5 w-3.5" />

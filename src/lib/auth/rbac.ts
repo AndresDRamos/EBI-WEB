@@ -1,7 +1,5 @@
 import "server-only";
 import { auth } from "@/auth";
-import { getUserScope as dbGetUserScope } from "@/modules/org/db/users";
-import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";
 
 /**
  * Server-side authorization helpers consumed by API route handlers and server
@@ -11,6 +9,26 @@ import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";
  * Route protection (authn) is enforced by middleware; *authorization* (role
  * checks) is enforced here, in the Node runtime, so it can read the DB scope.
  */
+
+/**
+ * Port for permission-code lookup. rbac.ts stays domain-blind: the
+ * composition root (`src/auth.ts`) wires the real implementation (org's
+ * permissions module) via `configurePermissionCodesLookup`.
+ */
+type PermissionCodesLookup = (roles: string[]) => Promise<string[]>;
+
+// `var` (not `let`) deliberately: rbac.ts <-> auth.ts is a circular import
+// (rbac needs `auth()`, auth.ts wires this port), and `var` is hoisted with
+// an initial value before either module's statements run, avoiding a TDZ
+// crash if the composition call re-enters this module mid-evaluation.
+// eslint-disable-next-line no-var
+var permissionCodesLookup: PermissionCodesLookup | null = null;
+
+export function configurePermissionCodesLookup(
+  lookup: PermissionCodesLookup,
+): void {
+  permissionCodesLookup = lookup;
+}
 
 export class UnauthenticatedError extends Error {}
 export class ForbiddenError extends Error {}
@@ -58,7 +76,12 @@ export async function requireAnyRole(roles: string[]): Promise<SessionUser> {
 export async function requirePermission(code: string): Promise<SessionUser> {
   const user = await requireUser();
   if (user.roles.includes("admin")) return user;
-  const codes = await getPermissionCodesForRoles(user.roles);
+  if (!permissionCodesLookup) {
+    throw new Error(
+      "rbac: permissionCodesLookup not configured — import '@/auth' before using requirePermission",
+    );
+  }
+  const codes = await permissionCodesLookup(user.roles);
   if (!codes.includes(code)) {
     throw new ForbiddenError();
   }
@@ -85,12 +108,3 @@ export async function assertAdminOrRedirect(): Promise<boolean> {
 }
 
 export { ForbiddenError as Forbidden };
-
-/**
- * Loads the data-scope for a user (plants + departments). Not bundled into
- * the JWT because it can be large/volatile. Shape mirrors what Power BI
- * `effectiveIdentity`/`CUSTOMDATA` will consume later.
- */
-export async function getUserScope(userId: number) {
-  return dbGetUserScope(userId);
-}

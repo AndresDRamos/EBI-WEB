@@ -1,69 +1,38 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updatePlant, deletePlant } from "@/modules/org/db/org";
+import { updatePlantSchema } from "@/modules/org/schemas";
 import { requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-
-interface UpdateBody {
-  code?: unknown;
-  name?: unknown;
-  address?: unknown;
-  postal_code?: unknown;
-  is_active?: unknown;
-}
+import { badRequest, handleRoute, parseBody, parseId } from "@/lib/api/handler";
 
 /** PUT /api/plants/[id] — update a plant (admin). */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  let body: UpdateBody;
-  try {
-    body = (await parseJsonBody(request)) as UpdateBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
-  const changes: {
-    code?: string;
-    name?: string;
-    address?: string | null;
-    postal_code?: string | null;
-    is_active?: boolean;
-  } = {};
-  if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
-  if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (body.address === null || (typeof body.address === "string" && body.address.trim())) {
-    changes.address =
-      typeof body.address === "string" ? body.address.trim() : null;
-  }
-  if (
-    body.postal_code === null ||
-    (typeof body.postal_code === "string" && body.postal_code.trim())
-  ) {
-    changes.postal_code =
-      typeof body.postal_code === "string" ? body.postal_code.trim() : null;
-  }
-  if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-  if (Object.keys(changes).length === 0) {
-    return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
-  }
-  try {
-    await requirePermission("org.plant:update");
-    await updatePlant(id, changes);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    const msg = err instanceof Error ? err.message : "";
-    if (/unique/i.test(msg)) {
-      return NextResponse.json({ error: "El código ya existe." }, { status: 409 });
-    }
-    console.error("PUT /api/plants/[id] failed:", err);
-    return NextResponse.json({ error: "No se pudo actualizar la planta." }, { status: 500 });
-  }
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  const body = await parseBody(request, updatePlantSchema);
+  if (body instanceof NextResponse) return body;
+
+  const changes: Parameters<typeof updatePlant>[1] = {};
+  if (body.code !== undefined) changes.code = body.code;
+  if (body.name !== undefined) changes.name = body.name;
+  if (body.address !== undefined) changes.address = body.address;
+  if (body.postal_code !== undefined) changes.postal_code = body.postal_code;
+  if (body.is_active !== undefined) changes.is_active = body.is_active;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("org.plant:update"),
+      uniqueFallback: "El código ya existe.",
+      fail: "No se pudo actualizar la planta.",
+      label: "PUT /api/plants/[id]",
+    },
+    async () => {
+      await updatePlant(id, changes);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }
 
 /** DELETE /api/plants/[id] — hard delete a plant (admin); 409 if referenced. */
@@ -71,21 +40,26 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  try {
-    await requirePermission("org.plant:delete");
-    await deletePlant(id);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("DELETE /api/plants/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo eliminar la planta (¿tiene usuarios asignados?)." },
-      { status: 409 },
-    );
-  }
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  return handleRoute(
+    {
+      // The original handler treated any non-auth failure here as an FK
+      // conflict (no `unique`/message inspection) — a catch-all rule
+      // preserves that behavior instead of falling through to the 500 `fail`.
+      guard: () => requirePermission("org.plant:delete"),
+      uniqueRules: [
+        {
+          pattern: /.*/,
+          message: "No se pudo eliminar la planta (¿tiene usuarios asignados?).",
+        },
+      ],
+      fail: "No se pudo eliminar la planta (¿tiene usuarios asignados?).",
+      label: "DELETE /api/plants/[id]",
+    },
+    async () => {
+      await deletePlant(id);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

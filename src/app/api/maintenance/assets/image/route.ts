@@ -1,12 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { BLOB_CONTAINERS, buildBlobKey, uploadBlob } from "@/lib/storage/blob";
-import { requireUser, ForbiddenError } from "@/lib/auth/rbac";
+import { requireUser, ForbiddenError, type SessionUser } from "@/lib/auth/rbac";
 import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";
-import { authErrorResponse } from "@/lib/auth/api";
+import { badRequest, created, handleRoute, unprocessable } from "@/lib/api/handler";
 
 /** Equipment photos are buffered in memory — keep them modest. */
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
+/** Gated to users who can create OR update assets (admin bypasses). */
+async function guard(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!user.roles.includes("admin")) {
+    const codes = await getPermissionCodesForRoles(user.roles);
+    const canManage =
+      codes.includes("maintenance.asset:create") || codes.includes("maintenance.asset:update");
+    if (!canManage) throw new ForbiddenError();
+  }
+  return user;
+}
 
 /**
  * POST /api/maintenance/assets/image — upload a single equipment photo and get
@@ -16,54 +28,34 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
  * users who can create OR update assets (admin bypasses).
  */
 export async function POST(request: NextRequest) {
-  try {
-    const user = await requireUser();
-    if (!user.roles.includes("admin")) {
-      const codes = await getPermissionCodesForRoles(user.roles);
-      const canManage =
-        codes.includes("maintenance.asset:create") ||
-        codes.includes("maintenance.asset:update");
-      if (!canManage) throw new ForbiddenError();
-    }
+  return handleRoute(
+    { guard, fail: "No se pudo subir la imagen.", label: "POST /api/maintenance/assets/image" },
+    async () => {
+      let form: FormData;
+      try {
+        form = await request.formData();
+      } catch {
+        return badRequest("Se esperaba multipart/form-data.");
+      }
+      const file = form.get("file");
+      if (!(file instanceof File) || file.size === 0) {
+        return unprocessable("Imagen requerida.");
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        return NextResponse.json(
+          { error: "La imagen excede el máximo de 8 MB." },
+          { status: 413 },
+        );
+      }
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        return unprocessable("Formato inválido (usa JPG, PNG o WEBP).");
+      }
 
-    let form: FormData;
-    try {
-      form = await request.formData();
-    } catch {
-      return NextResponse.json(
-        { error: "Se esperaba multipart/form-data." },
-        { status: 400 },
-      );
-    }
-    const file = form.get("file");
-    if (!(file instanceof File) || file.size === 0) {
-      return NextResponse.json({ error: "Imagen requerida." }, { status: 422 });
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      return NextResponse.json(
-        { error: "La imagen excede el máximo de 8 MB." },
-        { status: 413 },
-      );
-    }
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Formato inválido (usa JPG, PNG o WEBP)." },
-        { status: 422 },
-      );
-    }
+      const blobPath = buildBlobKey("assets/images", file.name);
+      const bytes = Buffer.from(await file.arrayBuffer());
+      await uploadBlob(BLOB_CONTAINERS.maintenance, blobPath, bytes, file.type);
 
-    const blobPath = buildBlobKey("assets/images", file.name);
-    const bytes = Buffer.from(await file.arrayBuffer());
-    await uploadBlob(BLOB_CONTAINERS.maintenance, blobPath, bytes, file.type);
-
-    return NextResponse.json({ blob_path: blobPath }, { status: 201 });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("POST /api/maintenance/assets/image failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo subir la imagen." },
-      { status: 500 },
-    );
-  }
+      return created({ blob_path: blobPath });
+    },
+  );
 }

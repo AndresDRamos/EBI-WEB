@@ -4,19 +4,9 @@ import {
   updateAssetCategory,
   deleteAssetCategory,
 } from "@/modules/maintenance/db";
+import { updateAssetCategorySchema } from "@/modules/maintenance/schemas";
 import { requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-
-function parseId(raw: string): number | null {
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-interface PutBody {
-  code?: unknown;
-  name?: unknown;
-  is_active?: unknown;
-}
+import { badRequest, handleRoute, notFound, parseBody, parseId } from "@/lib/api/handler";
 
 /** PUT /api/maintenance/asset-categories/[id] — update / soft-delete / restore. */
 export async function PUT(
@@ -24,43 +14,30 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  let body: PutBody;
-  try {
-    body = (await parseJsonBody(request)) as PutBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
+  if (!id) return badRequest("ID inválido.");
+  const body = await parseBody(request, updateAssetCategorySchema);
+  if (body instanceof NextResponse) return body;
+
   const changes: Parameters<typeof updateAssetCategory>[1] = {};
-  if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
-  if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-  if (Object.keys(changes).length === 0) {
-    return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
-  }
-  try {
-    await requirePermission("maintenance.asset_category:update");
-    if (!(await findAssetCategoryById(id))) {
-      return NextResponse.json({ error: "Categoría no encontrada." }, { status: 404 });
-    }
-    await updateAssetCategory(id, changes);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    const msg = err instanceof Error ? err.message : "";
-    if (/unique/i.test(msg)) {
-      return NextResponse.json(
-        { error: "El código o el prefijo ya existen." },
-        { status: 409 },
-      );
-    }
-    console.error("PUT /api/maintenance/asset-categories/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo actualizar la categoría." },
-      { status: 500 },
-    );
-  }
+  if (body.code !== undefined) changes.code = body.code;
+  if (body.name !== undefined) changes.name = body.name;
+  if (body.is_active !== undefined) changes.is_active = body.is_active;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("maintenance.asset_category:update"),
+      uniqueFallback: "El código o el prefijo ya existen.",
+      fail: "No se pudo actualizar la categoría.",
+      label: "PUT /api/maintenance/asset-categories/[id]",
+    },
+    async () => {
+      if (!(await findAssetCategoryById(id))) {
+        return notFound("Categoría no encontrada.");
+      }
+      await updateAssetCategory(id, changes);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }
 
 /**
@@ -73,28 +50,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  try {
-    await requirePermission("maintenance.asset_category:delete");
-    if (!(await findAssetCategoryById(id))) {
-      return NextResponse.json({ error: "Categoría no encontrada." }, { status: 404 });
-    }
-    await deleteAssetCategory(id);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    const msg = err instanceof Error ? err.message : "";
-    if (/REFERENCE|FOREIGN KEY|conflicted/i.test(msg)) {
-      return NextResponse.json(
-        { error: "La categoría tiene tipos o secuencias asociados; desactívala en su lugar." },
-        { status: 409 },
-      );
-    }
-    console.error("DELETE /api/maintenance/asset-categories/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo eliminar la categoría." },
-      { status: 500 },
-    );
-  }
+  if (!id) return badRequest("ID inválido.");
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("maintenance.asset_category:delete"),
+      uniqueRules: [
+        {
+          pattern: /REFERENCE|FOREIGN KEY|conflicted/i,
+          message: "La categoría tiene tipos o secuencias asociados; desactívala en su lugar.",
+        },
+      ],
+      fail: "No se pudo eliminar la categoría.",
+      label: "DELETE /api/maintenance/asset-categories/[id]",
+    },
+    async () => {
+      if (!(await findAssetCategoryById(id))) {
+        return notFound("Categoría no encontrada.");
+      }
+      await deleteAssetCategory(id);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

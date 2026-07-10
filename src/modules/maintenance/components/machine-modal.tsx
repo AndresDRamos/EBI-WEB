@@ -46,6 +46,7 @@ import { QrModal } from "@/modules/maintenance/components/qr-modal";
 import { ParentPickerModal } from "@/modules/maintenance/components/parent-picker-modal";
 import type { MachineRow } from "@/modules/maintenance/components/machines-cards-page";
 import { cn } from "@/lib/utils";
+import { apiMutate } from "@/lib/api-client";
 
 type TabId = "mantenimiento" | "documentacion" | "restricciones";
 
@@ -193,18 +194,11 @@ export function MachineModal({
         }
       }
       if (targetCellId !== null) {
-        const res = await fetch(
-          `/api/production/cells/${targetCellId}/assignments`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ asset_id: savedAssetId }),
-          },
-        );
-        if (!res.ok) {
-          const d = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(d.error ?? "No se pudo asignar la celda.");
-        }
+        await apiMutate(`/api/production/cells/${targetCellId}/assignments`, {
+          method: "POST",
+          body: { asset_id: savedAssetId },
+          fallback: "No se pudo asignar la celda.",
+        });
       }
     } catch (err) {
       setCellError(

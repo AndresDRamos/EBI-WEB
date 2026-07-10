@@ -5,22 +5,9 @@ import {
   deleteAssetType,
   setAssetTypeProcesses,
 } from "@/modules/maintenance/db";
+import { updateAssetTypeSchema } from "@/modules/maintenance/schemas";
 import { requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-
-function parseId(raw: string): number | null {
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-interface PutBody {
-  asset_category_id?: unknown;
-  code?: unknown;
-  name?: unknown;
-  is_active?: unknown;
-  /** Full replacement of the type ↔ process links when present. */
-  process_ids?: unknown;
-}
+import { badRequest, handleRoute, notFound, parseBody, parseId } from "@/lib/api/handler";
 
 /** PUT /api/maintenance/asset-types/[id] — update / soft-delete / restore. */
 export async function PUT(
@@ -28,81 +15,43 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  let body: PutBody;
-  try {
-    body = (await parseJsonBody(request)) as PutBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
+  if (!id) return badRequest("ID inválido.");
+  const body = await parseBody(request, updateAssetTypeSchema);
+  if (body instanceof NextResponse) return body;
+
   const changes: Parameters<typeof updateAssetType>[1] = {};
-  if (body.asset_category_id !== undefined) {
-    const categoryId = Number(body.asset_category_id);
-    if (!Number.isInteger(categoryId) || categoryId <= 0) {
-      return NextResponse.json({ error: "Categoría inválida." }, { status: 422 });
-    }
-    changes.asset_category_id = categoryId;
-  }
-  if (typeof body.code === "string" && body.code.trim()) {
-    const code = body.code.trim().toUpperCase();
-    if (!/^[A-Za-z0-9]{2,8}$/.test(code)) {
-      return NextResponse.json(
-        {
-          error:
-            "El código debe tener de 2 a 8 caracteres alfanuméricos: también se usa como prefijo de matrícula.",
-        },
-        { status: 422 },
-      );
-    }
+  if (body.asset_category_id !== undefined) changes.asset_category_id = body.asset_category_id;
+  if (body.code !== undefined) {
     // The matrícula prefix (V18) is not a separate input: it always mirrors `code`.
-    changes.code = code;
-    changes.code_prefix = code;
+    changes.code = body.code;
+    changes.code_prefix = body.code;
   }
-  if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-  let processIds: number[] | undefined;
-  if (body.process_ids !== undefined) {
-    if (
-      !Array.isArray(body.process_ids) ||
-      body.process_ids.some((p) => !Number.isInteger(p) || (p as number) <= 0)
-    ) {
-      return NextResponse.json({ error: "Procesos inválidos." }, { status: 422 });
-    }
-    processIds = body.process_ids as number[];
-  }
-  if (Object.keys(changes).length === 0 && processIds === undefined) {
-    return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
-  }
-  try {
-    await requirePermission("maintenance.asset_type:update");
-    if (!(await findAssetTypeById(id))) {
-      return NextResponse.json({ error: "Tipo no encontrado." }, { status: 404 });
-    }
-    if (Object.keys(changes).length > 0) await updateAssetType(id, changes);
-    if (processIds !== undefined) await setAssetTypeProcesses(id, processIds);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    const msg = err instanceof Error ? err.message : "";
-    if (/UQ_asset_type_prefix/i.test(msg)) {
-      return NextResponse.json(
-        { error: "Ese prefijo de matrícula ya lo usa otro tipo." },
-        { status: 409 },
-      );
-    }
-    if (/unique/i.test(msg)) {
-      return NextResponse.json(
-        { error: "Ya existe un tipo con ese código en la categoría." },
-        { status: 409 },
-      );
-    }
-    console.error("PUT /api/maintenance/asset-types/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo actualizar el tipo." },
-      { status: 500 },
-    );
-  }
+  if (body.name !== undefined) changes.name = body.name;
+  if (body.is_active !== undefined) changes.is_active = body.is_active;
+  const processIds = body.process_ids;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("maintenance.asset_type:update"),
+      uniqueRules: [
+        {
+          pattern: /UQ_asset_type_prefix/i,
+          message: "Ese prefijo de matrícula ya lo usa otro tipo.",
+        },
+      ],
+      uniqueFallback: "Ya existe un tipo con ese código en la categoría.",
+      fail: "No se pudo actualizar el tipo.",
+      label: "PUT /api/maintenance/asset-types/[id]",
+    },
+    async () => {
+      if (!(await findAssetTypeById(id))) {
+        return notFound("Tipo no encontrado.");
+      }
+      if (Object.keys(changes).length > 0) await updateAssetType(id, changes);
+      if (processIds !== undefined) await setAssetTypeProcesses(id, processIds);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }
 
 /**
@@ -115,28 +64,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  try {
-    await requirePermission("maintenance.asset_type:delete");
-    if (!(await findAssetTypeById(id))) {
-      return NextResponse.json({ error: "Tipo no encontrado." }, { status: 404 });
-    }
-    await deleteAssetType(id);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    const msg = err instanceof Error ? err.message : "";
-    if (/REFERENCE|FOREIGN KEY|conflicted/i.test(msg)) {
-      return NextResponse.json(
-        { error: "Hay equipos con este tipo; desactívalo en su lugar." },
-        { status: 409 },
-      );
-    }
-    console.error("DELETE /api/maintenance/asset-types/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo eliminar el tipo." },
-      { status: 500 },
-    );
-  }
+  if (!id) return badRequest("ID inválido.");
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("maintenance.asset_type:delete"),
+      uniqueRules: [
+        {
+          pattern: /REFERENCE|FOREIGN KEY|conflicted/i,
+          message: "Hay equipos con este tipo; desactívalo en su lugar.",
+        },
+      ],
+      fail: "No se pudo eliminar el tipo.",
+      label: "DELETE /api/maintenance/asset-types/[id]",
+    },
+    async () => {
+      if (!(await findAssetTypeById(id))) {
+        return notFound("Tipo no encontrado.");
+      }
+      await deleteAssetType(id);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

@@ -1,12 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { discardDraft, findLayoutById } from "@/modules/production/db/layout";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse } from "@/lib/auth/api";
-
-function parseId(raw: string): number | null {
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
+import { badRequest, conflict, handleRoute, notFound, parseId } from "@/lib/api/handler";
 
 /** GET /api/production/layouts/[id] — full layout with parsed geometry (any user). */
 export async function GET(
@@ -14,21 +9,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  try {
-    await requireUser();
-    const layout = await findLayoutById(id);
-    if (!layout) {
-      return NextResponse.json({ error: "Layout no encontrado." }, { status: 404 });
-    }
-    return NextResponse.json({
-      layout: { ...layout, geometry: JSON.parse(layout.geometry) },
-    });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    throw err;
-  }
+  if (!id) return badRequest("ID inválido.");
+  return handleRoute(
+    { guard: requireUser, fail: "No se pudo cargar el layout.", label: "GET /api/production/layouts/[id]" },
+    async () => {
+      const layout = await findLayoutById(id);
+      if (!layout) return notFound("Layout no encontrado.");
+      return NextResponse.json({
+        layout: { ...layout, geometry: JSON.parse(layout.geometry) },
+      });
+    },
+  );
 }
 
 /**
@@ -40,27 +31,20 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  try {
-    await requirePermission("production.layout:create");
-    const result = await discardDraft(id);
-    if (result.outcome === "not-found") {
-      return NextResponse.json({ error: "Layout no encontrado." }, { status: 404 });
-    }
-    if (result.outcome === "not-draft") {
-      return NextResponse.json(
-        { error: "Solo se puede descartar un borrador." },
-        { status: 409 },
-      );
-    }
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("DELETE /api/production/layouts/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo descartar el borrador." },
-      { status: 500 },
-    );
-  }
+  if (!id) return badRequest("ID inválido.");
+  return handleRoute(
+    {
+      guard: () => requirePermission("production.layout:create"),
+      fail: "No se pudo descartar el borrador.",
+      label: "DELETE /api/production/layouts/[id]",
+    },
+    async () => {
+      const result = await discardDraft(id);
+      if (result.outcome === "not-found") return notFound("Layout no encontrado.");
+      if (result.outcome === "not-draft") {
+        return conflict("Solo se puede descartar un borrador.");
+      }
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

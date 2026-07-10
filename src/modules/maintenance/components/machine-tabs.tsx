@@ -24,6 +24,7 @@ import {
   docTypeLabel,
   restrictionTypeLabel,
 } from "@/modules/maintenance/enums";
+import { apiMutate } from "@/lib/api-client";
 
 export interface RestrictionItem {
   restriction_id: number;
@@ -146,18 +147,14 @@ export function RestriccionesTab({
       const url = edit
         ? `/api/maintenance/assets/${assetId}/restrictions/${edit.restriction_id}`
         : `/api/maintenance/assets/${assetId}/restrictions`;
-      const res = await fetch(url, {
+      await apiMutate(url, {
         method: edit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           restriction_type: type,
           description: description.trim(),
-        }),
+        },
+        fallback: "No se pudo guardar la restricción.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar la restricción.");
-      }
       setModal({ open: false, edit: null });
       onChanged();
     } catch (err) {

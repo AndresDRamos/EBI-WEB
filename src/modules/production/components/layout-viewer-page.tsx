@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { apiMutate } from "@/lib/api-client";
 import { useCan } from "@/components/providers/permissions-provider";
 import { LayoutCanvas, type PlacedShape } from "./layout-canvas";
 import { layoutStatusLabel } from "@/modules/production/enums";
@@ -73,14 +74,9 @@ export function LayoutViewerPage({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/production/layouts/${layout.layout_id}/archive`,
-        { method: "POST" },
-      );
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo archivar el layout.");
-      }
+      await apiMutate(`/api/production/layouts/${layout.layout_id}/archive`, {
+        fallback: "No se pudo archivar el layout.",
+      });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");

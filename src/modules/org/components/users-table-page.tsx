@@ -10,6 +10,7 @@ import {
   type CatalogItem,
   type UserFormInitial,
 } from "./user-form";
+import { apiMutate } from "@/lib/api-client";
 
 export interface UsersTableRow {
   user_id: number;
@@ -177,18 +178,21 @@ export function UsersTablePage({
 
   async function onSoftDelete(
     row: UsersTableRow,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/users/${row.user_id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: false }),
-    });
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? "No se pudo desactivar el usuario." };
+  ): Promise<{ error?: string }> {
+    try {
+      await apiMutate(`/api/users/${row.user_id}`, {
+        method: "PATCH",
+        body: { is_active: false },
+        fallback: "No se pudo desactivar el usuario.",
+      });
+      router.refresh();
+      return {};
+    } catch (err) {
+      return {
+        error:
+          err instanceof Error ? err.message : "No se pudo desactivar el usuario.",
+      };
     }
-    router.refresh();
-    return { ok: true };
   }
 
   // Hard delete isn't exposed on purpose (catalogs hard-delete; users stay
@@ -196,18 +200,21 @@ export function UsersTablePage({
   // the edit modal's "Cuenta activa" toggle.
   async function onRestore(
     row: UsersTableRow,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/users/${row.user_id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: true }),
-    });
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? "No se pudo reactivar el usuario." };
+  ): Promise<{ error?: string }> {
+    try {
+      await apiMutate(`/api/users/${row.user_id}`, {
+        method: "PATCH",
+        body: { is_active: true },
+        fallback: "No se pudo reactivar el usuario.",
+      });
+      router.refresh();
+      return {};
+    } catch (err) {
+      return {
+        error:
+          err instanceof Error ? err.message : "No se pudo reactivar el usuario.",
+      };
     }
-    router.refresh();
-    return { ok: true };
   }
 
   return (

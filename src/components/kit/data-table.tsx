@@ -83,11 +83,11 @@ export interface DataTableProps<T> {
   isActive: (row: T) => boolean;
   onAdd?: () => void;
   onEdit?: (row: T) => void;
-  onSoftDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
-  onHardDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
+  onSoftDelete?: (row: T) => Promise<{ error?: string }>;
+  onHardDelete?: (row: T) => Promise<{ error?: string }>;
   /** Reactivate an inactive row. Runs on direct click (reversible action, no
    * confirm); shown next to "Eliminar permanentemente" in inactive mode. */
-  onRestore?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
+  onRestore?: (row: T) => Promise<{ error?: string }>;
   canEdit?: (row: T) => boolean;
   canDelete?: (row: T) => boolean;
   onAfterChange?: () => void;
@@ -500,9 +500,9 @@ export function ActionsCell<T>({
   row: T;
   isActive: (row: T) => boolean;
   onEdit?: (row: T) => void;
-  onSoftDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
-  onHardDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
-  onRestore?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
+  onSoftDelete?: (row: T) => Promise<{ error?: string }>;
+  onHardDelete?: (row: T) => Promise<{ error?: string }>;
+  onRestore?: (row: T) => Promise<{ error?: string }>;
   canEdit?: (row: T) => boolean;
   canDelete?: (row: T) => boolean;
   onAfterChange?: () => void;
@@ -526,7 +526,7 @@ export function ActionsCell<T>({
   async function doRestore() {
     if (!onRestore) return;
     setRestoreBusy(true);
-    let res: { ok?: boolean; error?: string };
+    let res: { error?: string };
     try {
       res = await onRestore(row);
     } catch {
@@ -549,7 +549,7 @@ export function ActionsCell<T>({
       setDialogOpen(false);
       return;
     }
-    let res: { ok?: boolean; error?: string };
+    let res: { error?: string };
     try {
       res = await handler(row);
     } catch {

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { listLayouts } from "@/modules/production/db/layout";
 import { requireUser } from "@/lib/auth/rbac";
-import { authErrorResponse } from "@/lib/auth/api";
+import { handleRoute, unprocessable } from "@/lib/api/handler";
 
 /**
  * GET /api/production/layouts?plant_id= — layout versions, newest first (any
@@ -9,21 +9,19 @@ import { authErrorResponse } from "@/lib/auth/api";
  * discipline); fetch a single layout for the full geometry.
  */
 export async function GET(request: NextRequest) {
-  try {
-    await requireUser();
-    const raw = request.nextUrl.searchParams.get("plant_id");
-    let plantId: number | undefined;
-    if (raw !== null) {
-      plantId = Number(raw);
-      if (!Number.isInteger(plantId) || plantId <= 0) {
-        return NextResponse.json({ error: "Planta inválida." }, { status: 422 });
-      }
+  const raw = request.nextUrl.searchParams.get("plant_id");
+  let plantId: number | undefined;
+  if (raw !== null) {
+    plantId = Number(raw);
+    if (!Number.isInteger(plantId) || plantId <= 0) {
+      return unprocessable("Planta inválida.");
     }
-    const layouts = await listLayouts(plantId);
-    return NextResponse.json({ layouts });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    throw err;
   }
+  return handleRoute(
+    { guard: requireUser, fail: "No se pudo cargar el layout.", label: "GET /api/production/layouts" },
+    async () => {
+      const layouts = await listLayouts(plantId);
+      return NextResponse.json({ layouts });
+    },
+  );
 }

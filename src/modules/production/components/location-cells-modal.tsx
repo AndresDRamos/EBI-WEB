@@ -42,6 +42,7 @@ import {
 } from "@/components/kit/expanding-modal";
 import { useCan } from "@/components/providers/permissions-provider";
 import { cn } from "@/lib/utils";
+import { ApiError, apiMutate } from "@/lib/api-client";
 import type { LocationCardOption } from "@/modules/production/components/operative-cells-page";
 import type { OperativeCellRow } from "@/modules/production/db";
 
@@ -201,28 +202,20 @@ export function LocationCellsModal({
     if (!confirmTarget) return;
     setConfirmError(null);
     setConfirmBusy(true);
-    let error: string | null = null;
     try {
-      const res = await fetch(
-        `/api/production/cells/${confirmTarget.cell_id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ is_active: false }),
-        },
+      await apiMutate(`/api/production/cells/${confirmTarget.cell_id}`, {
+        method: "PATCH",
+        body: { is_active: false },
+        fallback: "No se pudo desactivar la celda.",
+      });
+    } catch (err) {
+      setConfirmBusy(false);
+      setConfirmError(
+        err instanceof ApiError ? err.message : "No se pudo completar la acción.",
       );
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        error = d.error ?? "No se pudo desactivar la celda.";
-      }
-    } catch {
-      error = "No se pudo completar la acción.";
-    }
-    setConfirmBusy(false);
-    if (error) {
-      setConfirmError(error);
       return;
     }
+    setConfirmBusy(false);
     setConfirmTarget(null);
     router.refresh();
   }
@@ -528,18 +521,13 @@ function CellDetailView({
     setSaveError(null);
     setSaveBusy(true);
     try {
-      const res = await fetch(
+      await apiMutate(
         `/api/production/cells/${cell.cell_id}/children/reorder`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ordered_cell_ids: order }),
+          body: { ordered_cell_ids: order },
+          fallback: "No se pudo guardar el orden.",
         },
       );
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar el orden.");
-      }
       setCommittedIds(order);
       onMutated();
     } catch (err) {
@@ -987,32 +975,30 @@ function CellFormDialogInner({
     }
     setBusy(true);
     try {
-      const res = editing
-        ? await fetch(`/api/production/cells/${editing.cell_id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: name.trim(),
-              size_x_m: sizeX ? x : null,
-              size_y_m: sizeY ? y : null,
-              process_id: processId ? Number(processId) : null,
-            }),
-          })
-        : await fetch(`/api/production/cells`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: name.trim(),
-              location_id: location.location_id,
-              parent_cell_id: parent?.cell_id ?? null,
-              size_x_m: x,
-              size_y_m: y,
-              process_id: processId ? Number(processId) : null,
-            }),
-          });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar la celda.");
+      if (editing) {
+        await apiMutate(`/api/production/cells/${editing.cell_id}`, {
+          method: "PATCH",
+          body: {
+            name: name.trim(),
+            size_x_m: sizeX ? x : null,
+            size_y_m: sizeY ? y : null,
+            process_id: processId ? Number(processId) : null,
+          },
+          fallback: "No se pudo guardar la celda.",
+        });
+      } else {
+        await apiMutate(`/api/production/cells`, {
+          method: "POST",
+          body: {
+            name: name.trim(),
+            location_id: location.location_id,
+            parent_cell_id: parent?.cell_id ?? null,
+            size_x_m: x,
+            size_y_m: y,
+            process_id: processId ? Number(processId) : null,
+          },
+          fallback: "No se pudo guardar la celda.",
+        });
       }
       onSaved();
     } catch (err) {

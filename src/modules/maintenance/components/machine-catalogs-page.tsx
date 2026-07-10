@@ -8,6 +8,7 @@ import {
   type GroupedChildColumn,
 } from "@/components/kit/grouped-data-table";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { useEntityCrud } from "@/components/kit/use-entity-crud";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,27 +59,26 @@ export function MachineCatalogsPage({
   const can = useCan();
   const router = useRouter();
 
-  // --- Category modal state -----------------------------------------------
-  const [catModal, setCatModal] = React.useState<{
-    open: boolean;
-    editId: number | null;
-  }>({ open: false, editId: null });
+  // --- Category CRUD ---------------------------------------------------------
+  const catCrud = useEntityCrud<CategoryGroupRow>({
+    basePath: "/api/maintenance/asset-categories",
+    getId: (r) => r.asset_category_id,
+  });
+  const { modalState: catModal } = catCrud;
   const [catCode, setCatCode] = React.useState("");
   const [catName, setCatName] = React.useState("");
-  const [catError, setCatError] = React.useState<string | null>(null);
-  const [catBusy, setCatBusy] = React.useState(false);
 
-  // --- Type modal state -----------------------------------------------------
-  const [typeModal, setTypeModal] = React.useState<{
-    open: boolean;
-    editId: number | null;
-  }>({ open: false, editId: null });
+  // --- Type CRUD ---------------------------------------------------------------
+  // `extra` carries the parent category id when creating a type from a group row.
+  const typeCrud = useEntityCrud<TypeChildRow, number>({
+    basePath: "/api/maintenance/asset-types",
+    getId: (r) => r.asset_type_id,
+  });
+  const { modalState: typeModal } = typeCrud;
   const [typeCode, setTypeCode] = React.useState("");
   const [typeName, setTypeName] = React.useState("");
   const [typeCategoryId, setTypeCategoryId] = React.useState<string>("");
   const [typeProcessId, setTypeProcessId] = React.useState<string>("");
-  const [typeError, setTypeError] = React.useState<string | null>(null);
-  const [typeBusy, setTypeBusy] = React.useState(false);
 
   const groups = React.useMemo(
     () =>
@@ -94,81 +94,50 @@ export function MachineCatalogsPage({
 
   // --- Category handlers ----------------------------------------------------
 
-  function openCreateCat() {
+  function resetCatForm() {
     setCatCode("");
     setCatName("");
-    setCatError(null);
-    setCatModal({ open: true, editId: null });
+  }
+
+  function openCreateCat() {
+    resetCatForm();
+    catCrud.openCreate();
   }
 
   function openEditCat(g: CategoryGroupRow) {
     setCatCode(g.code);
     setCatName(g.name);
-    setCatError(null);
-    setCatModal({ open: true, editId: g.asset_category_id });
+    catCrud.openEdit(g);
   }
 
   async function onSubmitCat() {
-    setCatError(null);
     if (!catCode.trim() || !catName.trim()) {
-      setCatError("Código y nombre son obligatorios.");
+      catCrud.setError("Código y nombre son obligatorios.");
       return;
     }
-    setCatBusy(true);
-    try {
-      const id = catModal.editId;
-      const res = await fetch(
-        id
-          ? `/api/maintenance/asset-categories/${id}`
-          : "/api/maintenance/asset-categories",
-        {
-          method: id ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code: catCode.trim(),
-            name: catName.trim(),
-          }),
-        },
-      );
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar la categoría.");
-      }
-      setCatModal({ open: false, editId: null });
-      router.refresh();
-    } catch (err) {
-      setCatError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setCatBusy(false);
-    }
-  }
-
-  async function catAction(
-    g: CategoryGroupRow,
-    init: RequestInit,
-    fallback: string,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(
-      `/api/maintenance/asset-categories/${g.asset_category_id}`,
-      init,
+    const ok = await catCrud.submit(
+      {
+        code: catCode.trim(),
+        name: catName.trim(),
+      },
+      "No se pudo guardar la categoría.",
     );
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? fallback };
-    }
-    router.refresh();
-    return { ok: true };
+    if (ok) resetCatForm();
   }
 
   // --- Type handlers ---------------------------------------------------------
 
-  function openCreateType(g: CategoryGroupRow) {
+  function resetTypeForm() {
     setTypeCode("");
     setTypeName("");
-    setTypeCategoryId(String(g.asset_category_id));
+    setTypeCategoryId("");
     setTypeProcessId("");
-    setTypeError(null);
-    setTypeModal({ open: true, editId: null });
+  }
+
+  function openCreateType(g: CategoryGroupRow) {
+    resetTypeForm();
+    setTypeCategoryId(String(g.asset_category_id));
+    typeCrud.openCreate(g.asset_category_id);
   }
 
   function openEditType(t: TypeChildRow) {
@@ -176,63 +145,30 @@ export function MachineCatalogsPage({
     setTypeName(t.name);
     setTypeCategoryId(String(t.asset_category_id));
     setTypeProcessId(t.process_ids[0] ? String(t.process_ids[0]) : "");
-    setTypeError(null);
-    setTypeModal({ open: true, editId: t.asset_type_id });
+    typeCrud.openEdit(t, t.asset_category_id);
   }
 
   async function onSubmitType() {
-    setTypeError(null);
     if (!typeCode.trim() || !typeName.trim() || !typeCategoryId) {
-      setTypeError("Categoría, código y nombre son obligatorios.");
+      typeCrud.setError("Categoría, código y nombre son obligatorios.");
       return;
     }
     if (!/^[A-Za-z0-9]{2,8}$/.test(typeCode.trim())) {
-      setTypeError(
+      typeCrud.setError(
         "El código debe ser alfanumérico (2–8 caracteres): también se usa como prefijo de la matrícula.",
       );
       return;
     }
-    setTypeBusy(true);
-    try {
-      const id = typeModal.editId;
-      const res = await fetch(
-        id ? `/api/maintenance/asset-types/${id}` : "/api/maintenance/asset-types",
-        {
-          method: id ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            asset_category_id: Number(typeCategoryId),
-            code: typeCode.trim().toUpperCase(),
-            name: typeName.trim(),
-            process_ids: typeProcessId ? [Number(typeProcessId)] : [],
-          }),
-        },
-      );
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar el tipo.");
-      }
-      setTypeModal({ open: false, editId: null });
-      router.refresh();
-    } catch (err) {
-      setTypeError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setTypeBusy(false);
-    }
-  }
-
-  async function typeAction(
-    t: TypeChildRow,
-    init: RequestInit,
-    fallback: string,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/maintenance/asset-types/${t.asset_type_id}`, init);
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? fallback };
-    }
-    router.refresh();
-    return { ok: true };
+    const ok = await typeCrud.submit(
+      {
+        asset_category_id: Number(typeCategoryId),
+        code: typeCode.trim().toUpperCase(),
+        name: typeName.trim(),
+        process_ids: typeProcessId ? [Number(typeProcessId)] : [],
+      },
+      "No se pudo guardar el tipo.",
+    );
+    if (ok) resetTypeForm();
   }
 
   const childColumns: GroupedChildColumn<TypeChildRow>[] = React.useMemo(
@@ -284,12 +220,6 @@ export function MachineCatalogsPage({
 
   const activeCategories = categories.filter((c) => c.is_active);
 
-  const jsonPut = (body: unknown): RequestInit => ({
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
   return (
     <>
       <GroupedDataTable<CategoryGroupRow, TypeChildRow>
@@ -323,32 +253,21 @@ export function MachineCatalogsPage({
         }
         onSoftDeleteGroup={
           can("maintenance.asset_category:update")
-            ? (g) =>
-                catAction(
-                  g,
-                  jsonPut({ is_active: false }),
-                  "No se pudo desactivar la categoría.",
-                )
+            ? (g) => catCrud.onSoftDelete(g, "No se pudo desactivar la categoría.")
             : undefined
         }
         onHardDeleteGroup={
           can("maintenance.asset_category:delete")
             ? (g) =>
-                catAction(
+                catCrud.onHardDelete(
                   g,
-                  { method: "DELETE" },
                   "No se pudo eliminar la categoría (¿tiene tipos asociados?).",
                 )
             : undefined
         }
         onRestoreGroup={
           can("maintenance.asset_category:update")
-            ? (g) =>
-                catAction(
-                  g,
-                  jsonPut({ is_active: true }),
-                  "No se pudo reactivar la categoría.",
-                )
+            ? (g) => catCrud.onRestore(g, "No se pudo reactivar la categoría.")
             : undefined
         }
         onEditChild={
@@ -356,32 +275,21 @@ export function MachineCatalogsPage({
         }
         onSoftDeleteChild={
           can("maintenance.asset_type:update")
-            ? (t) =>
-                typeAction(
-                  t,
-                  jsonPut({ is_active: false }),
-                  "No se pudo desactivar el tipo.",
-                )
+            ? (t) => typeCrud.onSoftDelete(t, "No se pudo desactivar el tipo.")
             : undefined
         }
         onHardDeleteChild={
           can("maintenance.asset_type:delete")
             ? (t) =>
-                typeAction(
+                typeCrud.onHardDelete(
                   t,
-                  { method: "DELETE" },
                   "No se pudo eliminar el tipo (¿hay equipos con este tipo?).",
                 )
             : undefined
         }
         onRestoreChild={
           can("maintenance.asset_type:update")
-            ? (t) =>
-                typeAction(
-                  t,
-                  jsonPut({ is_active: true }),
-                  "No se pudo reactivar el tipo.",
-                )
+            ? (t) => typeCrud.onRestore(t, "No se pudo reactivar el tipo.")
             : undefined
         }
         onAfterChange={() => router.refresh()}
@@ -390,14 +298,13 @@ export function MachineCatalogsPage({
       <EntityFormDialog
         open={catModal.open}
         onOpenChange={(open) => {
-          setCatModal((prev) => ({ open, editId: open ? prev.editId : null }));
-          if (!open) setCatError(null);
+          if (!open) catCrud.closeModal();
         }}
         title={catModal.editId === null ? "Nueva categoría" : "Editar categoría"}
-        busy={catBusy}
-        error={catError}
+        busy={catCrud.busy}
+        error={catCrud.error}
         onSubmit={onSubmitCat}
-        onCancel={() => setCatModal({ open: false, editId: null })}
+        onCancel={() => catCrud.closeModal()}
         submitLabel={catModal.editId === null ? "Crear categoría" : "Guardar cambios"}
         sizeClassName="sm:max-w-lg"
       >
@@ -409,7 +316,7 @@ export function MachineCatalogsPage({
               value={catName}
               onChange={(e) => setCatName(e.target.value)}
               maxLength={120}
-              disabled={catBusy}
+              disabled={catCrud.busy}
               placeholder="p. ej. Equipo de producción"
             />
           </div>
@@ -420,7 +327,7 @@ export function MachineCatalogsPage({
               value={catCode}
               onChange={(e) => setCatCode(e.target.value)}
               maxLength={40}
-              disabled={catBusy}
+              disabled={catCrud.busy}
               placeholder="p. ej. production_equipment"
             />
             <p className="text-xs text-muted-foreground">
@@ -433,15 +340,14 @@ export function MachineCatalogsPage({
       <EntityFormDialog
         open={typeModal.open}
         onOpenChange={(open) => {
-          setTypeModal((prev) => ({ open, editId: open ? prev.editId : null }));
-          if (!open) setTypeError(null);
+          if (!open) typeCrud.closeModal();
         }}
         title={typeModal.editId === null ? "Nuevo tipo de equipo" : "Editar tipo de equipo"}
         description="El código del tipo también sirve como prefijo de la matrícula automática de sus equipos (p. ej. CL-P1-0001). El proceso aplica a todos los equipos del tipo."
-        busy={typeBusy}
-        error={typeError}
+        busy={typeCrud.busy}
+        error={typeCrud.error}
         onSubmit={onSubmitType}
-        onCancel={() => setTypeModal({ open: false, editId: null })}
+        onCancel={() => typeCrud.closeModal()}
         submitLabel={typeModal.editId === null ? "Crear tipo" : "Guardar cambios"}
         sizeClassName="sm:max-w-lg"
       >
@@ -452,7 +358,7 @@ export function MachineCatalogsPage({
               id="type-category"
               value={typeCategoryId}
               onChange={(e) => setTypeCategoryId(e.target.value)}
-              disabled={typeBusy}
+              disabled={typeCrud.busy}
             >
               <option value="">Selecciona…</option>
               {activeCategories.map((c) => (
@@ -470,7 +376,7 @@ export function MachineCatalogsPage({
                 value={typeName}
                 onChange={(e) => setTypeName(e.target.value)}
                 maxLength={120}
-                disabled={typeBusy}
+                disabled={typeCrud.busy}
                 placeholder="p. ej. Cortadora láser"
               />
             </div>
@@ -481,7 +387,7 @@ export function MachineCatalogsPage({
                 value={typeCode}
                 onChange={(e) => setTypeCode(e.target.value.toUpperCase())}
                 maxLength={8}
-                disabled={typeBusy}
+                disabled={typeCrud.busy}
                 placeholder="p. ej. CL"
                 className="font-mono uppercase"
               />
@@ -497,7 +403,7 @@ export function MachineCatalogsPage({
               id="type-process"
               value={typeProcessId}
               onChange={(e) => setTypeProcessId(e.target.value)}
-              disabled={typeBusy}
+              disabled={typeCrud.busy}
             >
               <option value="">Sin proceso</option>
               {processes.map((p) => (

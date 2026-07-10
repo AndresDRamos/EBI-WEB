@@ -5,35 +5,28 @@ import {
   listRolePermissionIds,
   setRolePermissions,
 } from "@/modules/org/db/permissions";
+import { rolePermissionsSchema } from "@/modules/org/schemas";
 import { requireAnyRole, requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
+import { badRequest, conflict, handleRoute, notFound, parseBody, parseId } from "@/lib/api/handler";
 
 /** GET /api/roles/[id]/permissions — permission ids granted to a profile (admin). */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  try {
-    await requireAnyRole(["admin"]);
-    const permission_ids = await listRolePermissionIds(id);
-    return NextResponse.json({ permission_ids });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("GET /api/roles/[id]/permissions failed:", err);
-    return NextResponse.json(
-      { error: "No se pudieron cargar los permisos del perfil." },
-      { status: 500 },
-    );
-  }
-}
-
-interface PutBody {
-  permission_ids?: unknown;
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  return handleRoute(
+    {
+      guard: () => requireAnyRole(["admin"]),
+      fail: "No se pudieron cargar los permisos del perfil.",
+      label: "GET /api/roles/[id]/permissions",
+    },
+    async () => {
+      const permission_ids = await listRolePermissionIds(id);
+      return NextResponse.json({ permission_ids });
+    },
+  );
 }
 
 /**
@@ -46,49 +39,31 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  let body: PutBody;
-  try {
-    body = (await parseJsonBody(request)) as PutBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
-  if (!Array.isArray(body.permission_ids)) {
-    return NextResponse.json({ error: "Formato de permisos inválido." }, { status: 400 });
-  }
-  const permissionIds: number[] = [];
-  for (const raw of body.permission_ids) {
-    const pid = Number(raw);
-    if (!Number.isInteger(pid) || pid <= 0) {
-      return NextResponse.json({ error: "Formato de permisos inválido." }, { status: 400 });
-    }
-    permissionIds.push(pid);
-  }
-  try {
-    await requirePermission("org.role:update");
-    const current = await findRoleById(id);
-    if (!current) {
-      return NextResponse.json({ error: "Perfil no encontrado." }, { status: 404 });
-    }
-    if (current.name === PROTECTED_ROLE) {
-      return NextResponse.json(
-        { error: `El rol '${PROTECTED_ROLE}' no usa permisos: siempre tiene acceso total.` },
-        { status: 409 },
-      );
-    }
-    await setRolePermissions(id, permissionIds);
-    revalidateTag("permissions", { expire: 0 });
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("PUT /api/roles/[id]/permissions failed:", err);
-    return NextResponse.json(
-      { error: "No se pudieron guardar los permisos." },
-      { status: 500 },
-    );
-  }
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  const raw = await parseBody(request);
+  if (raw instanceof NextResponse) return raw;
+  const parsed = rolePermissionsSchema.safeParse(raw);
+  if (!parsed.success) return badRequest("Formato de permisos inválido.");
+  const { permission_ids: permissionIds } = parsed.data;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("org.role:update"),
+      fail: "No se pudieron guardar los permisos.",
+      label: "PUT /api/roles/[id]/permissions",
+    },
+    async () => {
+      const current = await findRoleById(id);
+      if (!current) return notFound("Perfil no encontrado.");
+      if (current.name === PROTECTED_ROLE) {
+        return conflict(
+          `El rol '${PROTECTED_ROLE}' no usa permisos: siempre tiene acceso total.`,
+        );
+      }
+      await setRolePermissions(id, permissionIds);
+      revalidateTag("permissions", { expire: 0 });
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

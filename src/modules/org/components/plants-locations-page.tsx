@@ -8,6 +8,7 @@ import {
   type GroupedChildColumn,
 } from "@/components/kit/grouped-data-table";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { useEntityCrud } from "@/components/kit/use-entity-crud";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -43,28 +44,24 @@ export function PlantsLocationsPage({
 }) {
   const router = useRouter();
 
-  // --- Plant modal state ---------------------------------------------------
-  const [plantModal, setPlantModal] = React.useState<{
-    open: boolean;
-    editId: number | null;
-  }>({ open: false, editId: null });
+  const plantCrud = useEntityCrud<PlantGroupRow>({
+    basePath: "/api/plants",
+    getId: (p) => p.plant_id,
+  });
+  const locCrud = useEntityCrud<LocationChildRow, { plantId: number }>({
+    basePath: "/api/org/locations",
+    getId: (l) => l.location_id,
+  });
+
+  // --- Plant form fields -------------------------------------------------
   const [plantCode, setPlantCode] = React.useState("");
   const [plantName, setPlantName] = React.useState("");
   const [plantAddress, setPlantAddress] = React.useState("");
   const [plantPostal, setPlantPostal] = React.useState("");
-  const [plantError, setPlantError] = React.useState<string | null>(null);
-  const [plantBusy, setPlantBusy] = React.useState(false);
 
-  // --- Location modal state --------------------------------------------------
-  const [locModal, setLocModal] = React.useState<{
-    open: boolean;
-    editId: number | null;
-    plantId: number | null;
-  }>({ open: false, editId: null, plantId: null });
+  // --- Location form fields -----------------------------------------------
   const [locCode, setLocCode] = React.useState("");
   const [locName, setLocName] = React.useState("");
-  const [locError, setLocError] = React.useState<string | null>(null);
-  const [locBusy, setLocBusy] = React.useState(false);
 
   const groups = React.useMemo(
     () => [...plants].sort((a, b) => a.name.localeCompare(b.name, "es")),
@@ -82,8 +79,7 @@ export function PlantsLocationsPage({
     setPlantName("");
     setPlantAddress("");
     setPlantPostal("");
-    setPlantError(null);
-    setPlantModal({ open: true, editId: null });
+    plantCrud.openCreate();
   }
 
   function openEditPlant(g: PlantGroupRow) {
@@ -91,54 +87,29 @@ export function PlantsLocationsPage({
     setPlantName(g.name);
     setPlantAddress(g.address ?? "");
     setPlantPostal(g.postal_code ?? "");
-    setPlantError(null);
-    setPlantModal({ open: true, editId: g.plant_id });
+    plantCrud.openEdit(g);
   }
 
   async function onSubmitPlant() {
-    setPlantError(null);
     if (!plantCode.trim() || !plantName.trim()) {
-      setPlantError("Código y nombre son obligatorios.");
+      plantCrud.setError("Código y nombre son obligatorios.");
       return;
     }
-    setPlantBusy(true);
-    try {
-      const id = plantModal.editId;
-      const res = await fetch(id ? `/api/plants/${id}` : "/api/plants", {
-        method: id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: plantCode.trim(),
-          name: plantName.trim(),
-          address: plantAddress.trim() || null,
-          postal_code: plantPostal.trim() || null,
-        }),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar la planta.");
-      }
-      setPlantModal({ open: false, editId: null });
-      router.refresh();
-    } catch (err) {
-      setPlantError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setPlantBusy(false);
+    const ok = await plantCrud.submit(
+      {
+        code: plantCode.trim(),
+        name: plantName.trim(),
+        address: plantAddress.trim() || null,
+        postal_code: plantPostal.trim() || null,
+      },
+      "No se pudo guardar la planta.",
+    );
+    if (ok) {
+      setPlantCode("");
+      setPlantName("");
+      setPlantAddress("");
+      setPlantPostal("");
     }
-  }
-
-  async function plantAction(
-    g: PlantGroupRow,
-    init: RequestInit,
-    fallback: string,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/plants/${g.plant_id}`, init);
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? fallback };
-    }
-    router.refresh();
-    return { ok: true };
   }
 
   // --- Location handlers ------------------------------------------------------
@@ -146,63 +117,32 @@ export function PlantsLocationsPage({
   function openCreateLoc(g: PlantGroupRow) {
     setLocCode("");
     setLocName("");
-    setLocError(null);
-    setLocModal({ open: true, editId: null, plantId: g.plant_id });
+    locCrud.openCreate({ plantId: g.plant_id });
   }
 
   function openEditLoc(l: LocationChildRow) {
     setLocCode(l.code);
     setLocName(l.name);
-    setLocError(null);
-    setLocModal({ open: true, editId: l.location_id, plantId: l.plant_id });
+    locCrud.openEdit(l, { plantId: l.plant_id });
   }
 
   async function onSubmitLoc() {
-    setLocError(null);
     if (!locCode.trim() || !locName.trim()) {
-      setLocError("Código y nombre son obligatorios.");
+      locCrud.setError("Código y nombre son obligatorios.");
       return;
     }
-    setLocBusy(true);
-    try {
-      const id = locModal.editId;
-      const res = await fetch(
-        id ? `/api/org/locations/${id}` : "/api/org/locations",
-        {
-          method: id ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            plant_id: locModal.plantId,
-            code: locCode.trim(),
-            name: locName.trim(),
-          }),
-        },
-      );
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar la ubicación.");
-      }
-      setLocModal({ open: false, editId: null, plantId: null });
-      router.refresh();
-    } catch (err) {
-      setLocError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setLocBusy(false);
+    const ok = await locCrud.submit(
+      {
+        plant_id: locCrud.modalState.extra?.plantId,
+        code: locCode.trim(),
+        name: locName.trim(),
+      },
+      "No se pudo guardar la ubicación.",
+    );
+    if (ok) {
+      setLocCode("");
+      setLocName("");
     }
-  }
-
-  async function locAction(
-    l: LocationChildRow,
-    init: RequestInit,
-    fallback: string,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/org/locations/${l.location_id}`, init);
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? fallback };
-    }
-    router.refresh();
-    return { ok: true };
   }
 
   const childColumns: GroupedChildColumn<LocationChildRow>[] = React.useMemo(
@@ -222,7 +162,9 @@ export function PlantsLocationsPage({
     [],
   );
 
-  const plantName_ = plants.find((p) => p.plant_id === locModal.plantId)?.name;
+  const plantName_ = plants.find(
+    (p) => p.plant_id === locCrud.modalState.extra?.plantId,
+  )?.name;
 
   return (
     <>
@@ -256,79 +198,48 @@ export function PlantsLocationsPage({
         addChildLabel="Agregar ubicación"
         onEditGroup={openEditPlant}
         onSoftDeleteGroup={(g) =>
-          plantAction(
-            g,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_active: false }),
-            },
-            "No se pudo desactivar la planta.",
-          )
+          plantCrud.onSoftDelete(g, "No se pudo desactivar la planta.")
         }
         onHardDeleteGroup={(g) =>
-          plantAction(
+          plantCrud.onHardDelete(
             g,
-            { method: "DELETE" },
             "No se pudo eliminar la planta (¿tiene usuarios o ubicaciones asignados?).",
           )
         }
         onRestoreGroup={(g) =>
-          plantAction(
-            g,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_active: true }),
-            },
-            "No se pudo reactivar la planta.",
-          )
+          plantCrud.onRestore(g, "No se pudo reactivar la planta.")
         }
         onEditChild={openEditLoc}
         onSoftDeleteChild={(l) =>
-          locAction(
-            l,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_active: false }),
-            },
-            "No se pudo desactivar la ubicación.",
-          )
+          locCrud.onSoftDelete(l, "No se pudo desactivar la ubicación.")
         }
         onHardDeleteChild={(l) =>
-          locAction(
+          locCrud.onHardDelete(
             l,
-            { method: "DELETE" },
             "No se pudo eliminar la ubicación (¿tiene equipos o celdas asignados?).",
           )
         }
         onRestoreChild={(l) =>
-          locAction(
-            l,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_active: true }),
-            },
-            "No se pudo reactivar la ubicación.",
-          )
+          locCrud.onRestore(l, "No se pudo reactivar la ubicación.")
         }
         onAfterChange={() => router.refresh()}
       />
 
       <EntityFormDialog
-        open={plantModal.open}
+        open={plantCrud.modalState.open}
         onOpenChange={(open) => {
-          setPlantModal((prev) => ({ open, editId: open ? prev.editId : null }));
-          if (!open) setPlantError(null);
+          if (!open) plantCrud.closeModal();
         }}
-        title={plantModal.editId === null ? "Nueva planta" : "Editar planta"}
-        busy={plantBusy}
-        error={plantError}
+        title={
+          plantCrud.modalState.editId === null ? "Nueva planta" : "Editar planta"
+        }
+        busy={plantCrud.busy}
+        error={plantCrud.error}
         onSubmit={onSubmitPlant}
-        onCancel={() => setPlantModal({ open: false, editId: null })}
-        submitLabel={plantModal.editId === null ? "Crear planta" : "Guardar cambios"}
+        onCancel={() => plantCrud.closeModal()}
+        submitLabel={
+          plantCrud.modalState.editId === null ? "Crear planta" : "Guardar cambios"
+        }
       >
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -339,7 +250,7 @@ export function PlantsLocationsPage({
                 value={plantCode}
                 onChange={(e) => setPlantCode(e.target.value)}
                 maxLength={32}
-                disabled={plantBusy}
+                disabled={plantCrud.busy}
               />
             </div>
             <div className="space-y-2">
@@ -349,7 +260,7 @@ export function PlantsLocationsPage({
                 value={plantName}
                 onChange={(e) => setPlantName(e.target.value)}
                 maxLength={160}
-                disabled={plantBusy}
+                disabled={plantCrud.busy}
               />
             </div>
           </div>
@@ -360,7 +271,7 @@ export function PlantsLocationsPage({
               value={plantAddress}
               onChange={(e) => setPlantAddress(e.target.value)}
               maxLength={256}
-              disabled={plantBusy}
+              disabled={plantCrud.busy}
             />
           </div>
           <div className="space-y-2">
@@ -370,31 +281,30 @@ export function PlantsLocationsPage({
               value={plantPostal}
               onChange={(e) => setPlantPostal(e.target.value)}
               maxLength={16}
-              disabled={plantBusy}
+              disabled={plantCrud.busy}
             />
           </div>
         </div>
       </EntityFormDialog>
 
       <EntityFormDialog
-        open={locModal.open}
+        open={locCrud.modalState.open}
         onOpenChange={(open) => {
-          setLocModal((prev) => ({
-            open,
-            editId: open ? prev.editId : null,
-            plantId: open ? prev.plantId : null,
-          }));
-          if (!open) setLocError(null);
+          if (!open) locCrud.closeModal();
         }}
-        title={locModal.editId === null ? "Nueva ubicación" : "Editar ubicación"}
+        title={
+          locCrud.modalState.editId === null ? "Nueva ubicación" : "Editar ubicación"
+        }
         description={
           plantName_ ? `Ubicación dentro de ${plantName_}.` : undefined
         }
-        busy={locBusy}
-        error={locError}
+        busy={locCrud.busy}
+        error={locCrud.error}
         onSubmit={onSubmitLoc}
-        onCancel={() => setLocModal({ open: false, editId: null, plantId: null })}
-        submitLabel={locModal.editId === null ? "Crear ubicación" : "Guardar cambios"}
+        onCancel={() => locCrud.closeModal()}
+        submitLabel={
+          locCrud.modalState.editId === null ? "Crear ubicación" : "Guardar cambios"
+        }
       >
         <div className="space-y-4">
           <div className="space-y-2">
@@ -404,7 +314,7 @@ export function PlantsLocationsPage({
               value={locCode}
               onChange={(e) => setLocCode(e.target.value)}
               maxLength={32}
-              disabled={locBusy}
+              disabled={locCrud.busy}
               placeholder="p. ej. NAVE1"
             />
           </div>
@@ -415,7 +325,7 @@ export function PlantsLocationsPage({
               value={locName}
               onChange={(e) => setLocName(e.target.value)}
               maxLength={160}
-              disabled={locBusy}
+              disabled={locCrud.busy}
               placeholder="p. ej. Nave de producción 1"
             />
           </div>

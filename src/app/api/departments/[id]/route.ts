@@ -1,73 +1,62 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateDepartment, deleteDepartment } from "@/modules/org/db/org";
+import { updateDepartmentSchema } from "@/modules/org/schemas";
 import { requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
+import { badRequest, handleRoute, parseBody, parseId } from "@/lib/api/handler";
 
-interface UpdateBody {
-  name?: unknown;
-  description?: unknown;
-  is_active?: unknown;
-}
-
+/** PUT /api/departments/[id] — update a department (admin). */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  let body: UpdateBody;
-  try {
-    body = (await parseJsonBody(request)) as UpdateBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
-  const changes: {
-    name?: string;
-    description?: string | null;
-    is_active?: boolean;
-  } = {};
-  if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (body.description === null || (typeof body.description === "string" && body.description.trim())) {
-    changes.description =
-      typeof body.description === "string" ? body.description.trim() : null;
-  }
-  if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-  if (Object.keys(changes).length === 0) {
-    return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
-  }
-  try {
-    await requirePermission("org.department:update");
-    await updateDepartment(id, changes);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("PUT /api/departments/[id] failed:", err);
-    return NextResponse.json({ error: "No se pudo actualizar el departamento." }, { status: 500 });
-  }
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  const body = await parseBody(request, updateDepartmentSchema);
+  if (body instanceof NextResponse) return body;
+
+  const changes: Parameters<typeof updateDepartment>[1] = {};
+  if (body.name !== undefined) changes.name = body.name;
+  if (body.description !== undefined) changes.description = body.description;
+  if (body.is_active !== undefined) changes.is_active = body.is_active;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("org.department:update"),
+      fail: "No se pudo actualizar el departamento.",
+      label: "PUT /api/departments/[id]",
+    },
+    async () => {
+      await updateDepartment(id, changes);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }
 
+/** DELETE /api/departments/[id] — delete a department (admin); 409 if referenced. */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  try {
-    await requirePermission("org.department:delete");
-    await deleteDepartment(id);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("DELETE /api/departments/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo eliminar el departamento (¿tiene usuarios asignados?)." },
-      { status: 409 },
-    );
-  }
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  return handleRoute(
+    {
+      // The original handler treated any non-auth failure here as an FK
+      // conflict (no `unique`/message inspection) — a catch-all rule
+      // preserves that behavior instead of falling through to the 500 `fail`.
+      guard: () => requirePermission("org.department:delete"),
+      uniqueRules: [
+        {
+          pattern: /.*/,
+          message: "No se pudo eliminar el departamento (¿tiene usuarios asignados?).",
+        },
+      ],
+      fail: "No se pudo eliminar el departamento (¿tiene usuarios asignados?).",
+      label: "DELETE /api/departments/[id]",
+    },
+    async () => {
+      await deleteDepartment(id);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

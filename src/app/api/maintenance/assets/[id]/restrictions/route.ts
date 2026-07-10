@@ -3,15 +3,10 @@ import {
   findAssetById,
   listRestrictionsByAsset,
   createRestriction,
-  RESTRICTION_TYPES,
 } from "@/modules/maintenance/db";
+import { createRestrictionSchema } from "@/modules/maintenance/schemas";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-
-function parseId(raw: string): number | null {
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
+import { badRequest, created, handleRoute, notFound, parseBody, parseId } from "@/lib/api/handler";
 
 /** GET /api/maintenance/assets/[id]/restrictions — list (any authenticated user). */
 export async function GET(
@@ -19,21 +14,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  try {
-    await requireUser();
-    const restrictions = await listRestrictionsByAsset(id);
-    return NextResponse.json({ restrictions });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    throw err;
-  }
-}
-
-interface CreateBody {
-  restriction_type?: unknown;
-  description?: unknown;
+  if (!id) return badRequest("ID inválido.");
+  return handleRoute(
+    {
+      guard: requireUser,
+      fail: "No se pudo cargar las restricciones.",
+      label: "GET /api/maintenance/assets/[id]/restrictions",
+    },
+    async () => {
+      const restrictions = await listRestrictionsByAsset(id);
+      return NextResponse.json({ restrictions });
+    },
+  );
 }
 
 /** POST /api/maintenance/assets/[id]/restrictions — create (admin). */
@@ -42,41 +34,26 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  let body: CreateBody;
-  try {
-    body = (await parseJsonBody(request)) as CreateBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
-  const type = typeof body.restriction_type === "string" ? body.restriction_type : "";
-  if (!(RESTRICTION_TYPES as readonly string[]).includes(type)) {
-    return NextResponse.json({ error: "Tipo de restricción inválido." }, { status: 422 });
-  }
-  const description =
-    typeof body.description === "string" ? body.description.trim() : "";
-  if (!description) {
-    return NextResponse.json({ error: "Descripción requerida." }, { status: 422 });
-  }
-  try {
-    await requirePermission("maintenance.restriction:create");
-    const asset = await findAssetById(id);
-    if (!asset) {
-      return NextResponse.json({ error: "Equipo no encontrado." }, { status: 404 });
-    }
-    const restriction = await createRestriction({
-      asset_id: id,
-      restriction_type: type,
-      description,
-    });
-    return NextResponse.json({ restriction }, { status: 201 });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("POST /api/maintenance/assets/[id]/restrictions failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo crear la restricción." },
-      { status: 500 },
-    );
-  }
+  if (!id) return badRequest("ID inválido.");
+  const body = await parseBody(request, createRestrictionSchema);
+  if (body instanceof NextResponse) return body;
+  const { restriction_type, description } = body;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("maintenance.restriction:create"),
+      fail: "No se pudo crear la restricción.",
+      label: "POST /api/maintenance/assets/[id]/restrictions",
+    },
+    async () => {
+      const asset = await findAssetById(id);
+      if (!asset) return notFound("Equipo no encontrado.");
+      const restriction = await createRestriction({
+        asset_id: id,
+        restriction_type,
+        description,
+      });
+      return created({ restriction });
+    },
+  );
 }

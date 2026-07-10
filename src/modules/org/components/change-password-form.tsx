@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
- * Self-service password change. Calls POST /api/profile/password. On success
+ * Self-service password change. Calls POST /api/org/profile/password. On success
  * other sessions (and other tabs of this session) are invalidated via the
  * token_version bump enforced in src/auth.ts.
  */
@@ -43,7 +43,7 @@ export function ChangePasswordForm() {
     }
     setBusy(true);
     try {
-      const res = await fetch("/api/profile/password", {
+      const res = await fetch("/api/org/profile/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_password: current, new_password: next }),

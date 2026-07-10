@@ -31,7 +31,7 @@ export interface LocationChildRow {
 /**
  * Plantas y ubicaciones — one grouped table: each plant is a group with its
  * locations ("Nave de producción 1", "Almacén de materia prima", …) as child
- * rows. Plant CRUD keeps the flat-table endpoints (/api/plants); location
+ * rows. Plant CRUD keeps the flat-table endpoints (/api/org/plants); location
  * CRUD goes to /api/org/locations (org.location:* permissions).
  */
 export function PlantsLocationsPage({
@@ -104,7 +104,7 @@ export function PlantsLocationsPage({
     setPlantBusy(true);
     try {
       const id = plantModal.editId;
-      const res = await fetch(id ? `/api/plants/${id}` : "/api/plants", {
+      const res = await fetch(id ? `/api/org/plants/${id}` : "/api/org/plants", {
         method: id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -132,7 +132,7 @@ export function PlantsLocationsPage({
     init: RequestInit,
     fallback: string,
   ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/plants/${g.plant_id}`, init);
+    const res = await fetch(`/api/org/plants/${g.plant_id}`, init);
     if (!res.ok) {
       const d = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: d.error ?? fallback };

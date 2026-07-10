@@ -143,7 +143,7 @@ export function UsersTablePage({
     // Lazy-fetch full detail (role_ids/plant_ids/department_ids) — the row
     // only carries names + ids for the table view; the modal form needs the
     // ids to preselect assignments.
-    const res = await fetch(`/api/users/${row.user_id}`, { method: "GET" }).catch(
+    const res = await fetch(`/api/org/users/${row.user_id}`, { method: "GET" }).catch(
       () => null,
     );
     if (!res || !res.ok) return;
@@ -180,7 +180,7 @@ export function UsersTablePage({
   async function onSoftDelete(
     row: UsersTableRow,
   ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/users/${row.user_id}`, {
+    const res = await fetch(`/api/org/users/${row.user_id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: false }),
@@ -199,7 +199,7 @@ export function UsersTablePage({
   async function onRestore(
     row: UsersTableRow,
   ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/users/${row.user_id}`, {
+    const res = await fetch(`/api/org/users/${row.user_id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ is_active: true }),

@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { findSectionById, updateSection, deleteSection } from "@/modules/navigation/db";
 import { requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
+import { NAV_ICON_NAMES } from "@/components/kit/nav-icon";
 
 interface UpdateBody {
   label?: unknown;

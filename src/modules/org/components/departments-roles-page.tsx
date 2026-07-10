@@ -44,8 +44,8 @@ interface Group extends DepartmentGroupRow {
  * its roles as child rows (a role only exists inside a department). Roles
  * with `department_id NULL` fall into a synthetic "Sin departamento" group
  * that only renders while such roles exist — the intent is to assign them,
- * not to keep them there. Department CRUD → /api/departments; role CRUD →
- * /api/roles (same endpoints as the retired flat tables).
+ * not to keep them there. Department CRUD → /api/org/departments; role CRUD →
+ * /api/org/roles (same endpoints as the retired flat tables).
  */
 export function DepartmentsRolesPage({
   departments,
@@ -126,7 +126,7 @@ export function DepartmentsRolesPage({
     setDeptBusy(true);
     try {
       const id = deptModal.editId;
-      const res = await fetch(id ? `/api/departments/${id}` : "/api/departments", {
+      const res = await fetch(id ? `/api/org/departments/${id}` : "/api/org/departments", {
         method: id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -152,7 +152,7 @@ export function DepartmentsRolesPage({
     init: RequestInit,
     fallback: string,
   ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/departments/${g.department_id}`, init);
+    const res = await fetch(`/api/org/departments/${g.department_id}`, init);
     if (!res.ok) {
       const d = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: d.error ?? fallback };
@@ -188,7 +188,7 @@ export function DepartmentsRolesPage({
     setRoleBusy(true);
     try {
       const id = roleModal.editId;
-      const res = await fetch(id ? `/api/roles/${id}` : "/api/roles", {
+      const res = await fetch(id ? `/api/org/roles/${id}` : "/api/org/roles", {
         method: id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -215,7 +215,7 @@ export function DepartmentsRolesPage({
     init: RequestInit,
     fallback: string,
   ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/roles/${r.role_id}`, init);
+    const res = await fetch(`/api/org/roles/${r.role_id}`, init);
     if (!res.ok) {
       const d = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: d.error ?? fallback };

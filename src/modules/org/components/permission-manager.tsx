@@ -34,7 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { NavIcon, NAV_ICON_NAMES } from "@/modules/navigation/icons";
+import { NavIcon, NAV_ICON_NAMES } from "@/components/kit/nav-icon";
 
 export interface PermissionOption {
   permission_id: number;
@@ -357,7 +357,7 @@ function PermissionsPanel({
       setDirty(false);
       setSaved(false);
       try {
-        const res = await fetch(`/api/roles/${roleId}/permissions`);
+        const res = await fetch(`/api/org/roles/${roleId}/permissions`);
         if (!res.ok) throw new Error();
         const d = (await res.json()) as { permission_ids?: number[] };
         if (cancelled) return;
@@ -434,7 +434,7 @@ function PermissionsPanel({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/roles/${roleId}/permissions`, {
+      const res = await fetch(`/api/org/roles/${roleId}/permissions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ permission_ids: [...granted] }),
@@ -678,8 +678,8 @@ function NavAccessTree({
       setSaved(false);
       try {
         const [itemsRes, sectionsRes] = await Promise.all([
-          fetch(`/api/roles/${roleId}/items`),
-          fetch(`/api/roles/${roleId}/sections`),
+          fetch(`/api/org/roles/${roleId}/items`),
+          fetch(`/api/org/roles/${roleId}/sections`),
         ]);
         if (!itemsRes.ok || !sectionsRes.ok) throw new Error();
         const itemsData = (await itemsRes.json()) as { grants?: { item_id: number; priority: number }[] };
@@ -852,12 +852,12 @@ function NavAccessTree({
         .map((id, idx) => ({ section_id: id, priority: idx * 10 }));
 
       const [itemsRes, sectionsRes] = await Promise.all([
-        fetch(`/api/roles/${roleId}/items`, {
+        fetch(`/api/org/roles/${roleId}/items`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ grants }),
         }),
-        fetch(`/api/roles/${roleId}/sections`, {
+        fetch(`/api/org/roles/${roleId}/sections`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ grants: sectionGrants }),
@@ -1208,7 +1208,7 @@ function NavAccessTree({
             <AlertDialogAction
               onClick={async () => {
                 if (deleteItemId === null) return;
-                await fetch(`/api/nav/items/${deleteItemId}`, { method: "DELETE" });
+                await fetch(`/api/navigation/nav/items/${deleteItemId}`, { method: "DELETE" });
                 setDeleteItemId(null);
                 router.refresh();
               }}
@@ -1288,7 +1288,7 @@ function SectionEditDialog({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/nav/sections/${section.section_id}`, {
+      const res = await fetch(`/api/navigation/nav/sections/${section.section_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1380,7 +1380,7 @@ function ItemEditDialog({
     setBusy(true);
     setError(null);
     try {
-      const url = item ? `/api/nav/items/${item.item_id}` : "/api/nav/items";
+      const url = item ? `/api/navigation/nav/items/${item.item_id}` : "/api/navigation/nav/items";
       const method = item ? "PUT" : "POST";
       const body: Record<string, unknown> = {
         label: label.trim(),

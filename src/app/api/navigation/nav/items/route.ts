@@ -8,7 +8,7 @@ import {
 } from "@/modules/navigation/db";
 import { requireAnyRole, requirePermission } from "@/lib/auth/rbac";
 import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-import { NAV_ICON_NAMES } from "@/modules/navigation/icons";
+import { NAV_ICON_NAMES } from "@/components/kit/nav-icon";
 
 /** GET /api/nav/items — list every sidebar item across sections (admin). */
 export async function GET() {

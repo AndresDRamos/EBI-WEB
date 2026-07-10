@@ -134,7 +134,7 @@ export function UserFormDialog({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/users/${initial.user_id}/invite`, {
+      const res = await fetch(`/api/org/users/${initial.user_id}/invite`, {
         method: "POST",
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -187,7 +187,7 @@ export function UserFormDialog({
 
     try {
       if (isEdit) {
-        const res = await fetch(`/api/users/${initial!.user_id}`, {
+        const res = await fetch(`/api/org/users/${initial!.user_id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -199,7 +199,7 @@ export function UserFormDialog({
         router.refresh();
         onOpenChange(false);
       } else {
-        const res = await fetch("/api/users", {
+        const res = await fetch("/api/org/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

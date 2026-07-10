@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 
 /**
  * Set-password form for invitation acceptance. Posts the one-time token +
- * new password to /api/invite/accept, then sends the user to /login.
+ * new password to /api/org/invite/accept, then sends the user to /login.
  */
 export function AcceptInviteForm({
   token,
@@ -36,7 +36,7 @@ export function AcceptInviteForm({
       return;
     }
     setBusy(true);
-    const res = await fetch("/api/invite/accept", {
+    const res = await fetch("/api/org/invite/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, password }),

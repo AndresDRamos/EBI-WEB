@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiMutate } from "@/lib/api-client";
 
 /**
  * Set-password form for invitation acceptance. Posts the one-time token +
@@ -36,19 +37,18 @@ export function AcceptInviteForm({
       return;
     }
     setBusy(true);
-    const res = await fetch("/api/invite/accept", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, password }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      setError(data.error ?? "No se pudo completar el registro.");
-      return;
+    try {
+      await apiMutate("/api/invite/accept", {
+        body: { token, password },
+        fallback: "No se pudo completar el registro.",
+      });
+      setDone(true);
+      setTimeout(() => router.push("/login"), 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo completar el registro.");
+    } finally {
+      setBusy(false);
     }
-    setDone(true);
-    setTimeout(() => router.push("/login"), 1500);
   }
 
   if (done) {

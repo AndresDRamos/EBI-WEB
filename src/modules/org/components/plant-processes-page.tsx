@@ -8,6 +8,7 @@ import { useCan } from "@/components/providers/permissions-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { apiMutate } from "@/lib/api-client";
 
 export interface PlantRow {
   plant_id: number;
@@ -73,15 +74,11 @@ export function PlantProcessesPage({
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`/api/org/plant-process/${editPlant.plant_id}`, {
+      await apiMutate(`/api/org/plant-process/${editPlant.plant_id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ process_ids: selected }),
+        body: { process_ids: selected },
+        fallback: "No se pudieron guardar los procesos.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudieron guardar los procesos.");
-      }
       setEditPlant(null);
       router.refresh();
     } catch (err) {

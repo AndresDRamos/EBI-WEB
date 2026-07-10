@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Copy, Check } from "lucide-react";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { apiMutate } from "@/lib/api-client";
 
 export interface CatalogItem {
   id: number;
@@ -134,15 +135,12 @@ export function UserFormDialog({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/users/${initial.user_id}/invite`, {
-        method: "POST",
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        invite_token?: string;
-        error?: string;
-      };
-      if (!res.ok || !data.invite_token) {
-        throw new Error(data.error ?? "No se pudo generar la invitación.");
+      const data = await apiMutate<{ invite_token?: string }>(
+        `/api/users/${initial.user_id}/invite`,
+        { method: "POST", fallback: "No se pudo generar la invitación." },
+      );
+      if (!data.invite_token) {
+        throw new Error("No se pudo generar la invitación.");
       }
       setInviteLink(`${window.location.origin}/invite/${data.invite_token}`);
     } catch (err) {
@@ -187,30 +185,18 @@ export function UserFormDialog({
 
     try {
       if (isEdit) {
-        const res = await fetch(`/api/users/${initial!.user_id}`, {
+        await apiMutate(`/api/users/${initial!.user_id}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: payload,
+          fallback: "No se pudo actualizar.",
         });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error ?? "No se pudo actualizar.");
-        }
         router.refresh();
         onOpenChange(false);
       } else {
-        const res = await fetch("/api/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error ?? "No se pudo crear.");
-        }
-        const data = (await res.json().catch(() => ({}))) as {
-          invite_token?: string | null;
-        };
+        const data = await apiMutate<{ invite_token?: string | null }>(
+          "/api/users",
+          { method: "POST", body: payload, fallback: "No se pudo crear." },
+        );
         router.refresh();
         if (data.invite_token) {
           // Keep modal open so the admin can copy the one-time link; they close

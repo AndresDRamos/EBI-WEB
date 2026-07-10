@@ -21,6 +21,7 @@ import type {
   PlantOption,
   TypeOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
+import { apiMutate } from "@/lib/api-client";
 
 /**
  * The QR landing surface: the same `MachineModal` content, laid flat on a
@@ -59,13 +60,10 @@ export function MachineStandaloneView({
     setConfirmError(null);
     setConfirmBusy(true);
     try {
-      const res = await fetch(`/api/maintenance/assets/${confirmTarget.asset_id}`, {
+      await apiMutate(`/api/maintenance/assets/${confirmTarget.asset_id}`, {
         method: "DELETE",
+        fallback: "No se pudo desactivar el equipo.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo desactivar el equipo.");
-      }
       setIsActive(false);
       setConfirmTarget(null);
       router.refresh();

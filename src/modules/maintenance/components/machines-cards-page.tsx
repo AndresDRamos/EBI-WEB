@@ -52,6 +52,7 @@ import {
 } from "@/modules/maintenance/components/machine-form-dialog";
 import { MachineCardsGrid } from "@/modules/maintenance/components/machine-cards";
 import { MachineModal } from "@/modules/maintenance/components/machine-modal";
+import { apiMutate } from "@/lib/api-client";
 
 export interface MachineRow {
   asset_id: number;
@@ -145,23 +146,19 @@ export function MachinesCardsPage({
     if (!confirmTarget) return;
     setConfirmError(null);
     setConfirmBusy(true);
-    let error: string | null = null;
     try {
-      const res = await fetch(`/api/maintenance/assets/${confirmTarget.asset_id}`, {
+      await apiMutate(`/api/maintenance/assets/${confirmTarget.asset_id}`, {
         method: "DELETE",
+        fallback: "No se pudo desactivar el equipo.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        error = d.error ?? "No se pudo desactivar el equipo.";
-      }
-    } catch {
-      error = "No se pudo completar la acción.";
-    }
-    setConfirmBusy(false);
-    if (error) {
-      setConfirmError(error);
+    } catch (err) {
+      setConfirmBusy(false);
+      setConfirmError(
+        err instanceof Error ? err.message : "No se pudo completar la acción.",
+      );
       return;
     }
+    setConfirmBusy(false);
     setConfirmTarget(null);
     // The confirm trigger is either the currently-open modal (referring to
     // itself) or a closed context menu (no-op here) — never a different

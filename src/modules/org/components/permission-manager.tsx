@@ -35,6 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { NavIcon, NAV_ICON_NAMES } from "@/modules/navigation/icons";
+import { apiMutate } from "@/lib/api-client";
 
 export interface PermissionOption {
   permission_id: number;
@@ -434,15 +435,11 @@ function PermissionsPanel({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/roles/${roleId}/permissions`, {
+      await apiMutate(`/api/roles/${roleId}/permissions`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ permission_ids: [...granted] }),
+        body: { permission_ids: [...granted] },
+        fallback: "No se pudieron guardar los permisos.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudieron guardar los permisos.");
-      }
       setDirty(false);
       setSaved(true);
     } catch (err) {
@@ -851,23 +848,18 @@ function NavAccessTree({
         .filter((id) => isSectionVisible(id))
         .map((id, idx) => ({ section_id: id, priority: idx * 10 }));
 
-      const [itemsRes, sectionsRes] = await Promise.all([
-        fetch(`/api/roles/${roleId}/items`, {
+      await Promise.all([
+        apiMutate(`/api/roles/${roleId}/items`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ grants }),
+          body: { grants },
+          fallback: "No se pudo guardar el acceso/orden.",
         }),
-        fetch(`/api/roles/${roleId}/sections`, {
+        apiMutate(`/api/roles/${roleId}/sections`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ grants: sectionGrants }),
+          body: { grants: sectionGrants },
+          fallback: "No se pudo guardar el acceso/orden.",
         }),
       ]);
-      const failed = [itemsRes, sectionsRes].find((r) => !r.ok);
-      if (failed) {
-        const d = (await failed.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar el acceso/orden.");
-      }
       setDirty(false);
       setSaved(true);
       router.refresh();
@@ -1288,20 +1280,16 @@ function SectionEditDialog({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/nav/sections/${section.section_id}`, {
+      await apiMutate(`/api/nav/sections/${section.section_id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           label: label.trim(),
           icon: icon || null,
           sort_order: Number(sortOrder) || 0,
           is_active: isActive,
-        }),
+        },
+        fallback: "No se pudo guardar la sección.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar la sección.");
-      }
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
@@ -1394,15 +1382,7 @@ function ItemEditDialog({
       } else {
         body.is_active = isActive;
       }
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar la página.");
-      }
+      await apiMutate(url, { method, body, fallback: "No se pudo guardar la página." });
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");

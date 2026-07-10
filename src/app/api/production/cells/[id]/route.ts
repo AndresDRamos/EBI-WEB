@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
-  cellHasChildren,
+  assertCellCanReparent,
+  CellDepthExceededError,
+  CellHasChildrenError,
+  CellParentInvalidError,
   findCellById,
   getCellDetail,
   updateCell,
@@ -109,39 +112,20 @@ export async function PATCH(
       return NextResponse.json({ error: "Proceso inválido." }, { status: 422 });
     }
     if (changes.parent_cell_id !== undefined && changes.parent_cell_id !== null) {
-      // Depth-1, both directions: the target parent cannot itself have a
-      // parent, and this cell cannot already have children of its own.
-      const parent = await findCellById(changes.parent_cell_id);
-      if (!parent || !parent.is_active || parent.location_id !== existing.location_id) {
-        return NextResponse.json(
-          { error: "La celda padre no está en la misma ubicación o no existe." },
-          { status: 422 },
-        );
-      }
-      if (parent.parent_cell_id !== null) {
-        return NextResponse.json(
-          {
-            error:
-              "Una celda hija no puede tener celdas hijas a su vez (profundidad máxima: 1).",
-          },
-          { status: 422 },
-        );
-      }
-      if (await cellHasChildren(id)) {
-        return NextResponse.json(
-          {
-            error:
-              "Esta celda ya tiene celdas hijas: no puede pasar a ser hija de otra.",
-          },
-          { status: 422 },
-        );
-      }
+      await assertCellCanReparent(id, existing.location_id, changes.parent_cell_id);
     }
     await updateCell(id, changes);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const res = authErrorResponse(err);
     if (res) return res;
+    if (
+      err instanceof CellParentInvalidError ||
+      err instanceof CellDepthExceededError ||
+      err instanceof CellHasChildrenError
+    ) {
+      return NextResponse.json({ error: err.message }, { status: 422 });
+    }
     const msg = err instanceof Error ? err.message : "";
     if (/UQ_cell_parent_sequence/i.test(msg)) {
       return NextResponse.json(

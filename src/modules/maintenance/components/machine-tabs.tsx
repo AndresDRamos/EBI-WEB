@@ -11,12 +11,13 @@ import {
   Wrench,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { cn } from "@/lib/utils";
 import { useCan } from "@/components/providers/permissions-provider";
 import {
   DOC_TYPES,
@@ -24,6 +25,7 @@ import {
   docTypeLabel,
   restrictionTypeLabel,
 } from "@/modules/maintenance/enums";
+import { apiMutate } from "@/lib/api-client";
 
 export interface RestrictionItem {
   restriction_id: number;
@@ -146,18 +148,14 @@ export function RestriccionesTab({
       const url = edit
         ? `/api/maintenance/assets/${assetId}/restrictions/${edit.restriction_id}`
         : `/api/maintenance/assets/${assetId}/restrictions`;
-      const res = await fetch(url, {
+      await apiMutate(url, {
         method: edit ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           restriction_type: type,
           description: description.trim(),
-        }),
+        },
+        fallback: "No se pudo guardar la restricción.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar la restricción.");
-      }
       setModal({ open: false, edit: null });
       onChanged();
     } catch (err) {
@@ -217,7 +215,7 @@ export function RestriccionesTab({
                     <button
                       type="button"
                       onClick={() => void onDeactivate(r)}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
+                      className={cn(buttonVariants({ variant: "ghost-ezi", size: "icon-sm" }))}
                       aria-label="Desactivar restricción"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -389,7 +387,7 @@ export function DocumentosTab({
                 <button
                   type="button"
                   onClick={() => void onDelete(d)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange"
+                  className={cn(buttonVariants({ variant: "ghost-ezi", size: "icon-sm" }))}
                   aria-label={`Eliminar ${d.title}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

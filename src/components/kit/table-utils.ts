@@ -1,7 +1,5 @@
 /**
  * Pure helpers for the admin DataTable. No `src/lib/db` dependency, no I/O.
- * Kept in `src/lib/admin/` (not `src/lib/db/`) so the data-layer rule holds:
- * only `src/lib/db/` may touch SQL. These are pure utilities.
  */
 
 /**
@@ -17,14 +15,6 @@ export function normalizeForMatch(value: unknown): string {
     .toLowerCase()
     .trim();
   return s.replace(/\s+/g, " ");
-}
-
-/** True if `haystack` contains `needle` (case + diacritics-insensitive). */
-export function fuzzyIncludes(haystack: unknown, needle: unknown): boolean {
-  const h = normalizeForMatch(haystack);
-  const n = normalizeForMatch(needle);
-  if (!n) return true; // empty filter == matches all
-  return h.includes(n);
 }
 
 /**

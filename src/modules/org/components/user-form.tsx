@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Copy, Check } from "lucide-react";
+import { EmptyState } from "@/components/kit/empty-state";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { apiMutate } from "@/lib/api-client";
 
 export interface CatalogItem {
   id: number;
@@ -65,9 +67,11 @@ function MultiSelect({
       <Label>{label}</Label>
       <div className="max-h-44 overflow-auto rounded-sm border bg-white p-2">
         {items.length === 0 ? (
-          <p className="px-1 py-1 text-sm text-muted-foreground">
-            No hay elementos. Solicítelos al administrador del catálogo.
-          </p>
+          <EmptyState
+            variant="inline"
+            className="px-1 py-1"
+            title="No hay elementos. Solicítelos al administrador del catálogo."
+          />
         ) : (
           <ul className="space-y-1">
             {items.map((item) => (
@@ -134,15 +138,12 @@ export function UserFormDialog({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/org/users/${initial.user_id}/invite`, {
-        method: "POST",
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        invite_token?: string;
-        error?: string;
-      };
-      if (!res.ok || !data.invite_token) {
-        throw new Error(data.error ?? "No se pudo generar la invitación.");
+      const data = await apiMutate<{ invite_token?: string }>(
+        `/api/org/users/${initial.user_id}/invite`,
+        { method: "POST", fallback: "No se pudo generar la invitación." },
+      );
+      if (!data.invite_token) {
+        throw new Error("No se pudo generar la invitación.");
       }
       setInviteLink(`${window.location.origin}/invite/${data.invite_token}`);
     } catch (err) {
@@ -187,30 +188,18 @@ export function UserFormDialog({
 
     try {
       if (isEdit) {
-        const res = await fetch(`/api/org/users/${initial!.user_id}`, {
+        await apiMutate(`/api/org/users/${initial!.user_id}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: payload,
+          fallback: "No se pudo actualizar.",
         });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error ?? "No se pudo actualizar.");
-        }
         router.refresh();
         onOpenChange(false);
       } else {
-        const res = await fetch("/api/org/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error ?? "No se pudo crear.");
-        }
-        const data = (await res.json().catch(() => ({}))) as {
-          invite_token?: string | null;
-        };
+        const data = await apiMutate<{ invite_token?: string | null }>(
+          "/api/org/users",
+          { method: "POST", body: payload, fallback: "No se pudo crear." },
+        );
         router.refresh();
         if (data.invite_token) {
           // Keep modal open so the admin can copy the one-time link; they close

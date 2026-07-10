@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Boxes } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/kit/data-table";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { apiMutate } from "@/lib/api-client";
 import { useCan } from "@/components/providers/permissions-provider";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,33 +67,34 @@ export function FootprintsPage({ rows }: FootprintsPageProps) {
     setReport(null);
     setBusy(true);
     try {
-      let res: Response;
       if (mode === "dxf") {
         if (!file) throw new Error("Selecciona el archivo DXF de la huella.");
         const form = new FormData();
         form.set("file", file);
-        res = await fetch(`/api/production/footprints/${row.asset_id}`, {
+        // FormData upload: apiMutate always serializes `body` as JSON, so this
+        // call keeps its raw fetch + manual error parsing.
+        const res = await fetch(`/api/production/footprints/${row.asset_id}`, {
           method: "PUT",
           body: form,
         });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          report?: ValidationReport;
+        };
+        if (!res.ok) {
+          if (data.report) setReport(data.report);
+          throw new Error(data.error ?? "No se pudo guardar la huella.");
+        }
       } else {
-        res = await fetch(`/api/production/footprints/${row.asset_id}`, {
+        await apiMutate(`/api/production/footprints/${row.asset_id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             source_kind: "rectangle",
             width_m: Number(width),
             depth_m: Number(depth),
-          }),
+          },
+          fallback: "No se pudo guardar la huella.",
         });
-      }
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        report?: ValidationReport;
-      };
-      if (!res.ok) {
-        if (data.report) setReport(data.report);
-        throw new Error(data.error ?? "No se pudo guardar la huella.");
       }
       setModal({ open: false, row: null });
       router.refresh();

@@ -1,19 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { revalidateTag } from "next/cache";
 import { findSectionById, updateSection, deleteSection } from "@/modules/navigation/db";
+import { updateNavSectionSchema } from "@/modules/navigation/schemas";
 import { requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-import { NAV_ICON_NAMES } from "@/components/kit/nav-icon";
-
-interface UpdateBody {
-  label?: unknown;
-  icon?: unknown;
-  sort_order?: unknown;
-  is_active?: unknown;
-}
+import { badRequest, handleRoute, notFound, parseBody, parseId, unprocessable } from "@/lib/api/handler";
 
 /**
- * PUT /api/nav/sections/[id] — update label / icon / sort_order / is_active
+ * PUT /api/navigation/nav/sections/[id] — update label / icon / sort_order / is_active
  * (admin). `base_path` and `code` are not accepted: routes are owned by code,
  * not the admin panel.
  */
@@ -21,76 +14,50 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  let body: UpdateBody;
-  try {
-    body = (await parseJsonBody(request)) as UpdateBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
-  try {
-    await requirePermission("navigation.section:update");
-    const current = await findSectionById(id);
-    if (!current) {
-      return NextResponse.json({ error: "Sección no encontrada." }, { status: 404 });
-    }
-    const changes: {
-      label?: string;
-      icon?: string | null;
-      sort_order?: number;
-      is_active?: boolean;
-    } = {};
-    if (typeof body.label === "string" && body.label.trim()) changes.label = body.label.trim();
-    if (body.icon === null) changes.icon = null;
-    else if (typeof body.icon === "string") {
-      if (!(NAV_ICON_NAMES as readonly string[]).includes(body.icon)) {
-        return NextResponse.json({ error: "Ícono no reconocido." }, { status: 422 });
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  const changes = await parseBody(request, updateNavSectionSchema);
+  if (changes instanceof NextResponse) return changes;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("navigation.section:update"),
+      fail: "No se pudo actualizar la sección.",
+      label: "PUT /api/navigation/nav/sections/[id]",
+    },
+    async () => {
+      const current = await findSectionById(id);
+      if (!current) return notFound("Sección no encontrada.");
+      if (Object.keys(changes).length === 0) {
+        return unprocessable("Sin cambios.");
       }
-      changes.icon = body.icon;
-    }
-    if (typeof body.sort_order === "number" && Number.isInteger(body.sort_order)) {
-      changes.sort_order = body.sort_order;
-    }
-    if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-    if (Object.keys(changes).length === 0) {
-      return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
-    }
-    await updateSection(id, changes);
-    revalidateTag("nav", { expire: 0 });
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("PUT /api/nav/sections/[id] failed:", err);
-    return NextResponse.json({ error: "No se pudo actualizar la sección." }, { status: 500 });
-  }
+      await updateSection(id, changes);
+      revalidateTag("nav", { expire: 0 });
+      return NextResponse.json({ ok: true });
+    },
+  );
 }
 
-/** DELETE /api/nav/sections/[id] — hard delete; cascades items + grants (V7). */
+/** DELETE /api/navigation/nav/sections/[id] — hard delete; cascades items + grants (V7). */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  try {
-    await requirePermission("navigation.section:delete");
-    const current = await findSectionById(id);
-    if (!current) {
-      return NextResponse.json({ error: "Sección no encontrada." }, { status: 404 });
-    }
-    await deleteSection(id);
-    revalidateTag("nav", { expire: 0 });
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("DELETE /api/nav/sections/[id] failed:", err);
-    return NextResponse.json({ error: "No se pudo eliminar la sección." }, { status: 500 });
-  }
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("navigation.section:delete"),
+      fail: "No se pudo eliminar la sección.",
+      label: "DELETE /api/navigation/nav/sections/[id]",
+    },
+    async () => {
+      const current = await findSectionById(id);
+      if (!current) return notFound("Sección no encontrada.");
+      await deleteSection(id);
+      revalidateTag("nav", { expire: 0 });
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

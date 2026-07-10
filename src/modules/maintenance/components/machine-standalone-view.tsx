@@ -2,16 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/kit/confirm-dialog";
 import { MachineModal } from "@/modules/maintenance/components/machine-modal";
 import type {
   CellOption,
@@ -23,6 +14,7 @@ import type {
   PlantOption,
   TypeOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
+import { apiMutate } from "@/lib/api-client";
 
 /**
  * The QR landing surface: the same `MachineModal` content, laid flat on a
@@ -61,13 +53,10 @@ export function MachineStandaloneView({
     setConfirmError(null);
     setConfirmBusy(true);
     try {
-      const res = await fetch(`/api/maintenance/assets/${confirmTarget.asset_id}`, {
+      await apiMutate(`/api/maintenance/assets/${confirmTarget.asset_id}`, {
         method: "DELETE",
+        fallback: "No se pudo desactivar el equipo.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo desactivar el equipo.");
-      }
       setIsActive(false);
       setConfirmTarget(null);
       router.refresh();
@@ -113,7 +102,7 @@ export function MachineStandaloneView({
         />
       </div>
 
-      <AlertDialog
+      <ConfirmDialog
         open={confirmTarget !== null}
         onOpenChange={(o) => {
           if (!o) {
@@ -121,36 +110,17 @@ export function MachineStandaloneView({
             setConfirmError(null);
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Desactivar el equipo?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmTarget
-                ? `${confirmTarget.code} — ${confirmTarget.name} se marcará como inactivo. Podrás reactivarlo después.`
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {confirmError ? (
-            <p className="text-sm text-destructive" role="alert">
-              {confirmError}
-            </p>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={confirmBusy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-ezi-orange"
-              disabled={confirmBusy}
-              onClick={(e) => {
-                e.preventDefault();
-                void deactivate();
-              }}
-            >
-              {confirmBusy ? "Procesando…" : "Desactivar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="¿Desactivar el equipo?"
+        description={
+          confirmTarget
+            ? `${confirmTarget.code} — ${confirmTarget.name} se marcará como inactivo. Podrás reactivarlo después.`
+            : ""
+        }
+        confirmLabel="Desactivar"
+        busy={confirmBusy}
+        error={confirmError}
+        onConfirm={deactivate}
+      />
     </div>
   );
 }

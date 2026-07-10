@@ -6,6 +6,7 @@ import type {
   TypeOption,
 } from "@/modules/maintenance/components/machine-form-dialog";
 import type { ParentOption } from "@/modules/maintenance/types";
+import { apiMutate } from "@/lib/api-client";
 
 export const MONTHS_ES = [
   "Enero",
@@ -182,30 +183,24 @@ export function useMachineForm({ asset, types, parents, onSaved }: UseMachineFor
       };
 
       if (saved) {
-        const res = await fetch(`/api/maintenance/assets/${saved.asset_id}`, {
+        await apiMutate(`/api/maintenance/assets/${saved.asset_id}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: payload,
+          fallback: "No se pudo guardar el equipo.",
         });
-        if (!res.ok) {
-          const d = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(d.error ?? "No se pudo guardar el equipo.");
-        }
         const merged: MachineFormAsset = { ...saved, ...payload };
         setSaved(merged);
         setParentPanelOpen(false);
         onSaved("updated", saved.asset_id);
       } else {
-        const res = await fetch("/api/maintenance/assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-          const d = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(d.error ?? "No se pudo crear el equipo.");
-        }
-        const d = (await res.json()) as { asset: { asset_id: number; code: string } };
+        const d = await apiMutate<{ asset: { asset_id: number; code: string } }>(
+          "/api/maintenance/assets",
+          {
+            method: "POST",
+            body: payload,
+            fallback: "No se pudo crear el equipo.",
+          },
+        );
         const assetId = d.asset.asset_id;
         const created: MachineFormAsset = {
           asset_id: assetId,

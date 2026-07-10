@@ -1,13 +1,11 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
 import type { Selectable, Insertable } from "kysely";
 import type { Process } from "@/lib/db/types";
+import { orgDb as db, emptyToNull } from "@/lib/db/schema-clients";
 
 // The process catalog moved from `maint` to the new `org` schema in V15: it is
 // now the canonical company-wide catalog (a single "Corte láser" feeds
 // equipment, plants and the process route). Administered from the admin panel.
-// kysely-codegen drops the schema from the generated keys, so bind to `org`.
-const db = rootDb.withSchema("org");
 
 export type ProcessRow = Selectable<Process>;
 
@@ -88,8 +86,4 @@ export async function softDeleteProcess(id: number): Promise<void> {
  * (`org.plant_process`) still links the process. */
 export async function deleteProcess(id: number): Promise<void> {
   await db.deleteFrom("process").where("process_id", "=", id).execute();
-}
-
-function emptyToNull(v: string | null | undefined): string | null {
-  return typeof v === "string" && v.trim() ? v.trim() : null;
 }

@@ -3,11 +3,14 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Factory, Pencil } from "lucide-react";
+import { EmptyState } from "@/components/kit/empty-state";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { SectionHeader } from "@/components/kit/section-header";
 import { useCan } from "@/components/providers/permissions-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { apiMutate } from "@/lib/api-client";
 
 export interface PlantRow {
   plant_id: number;
@@ -73,15 +76,11 @@ export function PlantProcessesPage({
     setError(null);
     setBusy(true);
     try {
-      const res = await fetch(`/api/org/plant-process/${editPlant.plant_id}`, {
+      await apiMutate(`/api/org/plant-process/${editPlant.plant_id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ process_ids: selected }),
+        body: { process_ids: selected },
+        fallback: "No se pudieron guardar los procesos.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudieron guardar los procesos.");
-      }
       setEditPlant(null);
       router.refresh();
     } catch (err) {
@@ -93,21 +92,19 @@ export function PlantProcessesPage({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Factory className="h-5 w-5 text-ezi-orange" />
-        <div>
-          <h2 className="text-lg font-semibold">Procesos por planta</h2>
-          <p className="text-sm text-muted-foreground">
-            Qué procesos ejecuta cada planta. Un mismo proceso puede asignarse a
-            varias plantas. El catálogo se administra en la pestaña Procesos.
-          </p>
-        </div>
-      </div>
+      <SectionHeader
+        icon={Factory}
+        title="Procesos por planta"
+        description="Qué procesos ejecuta cada planta. Un mismo proceso puede asignarse a
+            varias plantas. El catálogo se administra en la pestaña Procesos."
+      />
 
       {plants.length === 0 ? (
-        <p className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
-          No hay plantas. Créalas en la pestaña Plantas.
-        </p>
+        <EmptyState
+          variant="inline"
+          className="rounded-lg border bg-card p-4"
+          title="No hay plantas. Créalas en la pestaña Plantas."
+        />
       ) : (
         <ul className="space-y-2">
           {plants.map((plant) => {
@@ -181,9 +178,10 @@ export function PlantProcessesPage({
         sizeClassName="sm:max-w-lg"
       >
         {processes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No hay procesos en el catálogo. Créalos en la pestaña Procesos.
-          </p>
+          <EmptyState
+            variant="inline"
+            title="No hay procesos en el catálogo. Créalos en la pestaña Procesos."
+          />
         ) : (
           <div className="grid max-h-[50vh] gap-1 overflow-y-auto sm:grid-cols-2">
             {processes.map((p) => (

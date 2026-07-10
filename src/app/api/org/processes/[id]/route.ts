@@ -4,70 +4,39 @@ import {
   updateProcess,
   deleteProcess,
 } from "@/modules/org/db/processes";
+import { updateProcessSchema } from "@/modules/org/schemas";
 import { requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-
-interface UpdateBody {
-  code?: unknown;
-  name?: unknown;
-  description?: unknown;
-  is_active?: unknown;
-}
+import { badRequest, handleRoute, notFound, parseBody, parseId } from "@/lib/api/handler";
 
 /** PUT /api/org/processes/[id] — update a process (admin panel). */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  let body: UpdateBody;
-  try {
-    body = (await parseJsonBody(request)) as UpdateBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
-  const changes: {
-    code?: string;
-    name?: string;
-    description?: string | null;
-    is_active?: boolean;
-  } = {};
-  if (typeof body.code === "string" && body.code.trim()) changes.code = body.code.trim();
-  if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (
-    body.description === null ||
-    (typeof body.description === "string" && body.description.trim())
-  ) {
-    changes.description =
-      typeof body.description === "string" ? body.description.trim() : null;
-  }
-  if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-  if (Object.keys(changes).length === 0) {
-    return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
-  }
-  try {
-    await requirePermission("org.process:update");
-    if (!(await findProcessById(id))) {
-      return NextResponse.json({ error: "Proceso no encontrado." }, { status: 404 });
-    }
-    await updateProcess(id, changes);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    const msg = err instanceof Error ? err.message : "";
-    if (/unique/i.test(msg)) {
-      return NextResponse.json({ error: "El código ya existe." }, { status: 409 });
-    }
-    console.error("PUT /api/org/processes/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo actualizar el proceso." },
-      { status: 500 },
-    );
-  }
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  const body = await parseBody(request, updateProcessSchema);
+  if (body instanceof NextResponse) return body;
+
+  const changes: Parameters<typeof updateProcess>[1] = {};
+  if (body.code !== undefined) changes.code = body.code;
+  if (body.name !== undefined) changes.name = body.name;
+  if (body.description !== undefined) changes.description = body.description;
+  if (body.is_active !== undefined) changes.is_active = body.is_active;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("org.process:update"),
+      uniqueFallback: "El código ya existe.",
+      fail: "No se pudo actualizar el proceso.",
+      label: "PUT /api/org/processes/[id]",
+    },
+    async () => {
+      if (!(await findProcessById(id))) return notFound("Proceso no encontrado.");
+      await updateProcess(id, changes);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }
 
 /** DELETE /api/org/processes/[id] — hard delete (admin); 409 if assets or
@@ -76,27 +45,27 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const id = Number((await params).id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  }
-  try {
-    await requirePermission("org.process:delete");
-    if (!(await findProcessById(id))) {
-      return NextResponse.json({ error: "Proceso no encontrado." }, { status: 404 });
-    }
-    await deleteProcess(id);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("DELETE /api/org/processes/[id] failed:", err);
-    return NextResponse.json(
-      {
-        error:
-          "No se pudo eliminar el proceso (¿tiene equipos o plantas vinculados?).",
-      },
-      { status: 409 },
-    );
-  }
+  const id = parseId((await params).id);
+  if (!id) return badRequest("ID inválido.");
+  return handleRoute(
+    {
+      // The original handler treated any non-auth failure from deleteProcess
+      // as an FK conflict (no `unique`/message inspection) — a catch-all rule
+      // preserves that behavior instead of falling through to the 500 `fail`.
+      guard: () => requirePermission("org.process:delete"),
+      uniqueRules: [
+        {
+          pattern: /.*/,
+          message: "No se pudo eliminar el proceso (¿tiene equipos o plantas vinculados?).",
+        },
+      ],
+      fail: "No se pudo eliminar el proceso (¿tiene equipos o plantas vinculados?).",
+      label: "DELETE /api/org/processes/[id]",
+    },
+    async () => {
+      if (!(await findProcessById(id))) return notFound("Proceso no encontrado.");
+      await deleteProcess(id);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

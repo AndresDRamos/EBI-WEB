@@ -106,5 +106,3 @@ export async function assertAdminOrRedirect(): Promise<boolean> {
     return false;
   }
 }
-
-export { ForbiddenError as Forbidden };

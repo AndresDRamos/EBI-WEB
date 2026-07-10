@@ -16,7 +16,7 @@ import {
  * Nav tables are tiny (<10 sections, <100 items, <200 grants — see the V7 dba
  * review) but resolving them on every render/guard is one query too many.
  * Cache per role-set, invalidated by `revalidateTag("nav")` from every
- * `/api/nav/*` mutation. `roleKey` is the caller's sorted, comma-joined role
+ * `/api/navigation/nav/*` mutation. `roleKey` is the caller's sorted, comma-joined role
  * names so the cache key is stable across requests with the same access.
  */
 export const getCachedNav = unstable_cache(

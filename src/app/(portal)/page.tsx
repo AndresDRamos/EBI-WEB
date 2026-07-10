@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/auth";
+import { EmptyState } from "@/components/kit/empty-state";
 import { getCachedNav, navRoleKey } from "@/modules/navigation/cache";
 import { NavIcon } from "@/components/kit/nav-icon";
 import { cn } from "@/lib/utils";
@@ -38,11 +39,11 @@ export default async function HomePage() {
       </header>
 
       {sections.length === 0 ? (
-        <div className="rounded-lg border border-dashed bg-white p-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            Aún no tiene módulos asignados. Solicite acceso a un administrador.
-          </p>
-        </div>
+        <EmptyState
+          variant="inline"
+          className="rounded-lg border border-dashed bg-white p-10 text-center"
+          title="Aún no tiene módulos asignados. Solicite acceso a un administrador."
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sections.map((section) => {

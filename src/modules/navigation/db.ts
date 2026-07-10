@@ -1,12 +1,9 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
 import type { Selectable, Insertable } from "kysely";
 import type { NavSection, NavItem } from "@/lib/db/types";
+import { authDb as db } from "@/lib/db/schema-clients";
 
-// Nav tables live in the `auth` schema (role-coupled). See the note in
-// users.ts / org.ts: kysely-codegen flattens the schema out of the generated
-// keys, so bind the client here or SQL Server resolves under dbo and 208s.
-const db = rootDb.withSchema("auth");
+// Nav tables live in the `auth` schema (role-coupled).
 
 export type NavSectionRow = Selectable<NavSection>;
 export type NavItemRow = Selectable<NavItem>;
@@ -340,25 +337,40 @@ export async function deleteItem(id: number): Promise<void> {
   await db.deleteFrom("nav_item").where("item_id", "=", id).execute();
 }
 
-/** Replace the full section grant set for a role in one transaction (dual of
- * `setSectionGrants` — same table, role-centric axis). */
-export async function setRoleSectionGrants(
+/**
+ * Role-centric grant set: `role_nav_item` (pages) and `role_nav_section`
+ * (sections) are the same shape (`role_id` + one FK + `priority`), replaced
+ * wholesale in a transaction — this is the one function behind both
+ * `PUT /api/org/roles/[id]/items` and `PUT /api/org/roles/[id]/sections`.
+ */
+export type RoleGrantResource = "item" | "section";
+
+export interface RoleGrant {
+  id: number;
+  priority: number;
+}
+
+export async function setRoleGrants(
+  resource: RoleGrantResource,
   roleId: number,
-  grants: RoleSectionGrant[],
+  grants: RoleGrant[],
 ): Promise<void> {
   await db.transaction().execute(async (trx) => {
-    await trx.deleteFrom("role_nav_section").where("role_id", "=", roleId).execute();
-    if (grants.length === 0) return;
-    await trx
-      .insertInto("role_nav_section")
-      .values(
-        grants.map((g) => ({
-          role_id: roleId,
-          section_id: g.section_id,
-          priority: g.priority,
-        })),
-      )
-      .execute();
+    if (resource === "item") {
+      await trx.deleteFrom("role_nav_item").where("role_id", "=", roleId).execute();
+      if (grants.length === 0) return;
+      await trx
+        .insertInto("role_nav_item")
+        .values(grants.map((g) => ({ role_id: roleId, item_id: g.id, priority: g.priority })))
+        .execute();
+    } else {
+      await trx.deleteFrom("role_nav_section").where("role_id", "=", roleId).execute();
+      if (grants.length === 0) return;
+      await trx
+        .insertInto("role_nav_section")
+        .values(grants.map((g) => ({ role_id: roleId, section_id: g.id, priority: g.priority })))
+        .execute();
+    }
   });
 }
 
@@ -401,23 +413,6 @@ export async function listRoleItemGrants(roleId: number): Promise<RoleItemGrant[
     .select(["item_id", "priority"])
     .where("role_id", "=", roleId)
     .execute();
-}
-
-/** Replace the full page-visibility set for a role in one transaction. */
-export async function setRoleItemGrants(
-  roleId: number,
-  grants: RoleItemGrant[],
-): Promise<void> {
-  await db.transaction().execute(async (trx) => {
-    await trx.deleteFrom("role_nav_item").where("role_id", "=", roleId).execute();
-    if (grants.length === 0) return;
-    await trx
-      .insertInto("role_nav_item")
-      .values(
-        grants.map((g) => ({ role_id: roleId, item_id: g.item_id, priority: g.priority })),
-      )
-      .execute();
-  });
 }
 
 /**

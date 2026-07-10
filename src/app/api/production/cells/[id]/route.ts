@@ -9,13 +9,9 @@ import {
   updateCell,
 } from "@/modules/production/db";
 import { findProcessById } from "@/modules/org/db/processes";
+import { updateCellSchema } from "@/modules/production/schemas";
 import { requireUser, requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-
-function parseId(raw: string): number | null {
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
+import { badRequest, handleRoute, notFound, parseBody, parseId, unprocessable } from "@/lib/api/handler";
 
 /** GET /api/production/cells/[id] — cell detail with current composition and
  * closed history (any authenticated user). */
@@ -24,34 +20,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  try {
-    await requireUser();
-    const detail = await getCellDetail(id);
-    if (!detail) {
-      return NextResponse.json({ error: "Celda no encontrada." }, { status: 404 });
-    }
-    return NextResponse.json(detail);
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    throw err;
-  }
-}
-
-interface PatchBody {
-  name?: unknown;
-  parent_cell_id?: unknown;
-  size_x_m?: unknown;
-  size_y_m?: unknown;
-  process_id?: unknown;
-  is_active?: unknown;
-}
-
-function parsePositiveNumberOrNull(v: unknown): number | null {
-  if (v == null || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : NaN;
+  if (!id) return badRequest("ID inválido.");
+  return handleRoute(
+    { guard: requireUser, fail: "No se pudo cargar la celda.", label: "GET /api/production/cells/[id]" },
+    async () => {
+      const detail = await getCellDetail(id);
+      if (!detail) return notFound("Celda no encontrada.");
+      return NextResponse.json(detail);
+    },
+  );
 }
 
 /** PATCH /api/production/cells/[id] — update a production cell. `code` and
@@ -61,85 +38,53 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const id = parseId((await params).id);
-  if (!id) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
-  let body: PatchBody;
-  try {
-    body = (await parseJsonBody(request)) as PatchBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
+  if (!id) return badRequest("ID inválido.");
+  const body = await parseBody(request, updateCellSchema);
+  if (body instanceof NextResponse) return body;
+
   const changes: Parameters<typeof updateCell>[1] = {};
-  if (typeof body.name === "string" && body.name.trim()) changes.name = body.name.trim();
-  if (body.parent_cell_id !== undefined) {
-    const parentId = body.parent_cell_id == null ? null : Number(body.parent_cell_id);
-    if (parentId !== null && (!Number.isInteger(parentId) || parentId <= 0)) {
-      return NextResponse.json({ error: "Celda padre inválida." }, { status: 422 });
-    }
-    changes.parent_cell_id = parentId;
-  }
-  if (body.size_x_m !== undefined) {
-    const sizeX = parsePositiveNumberOrNull(body.size_x_m);
-    if (Number.isNaN(sizeX)) {
-      return NextResponse.json({ error: "El tamaño X debe ser mayor a cero." }, { status: 422 });
-    }
-    changes.size_x_m = sizeX;
-  }
-  if (body.size_y_m !== undefined) {
-    const sizeY = parsePositiveNumberOrNull(body.size_y_m);
-    if (Number.isNaN(sizeY)) {
-      return NextResponse.json({ error: "El tamaño Y debe ser mayor a cero." }, { status: 422 });
-    }
-    changes.size_y_m = sizeY;
-  }
-  if (body.process_id !== undefined) {
-    const processId = body.process_id == null ? null : Number(body.process_id);
-    if (processId !== null && (!Number.isInteger(processId) || processId <= 0)) {
-      return NextResponse.json({ error: "Proceso inválido." }, { status: 422 });
-    }
-    changes.process_id = processId;
-  }
-  if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-  if (Object.keys(changes).length === 0) {
-    return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
-  }
-  try {
-    await requirePermission("production.cell:update");
-    const existing = await findCellById(id);
-    if (!existing) {
-      return NextResponse.json({ error: "Celda no encontrada." }, { status: 404 });
-    }
-    if (changes.process_id != null && !(await findProcessById(changes.process_id))) {
-      return NextResponse.json({ error: "Proceso inválido." }, { status: 422 });
-    }
-    if (changes.parent_cell_id !== undefined && changes.parent_cell_id !== null) {
-      await assertCellCanReparent(id, existing.location_id, changes.parent_cell_id);
-    }
-    await updateCell(id, changes);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    if (
-      err instanceof CellParentInvalidError ||
-      err instanceof CellDepthExceededError ||
-      err instanceof CellHasChildrenError
-    ) {
-      return NextResponse.json({ error: err.message }, { status: 422 });
-    }
-    const msg = err instanceof Error ? err.message : "";
-    if (/UQ_cell_parent_sequence/i.test(msg)) {
-      return NextResponse.json(
-        { error: "Ya existe una celda con esa secuencia en la línea." },
-        { status: 409 },
-      );
-    }
-    if (/unique/i.test(msg)) {
-      return NextResponse.json({ error: "El código ya existe." }, { status: 409 });
-    }
-    console.error("PATCH /api/production/cells/[id] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo actualizar la celda." },
-      { status: 500 },
-    );
-  }
+  if (body.name !== undefined) changes.name = body.name;
+  if (body.parent_cell_id !== undefined) changes.parent_cell_id = body.parent_cell_id;
+  if (body.size_x_m !== undefined) changes.size_x_m = body.size_x_m;
+  if (body.size_y_m !== undefined) changes.size_y_m = body.size_y_m;
+  if (body.process_id !== undefined) changes.process_id = body.process_id;
+  if (body.is_active !== undefined) changes.is_active = body.is_active;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("production.cell:update"),
+      uniqueRules: [
+        {
+          pattern: /UQ_cell_parent_sequence/i,
+          message: "Ya existe una celda con esa secuencia en la línea.",
+        },
+      ],
+      uniqueFallback: "El código ya existe.",
+      fail: "No se pudo actualizar la celda.",
+      label: "PATCH /api/production/cells/[id]",
+    },
+    async () => {
+      const existing = await findCellById(id);
+      if (!existing) return notFound("Celda no encontrada.");
+      if (changes.process_id != null && !(await findProcessById(changes.process_id))) {
+        return unprocessable("Proceso inválido.");
+      }
+      if (changes.parent_cell_id !== undefined && changes.parent_cell_id !== null) {
+        try {
+          await assertCellCanReparent(id, existing.location_id, changes.parent_cell_id);
+        } catch (err) {
+          if (
+            err instanceof CellParentInvalidError ||
+            err instanceof CellDepthExceededError ||
+            err instanceof CellHasChildrenError
+          ) {
+            return unprocessable(err.message);
+          }
+          throw err;
+        }
+      }
+      await updateCell(id, changes);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

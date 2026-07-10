@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Move, RotateCcw, RotateCw, X } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SectionHeader } from "@/components/kit/section-header";
 import { cn } from "@/lib/utils";
+import { apiMutate } from "@/lib/api-client";
 import { useCan } from "@/components/providers/permissions-provider";
 import { LayoutCanvas, type PlacedShape } from "./layout-canvas";
 import { LayoutPalette, type PaletteAsset } from "./layout-palette";
@@ -35,6 +37,16 @@ export interface LayoutEditorPageProps {
   paletteAssets: PaletteAsset[];
   /** Footprint local geometry per asset, for shapes placed during the session. */
   footprintsByAsset: Record<number, FootprintShape>;
+}
+
+interface PlacementApiResult {
+  placement?: {
+    placement_id: number;
+    asset_id: number;
+    x_m: number;
+    y_m: number;
+    rotation_deg: number;
+  };
 }
 
 const SNAP_M = 0.1;
@@ -88,22 +100,6 @@ export function LayoutEditorPage({
   }));
   const selected = placements.find((p) => p.placement_id === selectedId) ?? null;
 
-  async function apiJson(url: string, init?: RequestInit) {
-    const res = await fetch(url, init);
-    const data = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      placement?: {
-        placement_id: number;
-        asset_id: number;
-        x_m: number;
-        y_m: number;
-        rotation_deg: number;
-      };
-    };
-    if (!res.ok) throw new Error(data.error ?? "Error inesperado.");
-    return data;
-  }
-
   async function onCanvasClick(world: Point) {
     if (!layout || armedAssetId === null || !canCreate || busy) return;
     const fp = footprintsByAsset[armedAssetId];
@@ -113,17 +109,16 @@ export function LayoutEditorPage({
     setBusy(true);
     setError(null);
     try {
-      const data = await apiJson(
+      const data = await apiMutate<PlacementApiResult>(
         `/api/production/layouts/${layout.layout_id}/placements`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          body: {
             asset_id: armedAssetId,
             x_m: pos.x,
             y_m: pos.y,
             rotation_deg: 0,
-          }),
+          },
+          fallback: "Error inesperado.",
         },
       );
       if (data.placement) {
@@ -185,12 +180,11 @@ export function LayoutEditorPage({
     setBusy(true);
     setError(null);
     try {
-      const data = await apiJson(
+      const data = await apiMutate<PlacementApiResult>(
         `/api/production/placements/${placementId}/move`,
         {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ x_m: x, y_m: y, rotation_deg: rotation }),
+          body: { x_m: x, y_m: y, rotation_deg: rotation },
+          fallback: "Error inesperado.",
         },
       );
       if (data.placement) {
@@ -244,8 +238,8 @@ export function LayoutEditorPage({
     setBusy(true);
     setError(null);
     try {
-      await apiJson(`/api/production/placements/${selected.placement_id}/close`, {
-        method: "POST",
+      await apiMutate(`/api/production/placements/${selected.placement_id}/close`, {
+        fallback: "Error inesperado.",
       });
       setPlacements((prev) =>
         prev.filter((p) => p.placement_id !== selected.placement_id),
@@ -281,16 +275,17 @@ export function LayoutEditorPage({
     <div className="flex h-[calc(100vh-4rem)] flex-col gap-3 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Move className="h-5 w-5 text-[#ff5c35]" />
-          <div>
-            <h1 className="text-lg font-semibold">
-              Colocaciones — {layout.name}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              v{layout.version} · {layout.width_m} × {layout.height_m} m · snap{" "}
-              {SNAP_M} m
-            </p>
-          </div>
+          <SectionHeader
+            as="h1"
+            icon={Move}
+            title={`Colocaciones — ${layout.name}`}
+            description={
+              <>
+                v{layout.version} · {layout.width_m} × {layout.height_m} m · snap{" "}
+                {SNAP_M} m
+              </>
+            }
+          />
           <Badge variant="secondary">{placements.length} colocados</Badge>
         </div>
         <div className="flex items-center gap-2">
@@ -342,7 +337,11 @@ export function LayoutEditorPage({
         </div>
       </div>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 gap-3">
         <div

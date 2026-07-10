@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ApiError, apiMutate } from "@/lib/api-client";
 
 /**
  * Self-service password change. Calls POST /api/org/profile/password. On success
@@ -43,22 +44,16 @@ export function ChangePasswordForm() {
     }
     setBusy(true);
     try {
-      const res = await fetch("/api/org/profile/password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password: current, new_password: next }),
+      await apiMutate("/api/org/profile/password", {
+        body: { current_password: current, new_password: next },
+        fallback: "No se pudo cambiar la contraseña.",
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setError(data.error ?? "No se pudo cambiar la contraseña.");
-        return;
-      }
       setOk(true);
       setCurrent("");
       setNext("");
       setConfirm("");
-    } catch {
-      setError("Error inesperado. Intenta de nuevo.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Error inesperado. Intenta de nuevo.");
     } finally {
       setBusy(false);
     }

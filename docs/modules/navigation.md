@@ -1,6 +1,6 @@
 # Navigation (portal layout & DB-driven nav registry)
 
-**Last synced:** 2026-07-09 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005) + plan admin-panel-regroup + unified permission manager redesign (nav structure CRUD + role grants folded into `PermissionManager`'s "Estructura del menú" panel, replacing the Módulos tab entirely) + plan admin-permissions-portal (per-page nav authorization, ADR 0008 supersedes 0005: `auth.role_nav_item` V16, `x-pathname`-driven guard, `/api/org/roles/[id]/items`) + plan 5-cerrar-fronteras (layer-boundaries refactor: `portal-shell.tsx`/`admin-nav.ts` moved into this module, `NavIcon`/`NAV_ICON_NAMES` moved to the shared kit, routes renamed `/api/nav/*` → `/api/navigation/nav/*`)
+**Last synced:** 2026-07-10 · **Synced from:** plan 0005-layout + 0006 amendment (nav reactivation) + plan portal-home-nav-authz (portal home, page authz, ADR 0005) + plan admin-panel-regroup + unified permission manager redesign (nav structure CRUD + role grants folded into `PermissionManager`'s "Estructura del menú" panel, replacing the Módulos tab entirely) + plan admin-permissions-portal (per-page nav authorization, ADR 0008 supersedes 0005: `auth.role_nav_item` V16, `x-pathname`-driven guard, `/api/org/roles/[id]/items`) + plan 5-cerrar-fronteras (layer-boundaries refactor: `portal-shell.tsx`/`admin-nav.ts` moved into this module, `NavIcon`/`NAV_ICON_NAMES` moved to the shared kit, routes renamed `/api/nav/*` → `/api/navigation/nav/*`) + plan ui-monoliths-decomposition (see the ledger in [docs/plans/README.md](../plans/README.md) for the full plan history)
 
 ## Purpose
 
@@ -44,7 +44,10 @@ module that introduces them.
   (section label/icon/global `sort_order`/active, nav item and child CRUD),
   per-role **page visibility** (`role_nav_item`) and per-role section order
   (`role_nav_section`) now live entirely in
-  `src/modules/org/components/permission-manager.tsx`'s right panel
+  `src/modules/org/components/nav-access-tree.tsx` (`NavAccessTree`,
+  extracted from `permission-manager.tsx` by the ui-monoliths-decomposition
+  split — pure UI refactor, no behavior change), rendered as the right panel
+  of `permission-manager.tsx`'s orchestrator
   ("Estructura del menú" — a drag-and-drop tree with inline pencil/plus/trash
   dialogs and per-page eye toggles, plus icons in the edit modals), backed by
   this module's data functions:
@@ -171,8 +174,11 @@ into an ADR. This module doc carries the live truth.
   grant row for `admin` is a no-op — don't "fix" a missing admin grant, it's
   intentional (the API 409s on it).
 - **Reactivation is now form state, not a row action.** The redesign's
-  `SectionEditDialog` (in `permission-manager.tsx`) puts `is_active` back as
-  a plain checkbox in the edit form (PUT `/api/navigation/nav/sections/[id]`) — this
+  `SectionEditDialog` (its own file, `section-edit-dialog.tsx`, since the
+  ui-monoliths-decomposition split of `permission-manager.tsx`; also exports
+  the shared `IconPickerField` used by `item-edit-dialog.tsx`) puts
+  `is_active` back as a plain checkbox in the edit form (PUT
+  `/api/navigation/nav/sections/[id]`) — this
   supersedes the 0006-era `onRestore`/`DataTable` pattern, which no longer
   applies now that the Módulos tab's table pages are gone. `ItemEditDialog`
   only shows the `is_active` checkbox when editing an existing item (not on

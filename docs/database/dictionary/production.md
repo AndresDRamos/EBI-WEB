@@ -87,7 +87,7 @@ Race-safe per-**location** counter (V19) backing the app-generated cell code
 `{plant.code}-{location.code}-{NN}` — mirrors `maint.asset_code_sequence`
 (V17/V18). `next_seq` is the NEXT value to hand out; the app locks and
 increments the row (`UPDLOCK + SERIALIZABLE`) inside the cell-insert
-transaction (`createCell` in `modules/production/db.ts`). No triggers, no DB
+transaction (`createCell` in `modules/production/db/cell.ts`). No triggers, no DB
 default on `cell.code`.
 
 | Column | Type | Nullable | Constraints | Description |

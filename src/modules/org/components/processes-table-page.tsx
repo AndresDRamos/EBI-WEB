@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Cog } from "lucide-react";
 import { DataTable, type ColumnDef } from "@/components/kit/data-table";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { useEntityCrud } from "@/components/kit/use-entity-crud";
 import { useCan } from "@/components/providers/permissions-provider";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,121 +29,59 @@ export interface ProcessesTablePageProps {
 export function ProcessesTablePage({ processes }: ProcessesTablePageProps) {
   const can = useCan();
   const router = useRouter();
-  const [modalState, setModalState] = React.useState<{
-    open: boolean;
-    editId: number | null;
-  }>({ open: false, editId: null });
+  const crud = useEntityCrud<ProcessesTableRow>({
+    basePath: "/api/org/processes",
+    getId: (r) => r.process_id,
+  });
+  const { modalState } = crud;
 
   const [code, setCode] = React.useState("");
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [error, setError] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState(false);
 
   function resetForm() {
     setCode("");
     setName("");
     setDescription("");
-    setError(null);
   }
 
   function openCreate() {
     resetForm();
-    setModalState({ open: true, editId: null });
+    crud.openCreate();
   }
 
   function openEdit(row: ProcessesTableRow) {
     setCode(row.code);
     setName(row.name);
     setDescription(row.description ?? "");
-    setError(null);
-    setModalState({ open: true, editId: row.process_id });
+    crud.openEdit(row);
   }
 
   async function onSubmit() {
-    setError(null);
     if (!code.trim() || !name.trim()) {
-      setError("Código y nombre son obligatorios.");
+      crud.setError("Código y nombre son obligatorios.");
       return;
     }
-    setBusy(true);
-    try {
-      const id = modalState.editId;
-      const url = id ? `/api/org/processes/${id}` : "/api/org/processes";
-      const method = id ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: code.trim(),
-          name: name.trim(),
-          description: description.trim() || null,
-        }),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar el proceso.");
-      }
-      resetForm();
-      setModalState({ open: false, editId: null });
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setBusy(false);
-    }
+    const ok = await crud.submit(
+      {
+        code: code.trim(),
+        name: name.trim(),
+        description: description.trim() || null,
+      },
+      "No se pudo guardar el proceso.",
+    );
+    if (ok) resetForm();
   }
 
-  async function onSoftDelete(
-    row: ProcessesTableRow,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/org/processes/${row.process_id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: false }),
-    });
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? "No se pudo desactivar el proceso." };
-    }
-    router.refresh();
-    return { ok: true };
-  }
-
-  async function onHardDelete(
-    row: ProcessesTableRow,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/org/processes/${row.process_id}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return {
-        ok: false,
-        error:
-          d.error ??
-          "No se pudo eliminar el proceso (¿tiene equipos o plantas vinculados?).",
-      };
-    }
-    router.refresh();
-    return { ok: true };
-  }
-
-  async function onRestore(
-    row: ProcessesTableRow,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/org/processes/${row.process_id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_active: true }),
-    });
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? "No se pudo reactivar el proceso." };
-    }
-    router.refresh();
-    return { ok: true };
-  }
+  const onSoftDelete = (row: ProcessesTableRow) =>
+    crud.onSoftDelete(row, "No se pudo desactivar el proceso.");
+  const onHardDelete = (row: ProcessesTableRow) =>
+    crud.onHardDelete(
+      row,
+      "No se pudo eliminar el proceso (¿tiene equipos o plantas vinculados?).",
+    );
+  const onRestore = (row: ProcessesTableRow) =>
+    crud.onRestore(row, "No se pudo reactivar el proceso.");
 
   const columns: ColumnDef<ProcessesTableRow>[] = React.useMemo(
     () => [
@@ -199,15 +138,17 @@ export function ProcessesTablePage({ processes }: ProcessesTablePageProps) {
       <EntityFormDialog
         open={modalState.open}
         onOpenChange={(open) => {
-          setModalState((prev) => ({ open, editId: open ? prev.editId : null }));
-          if (!open) resetForm();
+          if (!open) {
+            crud.closeModal();
+            resetForm();
+          }
         }}
         title={modalState.editId === null ? "Nuevo proceso" : "Editar proceso"}
-        busy={busy}
-        error={error}
+        busy={crud.busy}
+        error={crud.error}
         onSubmit={onSubmit}
         onCancel={() => {
-          setModalState({ open: false, editId: null });
+          crud.closeModal();
           resetForm();
         }}
         submitLabel={modalState.editId === null ? "Crear proceso" : "Guardar cambios"}
@@ -222,7 +163,7 @@ export function ProcessesTablePage({ processes }: ProcessesTablePageProps) {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 maxLength={32}
-                disabled={busy}
+                disabled={crud.busy}
                 placeholder="p. ej. WELD"
               />
             </div>
@@ -233,7 +174,7 @@ export function ProcessesTablePage({ processes }: ProcessesTablePageProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 maxLength={160}
-                disabled={busy}
+                disabled={crud.busy}
               />
             </div>
           </div>
@@ -245,7 +186,7 @@ export function ProcessesTablePage({ processes }: ProcessesTablePageProps) {
               onChange={(e) => setDescription(e.target.value)}
               maxLength={512}
               rows={3}
-              disabled={busy}
+              disabled={crud.busy}
             />
           </div>
         </div>

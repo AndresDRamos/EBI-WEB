@@ -1,23 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  ArrowDownUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronUp,
-  Eye,
-  EyeOff,
-  Filter,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Trash2,
-} from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Eye, EyeOff, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -27,27 +12,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   intersectsCatalog,
@@ -56,6 +24,12 @@ import {
   paginate,
   type SortDir,
 } from "@/components/kit/table-utils";
+import { KitTableHeaderBand } from "@/components/kit/kit-table-header-band";
+import { ColumnHeader } from "@/components/kit/data-table-filter";
+import { ActionsCell } from "@/components/kit/data-table-actions";
+import { Paginator } from "@/components/kit/data-table-paginator";
+
+export { ActionsCell } from "@/components/kit/data-table-actions";
 
 export type ColumnFilter =
   | { kind: "none" }
@@ -83,11 +57,11 @@ export interface DataTableProps<T> {
   isActive: (row: T) => boolean;
   onAdd?: () => void;
   onEdit?: (row: T) => void;
-  onSoftDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
-  onHardDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
+  onSoftDelete?: (row: T) => Promise<{ error?: string }>;
+  onHardDelete?: (row: T) => Promise<{ error?: string }>;
   /** Reactivate an inactive row. Runs on direct click (reversible action, no
    * confirm); shown next to "Eliminar permanentemente" in inactive mode. */
-  onRestore?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
+  onRestore?: (row: T) => Promise<{ error?: string }>;
   canEdit?: (row: T) => boolean;
   canDelete?: (row: T) => boolean;
   onAfterChange?: () => void;
@@ -100,10 +74,11 @@ type SortState = { key: string; dir: SortDir } | null;
 
 /**
  * Generic Administración DataTable. Owns: header band (icon/title/subtitle +
- * add + active/inactive toggle), per-column filter popover + sort headers,
- * body, unlabeled actions column, internal-scroll layout (sticky thead/footer),
- * and 50/page paginator. Soft vs hard delete flips on the active/inactive mode
- * and routes through `AlertDialog` with inline 409 errors.
+ * add + active/inactive toggle, via `KitTableHeaderBand`), per-column filter
+ * popover + sort headers (`data-table-filter.tsx`), body, unlabeled actions
+ * column (`data-table-actions.tsx`), internal-scroll layout (sticky
+ * thead/footer), and paginator (`data-table-paginator.tsx`). Soft vs hard
+ * delete flips on the active/inactive mode.
  *
  * Client-side everything. Catalogs are dozens; users are low hundreds; full-set
  * preloading in the server page is enough (no need for ?page&q&sort endpoints).
@@ -204,36 +179,31 @@ export function DataTable<T>({
 
   return (
     <div className="flex flex-col rounded-lg border bg-card">
-      {/* Header band — outside the scroll region. */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
-        <div className="flex items-center gap-3">
-          {Icon ? <Icon className="h-5 w-5 text-ezi-orange" /> : null}
-          <div>
-            <h2 className="font-semibold leading-tight">{title}</h2>
-            {subtitle ? (
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
+      <KitTableHeaderBand
+        icon={Icon}
+        title={title}
+        subtitle={subtitle}
+        right={
+          <>
+            <ActiveInactiveToggle
+              showInactive={showInactive}
+              onChange={setShowInactive}
+              activeCount={activeCount}
+              inactiveCount={inactiveCount}
+            />
+            {onAdd ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button size="icon" onClick={onAdd} aria-label={addLabel}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{addLabel}</TooltipContent>
+              </Tooltip>
             ) : null}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <ActiveInactiveToggle
-            showInactive={showInactive}
-            onChange={setShowInactive}
-            activeCount={activeCount}
-            inactiveCount={inactiveCount}
-          />
-          {onAdd ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon" onClick={onAdd} aria-label={addLabel}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">{addLabel}</TooltipContent>
-            </Tooltip>
-          ) : null}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Table region — the only part that scrolls. */}
       <div className="flex max-h-[calc(100vh-14rem)] flex-col overflow-hidden">
@@ -307,476 +277,6 @@ export function DataTable<T>({
         pageSize={pageSize}
         onChange={setPage}
       />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-function ColumnHeader<T>({
-  col,
-  sort,
-  onSort,
-  filterValue,
-  onFilterChange,
-}: {
-  col: ColumnDef<T>;
-  sort: SortDir;
-  onSort: () => void;
-  filterValue: string | string[] | undefined;
-  onFilterChange: (v: string | string[] | undefined) => void;
-}) {
-  const sortable = col.sortable !== false; // default true
-  const filter = col.filter;
-  const filterActive =
-    filter?.kind === "text"
-      ? typeof filterValue === "string" && filterValue.trim() !== ""
-      : filter?.kind === "catalog"
-        ? Array.isArray(filterValue) && filterValue.length > 0
-        : false;
-
-  return (
-    <TableHead className={col.className}>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={onSort}
-          disabled={!sortable}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-sm px-1 text-xs font-semibold uppercase tracking-wide",
-            !sortable && "cursor-default",
-            sortable && "hover:bg-gray-200",
-          )}
-          aria-label={`Ordenar por ${col.header}`}
-        >
-          {col.header}
-          {sortable ? <SortArrow dir={sort} /> : null}
-        </button>
-        {filter && filter.kind !== "none" ? (
-          <FilterButton
-            col={col}
-            value={filterValue}
-            onChange={onFilterChange}
-            active={filterActive}
-          />
-        ) : null}
-      </div>
-    </TableHead>
-  );
-}
-
-function SortArrow({ dir }: { dir: SortDir }) {
-  if (!dir) return <ArrowDownUp className="h-3 w-3 opacity-50" />;
-  return dir === "asc" ? (
-    <ChevronUp className="h-3 w-3" />
-  ) : (
-    <ChevronDown className="h-3 w-3" />
-  );
-}
-
-function FilterButton<T>({
-  col,
-  value,
-  onChange,
-  active,
-}: {
-  col: ColumnDef<T>;
-  value: string | string[] | undefined;
-  onChange: (v: string | string[] | undefined) => void;
-  active: boolean;
-}) {
-  const filter = col.filter;
-  const text =
-    filter?.kind === "text" ? (typeof value === "string" ? value : "") : "";
-  const selected: string[] =
-    filter?.kind === "catalog" && Array.isArray(value) ? value : [];
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "inline-flex h-6 w-6 items-center justify-center rounded-sm transition-colors",
-            active
-              ? "bg-orange-100 text-ezi-orange"
-              : "text-muted-foreground hover:bg-gray-200",
-          )}
-          aria-label={`Filtrar ${col.header}`}
-        >
-          <Filter className="h-3 w-3" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 p-3">
-        {filter?.kind === "text" ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Filtrar “{col.header}”
-              </span>
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => onChange(undefined)}
-              >
-                Limpiar
-              </button>
-            </div>
-            <Input
-              value={text}
-              autoFocus
-              placeholder="Buscar…"
-              onChange={(e) => onChange(e.target.value)}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Sin distinción de mayúsculas ni acentos.
-            </p>
-          </div>
-        ) : filter?.kind === "catalog" ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Filtrar “{col.header}”
-              </span>
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => onChange(undefined)}
-              >
-                Limpiar
-              </button>
-            </div>
-            <div className="max-h-56 overflow-auto rounded-sm border bg-white">
-              {filter.options.length === 0 ? (
-                <p className="p-2 text-xs text-muted-foreground">Sin opciones.</p>
-              ) : (
-                filter.options.map((opt) => (
-                  <label
-                    key={opt.value}
-                    className="flex items-start gap-2 px-2 py-1.5 text-sm hover:bg-gray-50"
-                  >
-                    <Checkbox
-                      checked={selected.includes(opt.value)}
-                      onCheckedChange={(checked) => {
-                        if (checked) onChange([...selected, opt.value]);
-                        else
-                          onChange(selected.filter((v) => v !== opt.value));
-                      }}
-                      className="mt-0.5"
-                    />
-                    <span>{opt.label}</span>
-                  </label>
-                ))
-              )}
-            </div>
-            {selected.length > 0 ? (
-              <p className="text-[11px] text-muted-foreground">
-                {selected.length} seleccionado
-                {selected.length === 1 ? "" : "s"}.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-/** Row actions (edit / soft-hard delete / restore) + confirm dialogs. Exported
- * for kit tables that share the row-action contract (GroupedDataTable). */
-export function ActionsCell<T>({
-  row,
-  isActive,
-  onEdit,
-  onSoftDelete,
-  onHardDelete,
-  onRestore,
-  canEdit,
-  canDelete,
-  onAfterChange,
-}: {
-  row: T;
-  isActive: (row: T) => boolean;
-  onEdit?: (row: T) => void;
-  onSoftDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
-  onHardDelete?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
-  onRestore?: (row: T) => Promise<{ ok?: boolean; error?: string }>;
-  canEdit?: (row: T) => boolean;
-  canDelete?: (row: T) => boolean;
-  onAfterChange?: () => void;
-}) {
-  const active = isActive(row);
-  const canEditRow = canEdit ? canEdit(row) : true;
-  const canDeleteRow = canDelete ? canDelete(row) : true;
-  const editDisabled = !onEdit || !canEditRow;
-  // The trash is offered in active mode when soft-delete handler exists, and in
-  // inactive mode when hard-delete handler exists.
-  const hasDeleteHandler = active ? Boolean(onSoftDelete) : Boolean(onHardDelete);
-  const deleteDisabled = !hasDeleteHandler || !canDeleteRow;
-  const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  // Restore runs on direct click (reversible — no confirm); the dialog below
-  // is only used to surface a failure.
-  const [restoreBusy, setRestoreBusy] = React.useState(false);
-  const [restoreError, setRestoreError] = React.useState<string | null>(null);
-
-  async function doRestore() {
-    if (!onRestore) return;
-    setRestoreBusy(true);
-    let res: { ok?: boolean; error?: string };
-    try {
-      res = await onRestore(row);
-    } catch {
-      res = { error: "No se pudo completar la acción." };
-    }
-    setRestoreBusy(false);
-    if (res && res.error) {
-      setRestoreError(res.error);
-      return;
-    }
-    onAfterChange?.();
-  }
-
-  async function confirmDelete() {
-    setError(null);
-    setBusy(true);
-    const handler = active ? onSoftDelete : onHardDelete;
-    if (!handler) {
-      setBusy(false);
-      setDialogOpen(false);
-      return;
-    }
-    let res: { ok?: boolean; error?: string };
-    try {
-      res = await handler(row);
-    } catch {
-      res = { error: "No se pudo completar la acción." };
-    }
-    setBusy(false);
-    if (res && res.error) {
-      setError(res.error);
-      return;
-    }
-    setDialogOpen(false);
-    onAfterChange?.();
-  }
-
-  return (
-    <>
-      <div className="flex items-center justify-end gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              disabled={editDisabled}
-              onClick={() => onEdit?.(row)}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-gray-100 hover:text-ezi-gray disabled:pointer-events-none disabled:opacity-40"
-              aria-label="Editar"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top">Editar</TooltipContent>
-        </Tooltip>
-        {!active && onRestore ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                disabled={restoreBusy}
-                onClick={() => void doRestore()}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-green-50 hover:text-green-700 disabled:pointer-events-none disabled:opacity-40"
-                aria-label="Reactivar"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Reactivar</TooltipContent>
-          </Tooltip>
-        ) : null}
-        {!deleteDisabled ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setError(null);
-                  setDialogOpen(true);
-                }}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-orange-50 hover:text-ezi-orange disabled:pointer-events-none disabled:opacity-40"
-                aria-label={active ? "Desactivar" : "Eliminar permanentemente"}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {active ? "Desactivar" : "Eliminar permanentemente"}
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-flex h-7 w-7 cursor-not-allowed items-center justify-center rounded-sm text-muted-foreground opacity-40">
-                <Trash2 className="h-3.5 w-3.5" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">No se puede eliminar</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-
-      <AlertDialog
-        open={restoreError !== null}
-        onOpenChange={(o) => {
-          if (!o) setRestoreError(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>No se pudo reactivar</AlertDialogTitle>
-            <AlertDialogDescription>{restoreError}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cerrar</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={dialogOpen}
-        onOpenChange={(o) => {
-          setDialogOpen(o);
-          if (!o) setError(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {active ? "¿Desactivar el registro?" : "¿Eliminar permanentemente el registro?"}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {active
-                ? "El registro se marcará como inactivo. Podrás reactivarlo o eliminarlo después."
-                : "Esta acción no se puede deshacer. Si el registro está referenciado por otros (por usuarios), se bloqueará."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {error ? (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault();
-                void confirmDelete();
-              }}
-              disabled={busy}
-              className={active ? "bg-ezi-orange" : undefined}
-            >
-              {busy ? "Procesando…" : active ? "Desactivar" : "Eliminar permanentemente"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
-
-function Paginator({
-  page,
-  totalPages,
-  total,
-  pageSize,
-  onChange,
-}: {
-  page: number;
-  totalPages: number;
-  total: number;
-  pageSize: number;
-  onChange: (n: number) => void;
-}) {
-  if (total === 0) {
-    return (
-      <div className="border-t p-3 text-xs text-muted-foreground">
-        Sin registros.
-      </div>
-    );
-  }
-  const start = (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, total);
-  const canPrev = page > 1;
-  const canNext = page < totalPages;
-  const first = 1;
-  const last = totalPages === 0 ? 1 : totalPages;
-  const flip = (n: number, allowed: boolean) => (allowed ? onChange(n) : undefined);
-  return (
-    <div className="flex items-center justify-between gap-2 border-t p-3">
-      <p className="text-xs text-muted-foreground">
-        {start}–{end} de {total}
-      </p>
-      <div className="flex items-center gap-1">
-        <a
-          className={cn(
-            buttonVariants({ size: "icon", variant: "ghost" }),
-            !canPrev && "pointer-events-none opacity-40",
-          )}
-          role="button"
-          tabIndex={canPrev ? 0 : -1}
-          aria-disabled={!canPrev}
-          aria-label="Primera página"
-          onClick={() => flip(first, canPrev)}
-        >
-          <ChevronsLeft className="h-4 w-4" />
-        </a>
-        <a
-          className={cn(
-            buttonVariants({ size: "icon", variant: "ghost" }),
-            !canPrev && "pointer-events-none opacity-40",
-          )}
-          role="button"
-          tabIndex={canPrev ? 0 : -1}
-          aria-disabled={!canPrev}
-          aria-label="Página anterior"
-          onClick={() => flip(page - 1, canPrev)}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </a>
-        <span className="px-2 text-xs tabular-nums">
-          {page} / {totalPages === 0 ? 1 : totalPages}
-        </span>
-        <a
-          className={cn(
-            buttonVariants({ size: "icon", variant: "ghost" }),
-            !canNext && "pointer-events-none opacity-40",
-          )}
-          role="button"
-          tabIndex={canNext ? 0 : -1}
-          aria-disabled={!canNext}
-          aria-label="Página siguiente"
-          onClick={() => flip(page + 1, canNext)}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </a>
-        <a
-          className={cn(
-            buttonVariants({ size: "icon", variant: "ghost" }),
-            !canNext && "pointer-events-none opacity-40",
-          )}
-          role="button"
-          tabIndex={canNext ? 0 : -1}
-          aria-disabled={!canNext}
-          aria-label="Última página"
-          onClick={() => flip(last, canNext)}
-        >
-          <ChevronsRight className="h-4 w-4" />
-        </a>
-      </div>
     </div>
   );
 }

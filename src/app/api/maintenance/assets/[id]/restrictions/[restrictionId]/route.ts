@@ -3,21 +3,10 @@ import {
   findRestrictionById,
   updateRestriction,
   softDeleteRestriction,
-  RESTRICTION_TYPES,
 } from "@/modules/maintenance/db";
+import { updateRestrictionSchema } from "@/modules/maintenance/schemas";
 import { requirePermission } from "@/lib/auth/rbac";
-import { authErrorResponse, parseJsonBody } from "@/lib/auth/api";
-
-function parseId(raw: string): number | null {
-  const id = Number(raw);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-interface UpdateBody {
-  restriction_type?: unknown;
-  description?: unknown;
-  is_active?: unknown;
-}
+import { badRequest, handleRoute, notFound, parseBody, parseId } from "@/lib/api/handler";
 
 /** PUT /api/maintenance/assets/[id]/restrictions/[restrictionId] — update (admin). */
 export async function PUT(
@@ -28,58 +17,35 @@ export async function PUT(
   const assetId = parseId(resolved.id);
   const restrictionId = parseId(resolved.restrictionId);
   if (!assetId || !restrictionId) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+    return badRequest("ID inválido.");
   }
-  let body: UpdateBody;
-  try {
-    body = (await parseJsonBody(request)) as UpdateBody;
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400 });
-  }
+  const body = await parseBody(request, updateRestrictionSchema);
+  if (body instanceof NextResponse) return body;
+
   const changes: {
     restriction_type?: string;
     description?: string;
     is_active?: boolean;
   } = {};
-  if (body.restriction_type !== undefined) {
-    if (
-      typeof body.restriction_type !== "string" ||
-      !(RESTRICTION_TYPES as readonly string[]).includes(body.restriction_type)
-    ) {
-      return NextResponse.json(
-        { error: "Tipo de restricción inválido." },
-        { status: 422 },
-      );
-    }
-    changes.restriction_type = body.restriction_type;
-  }
-  if (typeof body.description === "string" && body.description.trim()) {
-    changes.description = body.description.trim();
-  }
-  if (typeof body.is_active === "boolean") changes.is_active = body.is_active;
-  if (Object.keys(changes).length === 0) {
-    return NextResponse.json({ error: "Sin cambios." }, { status: 422 });
-  }
-  try {
-    await requirePermission("maintenance.restriction:update");
-    const current = await findRestrictionById(restrictionId);
-    if (!current || current.asset_id !== assetId) {
-      return NextResponse.json(
-        { error: "Restricción no encontrada." },
-        { status: 404 },
-      );
-    }
-    await updateRestriction(restrictionId, changes);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("PUT /api/maintenance/assets/[id]/restrictions/[restrictionId] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo actualizar la restricción." },
-      { status: 500 },
-    );
-  }
+  if (body.restriction_type !== undefined) changes.restriction_type = body.restriction_type;
+  if (body.description !== undefined) changes.description = body.description;
+  if (body.is_active !== undefined) changes.is_active = body.is_active;
+
+  return handleRoute(
+    {
+      guard: () => requirePermission("maintenance.restriction:update"),
+      fail: "No se pudo actualizar la restricción.",
+      label: "PUT /api/maintenance/assets/[id]/restrictions/[restrictionId]",
+    },
+    async () => {
+      const current = await findRestrictionById(restrictionId);
+      if (!current || current.asset_id !== assetId) {
+        return notFound("Restricción no encontrada.");
+      }
+      await updateRestriction(restrictionId, changes);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }
 
 /** DELETE /api/maintenance/assets/[id]/restrictions/[restrictionId] — soft delete (admin). */
@@ -91,26 +57,21 @@ export async function DELETE(
   const assetId = parseId(resolved.id);
   const restrictionId = parseId(resolved.restrictionId);
   if (!assetId || !restrictionId) {
-    return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+    return badRequest("ID inválido.");
   }
-  try {
-    await requirePermission("maintenance.restriction:delete");
-    const current = await findRestrictionById(restrictionId);
-    if (!current || current.asset_id !== assetId) {
-      return NextResponse.json(
-        { error: "Restricción no encontrada." },
-        { status: 404 },
-      );
-    }
-    await softDeleteRestriction(restrictionId);
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    const res = authErrorResponse(err);
-    if (res) return res;
-    console.error("DELETE /api/maintenance/assets/[id]/restrictions/[restrictionId] failed:", err);
-    return NextResponse.json(
-      { error: "No se pudo eliminar la restricción." },
-      { status: 500 },
-    );
-  }
+  return handleRoute(
+    {
+      guard: () => requirePermission("maintenance.restriction:delete"),
+      fail: "No se pudo eliminar la restricción.",
+      label: "DELETE /api/maintenance/assets/[id]/restrictions/[restrictionId]",
+    },
+    async () => {
+      const current = await findRestrictionById(restrictionId);
+      if (!current || current.asset_id !== assetId) {
+        return notFound("Restricción no encontrada.");
+      }
+      await softDeleteRestriction(restrictionId);
+      return NextResponse.json({ ok: true });
+    },
+  );
 }

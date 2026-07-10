@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { apiMutate } from "@/lib/api-client";
 import { useCan } from "@/components/providers/permissions-provider";
 import { LayoutCanvas } from "./layout-canvas";
 import { ValidationReportView } from "./validation-report-view";
@@ -102,14 +103,9 @@ export function LayoutImportWizard({ plants }: { plants: PlantOption[] }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/production/layouts/${draft.layout_id}/confirm`,
-        { method: "POST" },
-      );
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo activar el layout.");
-      }
+      await apiMutate(`/api/production/layouts/${draft.layout_id}/confirm`, {
+        fallback: "No se pudo activar el layout.",
+      });
       router.push("/test/layout");
       router.refresh();
     } catch (err) {
@@ -123,13 +119,10 @@ export function LayoutImportWizard({ plants }: { plants: PlantOption[] }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/production/layouts/${draft.layout_id}`, {
+      await apiMutate(`/api/production/layouts/${draft.layout_id}`, {
         method: "DELETE",
+        fallback: "No se pudo descartar el borrador.",
       });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo descartar el borrador.");
-      }
       setDraft(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado.");
@@ -205,7 +198,11 @@ export function LayoutImportWizard({ plants }: { plants: PlantOption[] }) {
             </div>
           </div>
           {failedReport ? <ValidationReportView report={failedReport} /> : null}
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
           <Button onClick={onImport} disabled={busy || !file || !plantId}>
             <FileUp className="mr-2 h-4 w-4" />
             {busy ? "Procesando…" : "Importar y validar"}
@@ -248,7 +245,11 @@ export function LayoutImportWizard({ plants }: { plants: PlantOption[] }) {
             </p>
           ) : null}
           <ValidationReportView report={draft.report} />
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
           <div className="h-[60vh] rounded-lg border border-border bg-white">
             <LayoutCanvas geometry={draft.geometry} />
           </div>

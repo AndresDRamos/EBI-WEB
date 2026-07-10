@@ -8,6 +8,7 @@ import {
   type GroupedChildColumn,
 } from "@/components/kit/grouped-data-table";
 import { EntityFormDialog } from "@/components/kit/entity-form-dialog";
+import { useEntityCrud } from "@/components/kit/use-entity-crud";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,26 +57,23 @@ export function DepartmentsRolesPage({
 }) {
   const router = useRouter();
 
-  // --- Department modal state -------------------------------------------
-  const [deptModal, setDeptModal] = React.useState<{
-    open: boolean;
-    editId: number | null;
-  }>({ open: false, editId: null });
+  const deptCrud = useEntityCrud<DepartmentGroupRow>({
+    basePath: "/api/org/departments",
+    getId: (d) => d.department_id,
+  });
+  const roleCrud = useEntityCrud<RoleChildRow, { departmentId: number | null }>({
+    basePath: "/api/org/roles",
+    getId: (r) => r.role_id,
+  });
+
+  // --- Department form fields ----------------------------------------------
   const [deptName, setDeptName] = React.useState("");
   const [deptDescription, setDeptDescription] = React.useState("");
-  const [deptError, setDeptError] = React.useState<string | null>(null);
-  const [deptBusy, setDeptBusy] = React.useState(false);
 
-  // --- Role modal state ---------------------------------------------------
-  const [roleModal, setRoleModal] = React.useState<{
-    open: boolean;
-    editId: number | null;
-  }>({ open: false, editId: null });
+  // --- Role form fields ------------------------------------------------------
   const [roleName, setRoleName] = React.useState("");
   const [roleDescription, setRoleDescription] = React.useState("");
   const [roleDepartmentId, setRoleDepartmentId] = React.useState<string>("");
-  const [roleError, setRoleError] = React.useState<string | null>(null);
-  const [roleBusy, setRoleBusy] = React.useState(false);
 
   const groups = React.useMemo<Group[]>(() => {
     const sorted = [...departments].sort((a, b) =>
@@ -103,125 +101,73 @@ export function DepartmentsRolesPage({
 
   // --- Department handlers ------------------------------------------------
 
-  function openCreateDept() {
+  function resetDeptForm() {
     setDeptName("");
     setDeptDescription("");
-    setDeptError(null);
-    setDeptModal({ open: true, editId: null });
+  }
+
+  function openCreateDept() {
+    resetDeptForm();
+    deptCrud.openCreate();
   }
 
   function openEditDept(g: Group) {
     setDeptName(g.name);
     setDeptDescription(g.description ?? "");
-    setDeptError(null);
-    setDeptModal({ open: true, editId: g.department_id });
+    deptCrud.openEdit(g);
   }
 
   async function onSubmitDept() {
-    setDeptError(null);
     if (!deptName.trim()) {
-      setDeptError("El nombre es obligatorio.");
+      deptCrud.setError("El nombre es obligatorio.");
       return;
     }
-    setDeptBusy(true);
-    try {
-      const id = deptModal.editId;
-      const res = await fetch(id ? `/api/org/departments/${id}` : "/api/org/departments", {
-        method: id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: deptName.trim(),
-          description: deptDescription.trim() || null,
-        }),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar el departamento.");
-      }
-      setDeptModal({ open: false, editId: null });
-      router.refresh();
-    } catch (err) {
-      setDeptError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setDeptBusy(false);
-    }
-  }
-
-  async function deptAction(
-    g: Group,
-    init: RequestInit,
-    fallback: string,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/org/departments/${g.department_id}`, init);
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? fallback };
-    }
-    router.refresh();
-    return { ok: true };
+    const ok = await deptCrud.submit(
+      {
+        name: deptName.trim(),
+        description: deptDescription.trim() || null,
+      },
+      "No se pudo guardar el departamento.",
+    );
+    if (ok) resetDeptForm();
   }
 
   // --- Role handlers --------------------------------------------------------
 
-  function openCreateRole(g: Group) {
+  function resetRoleForm() {
     setRoleName("");
     setRoleDescription("");
-    setRoleDepartmentId(g.synthetic ? "" : String(g.department_id));
-    setRoleError(null);
-    setRoleModal({ open: true, editId: null });
+    setRoleDepartmentId("");
+  }
+
+  function openCreateRole(g: Group) {
+    resetRoleForm();
+    const departmentId = g.synthetic ? null : g.department_id;
+    setRoleDepartmentId(departmentId === null ? "" : String(departmentId));
+    roleCrud.openCreate({ departmentId });
   }
 
   function openEditRole(r: RoleChildRow) {
     setRoleName(r.name);
     setRoleDescription(r.description ?? "");
     setRoleDepartmentId(r.department_id === null ? "" : String(r.department_id));
-    setRoleError(null);
-    setRoleModal({ open: true, editId: r.role_id });
+    roleCrud.openEdit(r, { departmentId: r.department_id });
   }
 
   async function onSubmitRole() {
-    setRoleError(null);
     if (!roleName.trim()) {
-      setRoleError("El nombre es obligatorio.");
+      roleCrud.setError("El nombre es obligatorio.");
       return;
     }
-    setRoleBusy(true);
-    try {
-      const id = roleModal.editId;
-      const res = await fetch(id ? `/api/org/roles/${id}` : "/api/org/roles", {
-        method: id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: roleName.trim(),
-          description: roleDescription.trim() || null,
-          department_id: roleDepartmentId === "" ? null : Number(roleDepartmentId),
-        }),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(d.error ?? "No se pudo guardar el rol.");
-      }
-      setRoleModal({ open: false, editId: null });
-      router.refresh();
-    } catch (err) {
-      setRoleError(err instanceof Error ? err.message : "Error inesperado.");
-    } finally {
-      setRoleBusy(false);
-    }
-  }
-
-  async function roleAction(
-    r: RoleChildRow,
-    init: RequestInit,
-    fallback: string,
-  ): Promise<{ ok?: boolean; error?: string }> {
-    const res = await fetch(`/api/org/roles/${r.role_id}`, init);
-    if (!res.ok) {
-      const d = (await res.json().catch(() => ({}))) as { error?: string };
-      return { ok: false, error: d.error ?? fallback };
-    }
-    router.refresh();
-    return { ok: true };
+    const ok = await roleCrud.submit(
+      {
+        name: roleName.trim(),
+        description: roleDescription.trim() || null,
+        department_id: roleDepartmentId === "" ? null : Number(roleDepartmentId),
+      },
+      "No se pudo guardar el rol.",
+    );
+    if (ok) resetRoleForm();
   }
 
   const childColumns: GroupedChildColumn<RoleChildRow>[] = React.useMemo(
@@ -254,8 +200,8 @@ export function DepartmentsRolesPage({
   );
 
   const isEditingProtectedRole =
-    roleModal.editId !== null &&
-    roles.find((r) => r.role_id === roleModal.editId)?.name === PROTECTED_ROLE;
+    roleCrud.modalState.editId !== null &&
+    roles.find((r) => r.role_id === roleCrud.modalState.editId)?.name === PROTECTED_ROLE;
 
   const activeDepartments = departments.filter((d) => d.is_active);
 
@@ -293,80 +239,53 @@ export function DepartmentsRolesPage({
         canAddChild={(g) => !g.synthetic}
         onEditGroup={openEditDept}
         onSoftDeleteGroup={(g) =>
-          deptAction(
-            g,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_active: false }),
-            },
-            "No se pudo desactivar el departamento.",
-          )
+          deptCrud.onSoftDelete(g, "No se pudo desactivar el departamento.")
         }
         onHardDeleteGroup={(g) =>
-          deptAction(
+          deptCrud.onHardDelete(
             g,
-            { method: "DELETE" },
             "No se pudo eliminar el departamento (¿tiene roles o usuarios asignados?).",
           )
         }
         onRestoreGroup={(g) =>
-          deptAction(
-            g,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_active: true }),
-            },
-            "No se pudo reactivar el departamento.",
-          )
+          deptCrud.onRestore(g, "No se pudo reactivar el departamento.")
         }
         onEditChild={openEditRole}
         onSoftDeleteChild={(r) =>
-          roleAction(
-            r,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_active: false }),
-            },
-            "No se pudo desactivar el rol.",
-          )
+          roleCrud.onSoftDelete(r, "No se pudo desactivar el rol.")
         }
         onHardDeleteChild={(r) =>
-          roleAction(
+          roleCrud.onHardDelete(
             r,
-            { method: "DELETE" },
             "No se pudo eliminar el rol (¿tiene usuarios asignados?).",
           )
         }
-        onRestoreChild={(r) =>
-          roleAction(
-            r,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ is_active: true }),
-            },
-            "No se pudo reactivar el rol.",
-          )
-        }
+        onRestoreChild={(r) => roleCrud.onRestore(r, "No se pudo reactivar el rol.")}
         canDeleteChild={(r) => r.name !== PROTECTED_ROLE}
         onAfterChange={() => router.refresh()}
       />
 
       <EntityFormDialog
-        open={deptModal.open}
+        open={deptCrud.modalState.open}
         onOpenChange={(open) => {
-          setDeptModal((prev) => ({ open, editId: open ? prev.editId : null }));
-          if (!open) setDeptError(null);
+          if (!open) {
+            deptCrud.closeModal();
+            resetDeptForm();
+          }
         }}
-        title={deptModal.editId === null ? "Nuevo departamento" : "Editar departamento"}
-        busy={deptBusy}
-        error={deptError}
+        title={
+          deptCrud.modalState.editId === null ? "Nuevo departamento" : "Editar departamento"
+        }
+        busy={deptCrud.busy}
+        error={deptCrud.error}
         onSubmit={onSubmitDept}
-        onCancel={() => setDeptModal({ open: false, editId: null })}
-        submitLabel={deptModal.editId === null ? "Crear departamento" : "Guardar cambios"}
+        onCancel={() => {
+          deptCrud.closeModal();
+          resetDeptForm();
+        }}
+        submitLabel={
+          deptCrud.modalState.editId === null ? "Crear departamento" : "Guardar cambios"
+        }
       >
         <div className="space-y-4">
           <div className="space-y-2">
@@ -376,7 +295,7 @@ export function DepartmentsRolesPage({
               value={deptName}
               onChange={(e) => setDeptName(e.target.value)}
               maxLength={160}
-              disabled={deptBusy}
+              disabled={deptCrud.busy}
             />
           </div>
           <div className="space-y-2">
@@ -393,22 +312,27 @@ export function DepartmentsRolesPage({
       </EntityFormDialog>
 
       <EntityFormDialog
-        open={roleModal.open}
+        open={roleCrud.modalState.open}
         onOpenChange={(open) => {
-          setRoleModal((prev) => ({ open, editId: open ? prev.editId : null }));
-          if (!open) setRoleError(null);
+          if (!open) {
+            roleCrud.closeModal();
+            resetRoleForm();
+          }
         }}
-        title={roleModal.editId === null ? "Nuevo rol" : "Editar rol"}
+        title={roleCrud.modalState.editId === null ? "Nuevo rol" : "Editar rol"}
         description={
           isEditingProtectedRole
             ? `El rol '${PROTECTED_ROLE}' no se puede renombrar ni desactivar; su departamento sí es editable.`
             : "Defina nombre, departamento y descripción del rol."
         }
-        busy={roleBusy}
-        error={roleError}
+        busy={roleCrud.busy}
+        error={roleCrud.error}
         onSubmit={onSubmitRole}
-        onCancel={() => setRoleModal({ open: false, editId: null })}
-        submitLabel={roleModal.editId === null ? "Crear rol" : "Guardar cambios"}
+        onCancel={() => {
+          roleCrud.closeModal();
+          resetRoleForm();
+        }}
+        submitLabel={roleCrud.modalState.editId === null ? "Crear rol" : "Guardar cambios"}
       >
         <div className="space-y-4">
           <div className="space-y-2">
@@ -418,7 +342,7 @@ export function DepartmentsRolesPage({
               value={roleName}
               onChange={(e) => setRoleName(e.target.value)}
               maxLength={40}
-              disabled={roleBusy}
+              disabled={roleCrud.busy}
               placeholder="p. ej. Técnico Mantenimiento"
             />
             {isEditingProtectedRole ? (
@@ -433,7 +357,7 @@ export function DepartmentsRolesPage({
               id="role-department"
               value={roleDepartmentId}
               onChange={(e) => setRoleDepartmentId(e.target.value)}
-              disabled={roleBusy}
+              disabled={roleCrud.busy}
             >
               <option value="">Sin departamento</option>
               {activeDepartments.map((d) => (

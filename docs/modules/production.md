@@ -1,6 +1,6 @@
 # production
 
-**Last synced:** 2026-07-09 · **Synced from:** plan plant-layout-foundation
+**Last synced:** 2026-07-10 · **Synced from:** plan plant-layout-foundation
 (branch `feat/plant-layout-foundation`, V13) on top of plan
 production-cell-assignment (V11) + plan production-schema-rename (V12);
 `currentCellNamesByAssets` added for the maintenance machines cards view (no
@@ -14,7 +14,11 @@ replaced the old `/production/cells` + `/production/lines` table pages with
 one "Celdas operativas" catalog view**; plan 5-cerrar-fronteras (layer-
 boundaries refactor) extracted the reparenting invariant checks out of the
 `PATCH /api/production/cells/[id]` route handler into `assertCellCanReparent`
-in `db.ts` (no schema change)
+in `db.ts` (no schema change); plan production-db-unify (`db.ts` split into
+`db/{index,cell,assignment,layout,footprint,placement,shared}.ts`, reached by
+callers through the `@/modules/production/db` barrel) + plan
+ui-monoliths-decomposition (see the ledger in
+[docs/plans/README.md](../plans/README.md) for the full plan history)
 
 ## Purpose
 
@@ -53,17 +57,36 @@ axes:
 ## Responsibilities
 
 - Owns the module slice `src/modules/production/`:
-  - `db.ts` (cell + assignment tables; maintenance consumes its exports —
-    including `currentCellNamesByAssets(assetIds)`, a batched single-query
-    lookup of current cell names per asset from `asset_cell_assignment` where
-    `valid_to IS NULL`, returned as `Map<number, string[]>`, consumed by the
-    maintenance machines cards view) plus the V13 data layer
-    `db/{shared,layout,footprint,placement}.ts`. Both bind the client with
-    `withSchema("production")`; cross-schema display names (`org.plant` /
-    `org.location` / `org.process`, `maint.asset`) resolve as separate
-    per-schema queries merged in JS (`db/shared.ts` helpers in the layout
-    layer; `locationRefsById` / `processNamesById` / `assetRefsById` in
-    `db.ts`). **V19 rewrite:** `listLines`/`findLineById`/`createLine`/
+  - `db/` — one file per aggregate (plan production-db-unify, 2026-07-09,
+    mirrors the `org` module's convention): `cell.ts` (cell CRUD + the
+    `OperativeCellRow` projection — see below), `assignment.ts` (asset↔cell
+    assignment CRUD, including `currentCellNamesByAssets(assetIds)`, a
+    batched single-query lookup of current cell names per asset from
+    `asset_cell_assignment` where `valid_to IS NULL`, returned as
+    `Map<number, string[]>`, consumed by the maintenance machines cards
+    view), plus the V13 data layer `layout.ts`/`footprint.ts`/`placement.ts`
+    and shared plumbing `shared.ts`. `db/index.ts` is a barrel re-exporting
+    all five so `@/modules/production/db` keeps resolving — call sites
+    outside the module were not touched by the split. The per-schema client
+    (`productionDb`, bound to schema `production`) and `emptyToNull` come
+    from the domain-blind `src/lib/db/schema-clients.ts` (single home shared
+    with every module, not a local `withSchema(...)` call); cross-schema
+    display names (`org.plant` / `org.location` / `org.process`,
+    `maint.asset`) resolve via `src/lib/db/refs.ts`
+    (`locationRefsById`/`processNamesById`/`assetRefsById`, shared with
+    `maintenance`) as separate per-schema queries merged in JS — `shared.ts`
+    now just re-binds these shared imports under the names the module's
+    queries already use, plus `plantNamesById` (the one lookup that stayed
+    local, used only by the V13 layout layer). Cell-name resolution used to
+    be three separate code paths (`withCellRefs`, `currentCellNamesByAssets`,
+    an implicit join); `assignment.ts` now builds all three call sites
+    (`listCurrentByAsset`, `listHistoryByAsset`, `currentCellNamesByAssets`)
+    on one shared query builder, `baseAssignmentWithCellQuery()`.
+    `OperativeCellRow` (the UI-facing projection consumed by
+    `location-cells-modal.tsx`) is `Pick<CellListRow, ...>` exported from
+    `db/cell.ts`, with a `toOperativeCellRow()` serializer used by the RSC
+    page — previously hand-declared inside the client component. **V19
+    rewrite:** `listLines`/`findLineById`/`createLine`/
     `updateLine` and the `LineRow`/`LineListRow` types are **gone** (the
     `production_line` table no longer exists); `createCell` now
     auto-generates the cell `code` (`{plant.code}-{location.code}-{NN}`,
@@ -112,16 +135,28 @@ axes:
       `ExpandingModal`) into `LocationCellsModal`.
     - `location-cells-modal.tsx` (`LocationCellsModal`) — one location's
       operative cells as cards (top-level cells only; children roll up),
-      with an in-place drill-in per cell (`CellDetailView`): summary
-      (size/process/Op badge), a **read-only "Operaciones de la línea"** list
-      of children for parent cells with reorder buttons (persisted via
-      `POST .../children/reorder`, disabled once the cell has no children —
-      depth 1), and a **read-only "Composición vigente" + history** panel
-      (`CellComposition`, fetched from `GET /cells/[id]/assignments`) — a
-      note in the UI states assignments are *"Se gestiona desde
-      Mantenimiento → Equipos"*. Creation (`CellFormDialog`) is
-      **pre-filtered by location**: the form only asks name/size X·Y/process
-      — no code, plant or location input; the code is server-generated.
+      with an in-place drill-in per cell. **Split** (pure UI refactor,
+      ui-monoliths-decomposition, no behavior change) into:
+      `location-cells-modal.tsx` itself (orchestrator: `LocationCellsModal`,
+      `CellCardsList`, `ExpandTransition`, the `OperativeCellRow`/
+      `ProcessOption`/`FormTarget` types, `formatSize()`), `cell-detail-view.tsx`
+      (`CellDetailView` — summary (size/process/Op badge), a **read-only
+      "Operaciones de la línea"** list of children for parent cells with
+      reorder buttons persisted via `POST .../children/reorder`, disabled
+      once the cell has no children — depth 1; the reorder helper comes from
+      the shared `src/lib/reorder.ts`, not a local copy), `cell-composition.tsx`
+      (`CellComposition` + `AssignmentItem` type — the **read-only**
+      "Composición vigente" + history panel, fetched from
+      `GET /cells/[id]/assignments`, with a note in the UI stating
+      assignments are *"Se gestiona desde Mantenimiento → Equipos"*) and
+      `cell-form-dialog.tsx` (`CellFormDialog` + `CellFormDialogInner` —
+      creation is **pre-filtered by location**: the form only asks
+      name/size X·Y/process — no code, plant or location input; the code is
+      server-generated). `CellDetailView`'s local draft-order state
+      (`order`/`committedIds`) no longer resets via a
+      setState-during-render watchdog keyed on a `prevIdsKey` — the caller
+      (`location-cells-modal.tsx`) now passes `key={cellId}:{sortedChildIds}`
+      so the component remounts fresh instead.
     - the V13 pages are unchanged by V19: `layout-viewer-page` (+
       `layout-canvas`, an SVG canvas with its own pan/zoom — no d3),
       `layout-editor-page` (+ `layout-palette`: click-to-arm → click-to-place;
@@ -236,14 +271,16 @@ axes:
 
 ## Dependency flow
 
-- `(portal)/production/operative-cells/page.tsx` → `modules/production/db.ts`
-  (`listCells`) + `modules/org/db/org.ts` (`listPlants`) +
+- `(portal)/production/operative-cells/page.tsx` →
+  `modules/production/db` (`listCells`, from `db/cell.ts` via the barrel) +
+  `modules/org/db/org.ts` (`listPlants`) +
   `modules/org/db/locations.ts` (`listLocations`) +
   `modules/org/db/processes.ts` (`listProcesses`) — app-layer composition,
   allowed by the blueprint. The V13 `(portal)/test/*` pages keep their own
   dependency shape (`db/*.ts` + `modules/org/db/org.ts` +
   `modules/maintenance/db.ts` for asset pickers), unchanged by V19.
-- `/api/production/**` → `modules/production/db{.ts,/}` +
+- `/api/production/**` → `modules/production/db` (barrel over
+  `cell.ts`/`assignment.ts`/`layout.ts`/`footprint.ts`/`placement.ts`) +
   `modules/production/dxf` (import routes) + `lib/storage/blob.ts` (blob
   archiving) + `maintenance/db.{findAssetById,assetTypeSupportsProcess}` and
   `org/db/{locations.findLocationById,processes.findProcessById}` (422
@@ -252,9 +289,14 @@ axes:
 - `modules/production/dxf/` is pure and side-effect-free: imported by API
   routes, UI copy and tests alike; blob archiving and DB rows are strictly
   the API layer's job (ADR 0006).
-- `modules/production/db/*` → `production.*` via the schema-bound client;
-  cross-schema lookups run as separate per-schema queries merged in JS (typed
-  cross-schema joins are not expressible with the flattened codegen keys).
+- `modules/production/db/*` → `production.*` via the schema-bound client
+  (`productionDb` from `src/lib/db/schema-clients.ts`, re-bound as `db` in
+  `db/shared.ts`); cross-schema lookups (`locationRefsById` /
+  `processNamesById` / `assetRefsById`, from `src/lib/db/refs.ts`) run as
+  separate per-schema queries merged in JS (typed cross-schema joins are not
+  expressible with the flattened codegen keys) — this plumbing is shared
+  with `maintenance`, not duplicated per module (plan production-db-unify,
+  2026-07-09).
 - Module-code direction with maintenance is **one-way, maintenance →
   production** for reads (`listHistoryByAsset` for the Ubicación tab,
   `currentCellNamesByAssets` for the machines cards view). The reverse
@@ -353,7 +395,8 @@ axes:
   `/api/navigation/nav/*` mutation or restart with a cold cache, or the
   section guard keeps redirecting even for admins.
 - **Assignment management lives only in the maintenance equipment modal.**
-  `LocationCellsModal`'s composition panel (`CellComposition`) is
+  `LocationCellsModal`'s composition panel (`CellComposition`, its own file
+  `cell-composition.tsx` since the ui-monoliths-decomposition split) is
   **read-only by design** (fetches `GET /cells/[id]/assignments`, no create/
   close/reassign UI) — do not add assignment mutation controls there without
   first checking whether this decision (plan production-operative-cells) has

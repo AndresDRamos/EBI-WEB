@@ -1,6 +1,6 @@
 # RBAC actions (resource+action permissions)
 
-**Last synced:** 2026-07-09 · **Synced from:** plan 0006-rbac-actions + plan admin-panel-regroup + unified permission manager redesign (`PermissionManager`, two-panel Claude Design mockup — supersedes the first unified-matrix iteration) + plan 5-cerrar-fronteras (layer-boundaries refactor: `rbac.ts` port/composition-root split, `/api/org/*` + `/api/navigation/nav/*` route namespacing)
+**Last synced:** 2026-07-10 · **Synced from:** plan 0006-rbac-actions + plan admin-panel-regroup + unified permission manager redesign (`PermissionManager`, two-panel Claude Design mockup — supersedes the first unified-matrix iteration) + plan 5-cerrar-fronteras (layer-boundaries refactor: `rbac.ts` port/composition-root split, `/api/org/*` + `/api/navigation/nav/*` route namespacing) + plan ui-monoliths-decomposition (`permission-manager.tsx` split into orchestrator + `permissions-panel.tsx` + `nav-access-tree.tsx` + `section-edit-dialog.tsx` + `item-edit-dialog.tsx`; pure UI refactor, no schema/behavior change)
 
 ## Purpose
 
@@ -20,7 +20,20 @@ with no grant rows — the bypass keys on the role **name**, never on
   replaces the retired `permission-matrix-panel.tsx` and navigation's
   `nav-grants-panel.tsx`, `nav-sections-table-page.tsx` and
   `nav-items-panel.tsx`) — a two-panel screen where **one shared `roleId`
-  state** drives both halves:
+  state** drives both halves. **Split** (pure UI refactor,
+  ui-monoliths-decomposition, no behavior change) into: `permission-manager.tsx`
+  itself (the orchestrator: `PermissionManager`, `FilterBar`, `ModeButton`,
+  plus the shared exported types `PermissionOption`/`RoleOption`/
+  `UserOption`/`SectionRow`/`ItemRow`), `permissions-panel.tsx`
+  (`PermissionsPanel` — the left `module.resource:action` matrix),
+  `nav-access-tree.tsx` (`NavAccessTree` — the right page-granular nav tree;
+  its internal state is now one `sectionState: Map<sectionId, {topOrder,
+  childOrder, grants}>` built by a pure `buildSectionState()` function,
+  replacing four separate state pieces and removing an
+  `eslint-disable react-hooks/exhaustive-deps`), `section-edit-dialog.tsx`
+  (`SectionEditDialog` + the shared `IconPickerField`) and
+  `item-edit-dialog.tsx` (`ItemEditDialog`, imports `IconPickerField` from
+  `section-edit-dialog.tsx`):
   A single top **filter bar** (mode `Rol ⇄ Usuario`) drives both panels
   through one shared `roleId`: role mode picks a role directly; user mode
   picks a user and renders that user's roles as chips → editing acts on the
@@ -43,7 +56,8 @@ with no grant rows — the bypass keys on the role **name**, never on
     bulk grant/revoke of all its pages; a section with no visible pages sinks
     to the end of the tree. Dragging a section reorders that role's topbar
     `priority` (`role_nav_section`, now section-order only). Inline pencil /
-    plus / trash buttons open dialogs (`EntityFormDialog` / `AlertDialog`) to
+    plus / trash buttons open dialogs (`EntityFormDialog` / the kit
+    `ConfirmDialog`) to
     edit a section's label/icon/global sort_order/active and to
     create/edit/delete nav pages and children (the icon is rendered next to
     its selector) — this inline CRUD replaced the deleted Módulos-tab tables.

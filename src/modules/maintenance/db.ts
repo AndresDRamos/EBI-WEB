@@ -1,5 +1,4 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
 import { sql, type Selectable, type Insertable } from "kysely";
 import type {
   Asset,
@@ -9,54 +8,8 @@ import type {
   AssetRestriction,
   Process,
 } from "@/lib/db/types";
-
-// `asset`, `asset_category`, `asset_type`, `asset_code_sequence`,
-// `asset_type_process`, `asset_restriction`, `asset_document` all live in the
-// `maint` schema. kysely-codegen drops the schema from the generated keys, so
-// bind the client to `maint` or SQL Server looks under dbo and 208s.
-const db = rootDb.withSchema("maint");
-
-// Plant, location AND process live in the `org` schema (V15/V18). A typed
-// cross-schema join is not expressible with the flattened codegen keys (each
-// client binds one schema), so org lookups run as separate `org`-bound
-// queries merged in JS. Catalog sizes make this a non-issue.
-const orgDb = rootDb.withSchema("org");
-
-/** Location refs (name + owning plant) by id — since V18 the asset's plant is
- * DERIVED via its location (`asset.plant_id` was dropped). */
-async function locationRefsById(
-  ids: number[],
-): Promise<Map<number, { name: string; plant_id: number; plant_name: string }>> {
-  if (ids.length === 0) return new Map();
-  const rows = await orgDb
-    .selectFrom("location")
-    .innerJoin("plant", "plant.plant_id", "location.plant_id")
-    .select([
-      "location.location_id",
-      "location.name",
-      "location.plant_id",
-      "plant.name as plant_name",
-    ])
-    .where("location.location_id", "in", ids)
-    .execute();
-  return new Map(
-    rows.map((r) => [
-      r.location_id,
-      { name: r.name, plant_id: r.plant_id, plant_name: r.plant_name },
-    ]),
-  );
-}
-
-/** Process names by id, from `org.process` (for the type-process JS merge). */
-async function processNamesById(ids: number[]): Promise<Map<number, string>> {
-  if (ids.length === 0) return new Map();
-  const rows = await orgDb
-    .selectFrom("process")
-    .select(["process_id", "name"])
-    .where("process_id", "in", ids)
-    .execute();
-  return new Map(rows.map((r) => [r.process_id, r.name]));
-}
+import { maintDb as db, orgDb, emptyToNull } from "@/lib/db/schema-clients";
+import { locationRefsById, processNamesById } from "@/lib/db/refs";
 
 /** Whether an asset type supports a given process — backs the operative-cells
  * invariant (app-enforced, no triggers) that an asset can only be assigned to
@@ -882,7 +835,3 @@ export {
   RESTRICTION_TYPES,
   DOC_TYPES,
 } from "@/modules/maintenance/enums";
-
-function emptyToNull(v: string | null | undefined): string | null {
-  return typeof v === "string" && v.trim() ? v.trim() : null;
-}

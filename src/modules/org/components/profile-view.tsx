@@ -33,9 +33,7 @@ export function ProfileView({ user }: { user: ProfileViewUser }) {
           <Field label="Correo">{user.email || "—"}</Field>
           <Field label="Estado">
             {user.is_active ? (
-              <Badge variant="success" style={{ backgroundColor: "var(--color-success)" }}>
-                Activo
-              </Badge>
+              <Badge variant="success">Activo</Badge>
             ) : (
               <Badge variant="muted">Inactivo</Badge>
             )}
@@ -62,9 +60,7 @@ export function ProfileView({ user }: { user: ProfileViewUser }) {
             </p>
             {user.all_plants ? (
               <p className="text-sm">
-                <Badge variant="success" style={{ backgroundColor: "var(--color-success)" }}>
-                  Todas las plantas
-                </Badge>
+                <Badge variant="success">Todas las plantas</Badge>
               </p>
             ) : user.plants.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin plantas asignadas.</p>

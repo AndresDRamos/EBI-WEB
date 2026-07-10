@@ -1,17 +1,16 @@
 import "server-only";
-import { db as rootDb } from "@/lib/db/client";
+import { productionDb, orgDb, maintDb, emptyToNull } from "@/lib/db/schema-clients";
+import { assetRefsById } from "@/lib/db/refs";
 
 /**
- * Shared plumbing for the plant-layout data layer. Same rules as
- * `../db.ts` (which stays untouched — maintenance consumes its exports):
- * bind the client to the `production` schema, and resolve cross-schema
- * display names with separate per-schema queries merged in JS.
+ * Shared plumbing for the production data layer (plant layout, cells,
+ * assignments). Per-schema clients and cross-schema ref lookups live in
+ * `src/lib/db/` (domain-blind infra, shared with `maintenance`) — this file
+ * just re-binds them under the names the module's queries already use.
  */
 
-export const db = rootDb.withSchema("production");
-// Plant moved from `auth` to the new `org` schema in V15.
-export const orgDb = rootDb.withSchema("org");
-export const maintDb = rootDb.withSchema("maint");
+export const db = productionDb;
+export { orgDb, maintDb, emptyToNull, assetRefsById };
 
 export async function plantNamesById(
   ids: number[],
@@ -23,20 +22,4 @@ export async function plantNamesById(
     .where("plant_id", "in", ids)
     .execute();
   return new Map(rows.map((r) => [r.plant_id, r.name]));
-}
-
-export async function assetRefsById(
-  ids: number[],
-): Promise<Map<number, { code: string; name: string }>> {
-  if (ids.length === 0) return new Map();
-  const rows = await maintDb
-    .selectFrom("asset")
-    .select(["asset_id", "code", "name"])
-    .where("asset_id", "in", ids)
-    .execute();
-  return new Map(rows.map((r) => [r.asset_id, { code: r.code, name: r.name }]));
-}
-
-export function emptyToNull(v: string | null | undefined): string | null {
-  return typeof v === "string" && v.trim() ? v.trim() : null;
 }

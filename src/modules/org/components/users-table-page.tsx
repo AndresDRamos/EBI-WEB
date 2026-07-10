@@ -121,9 +121,7 @@ export function UsersTablePage({
         accessor: (r) => (r.all_plants ? [ALL_PLANTS_TOKEN] : r.plant_names),
         render: (r) =>
           r.all_plants ? (
-            <Badge variant="success" style={{ backgroundColor: "var(--color-success)" }}>
-              Todas las plantas
-            </Badge>
+            <Badge variant="success">Todas las plantas</Badge>
           ) : r.plant_names.length === 0 ? (
             <span className="text-muted-foreground">—</span>
           ) : (

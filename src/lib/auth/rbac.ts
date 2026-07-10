@@ -1,6 +1,5 @@
 import "server-only";
 import { auth } from "@/auth";
-import { getUserScope as dbGetUserScope } from "@/modules/org/db/users";
 import { getPermissionCodesForRoles } from "@/modules/org/db/permissions";
 
 /**
@@ -82,15 +81,4 @@ export async function assertAdminOrRedirect(): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-export { ForbiddenError as Forbidden };
-
-/**
- * Loads the data-scope for a user (plants + departments). Not bundled into
- * the JWT because it can be large/volatile. Shape mirrors what Power BI
- * `effectiveIdentity`/`CUSTOMDATA` will consume later.
- */
-export async function getUserScope(userId: number) {
-  return dbGetUserScope(userId);
 }

@@ -6,5 +6,5 @@ import type { PageTab } from "@/components/kit/page-tabs";
  * own back-header, and the printable label must stay chrome-free). */
 export const MACHINES_TABS: PageTab[] = [
   { href: "/maintenance/machines", label: "Equipos" },
-  { href: "/maintenance/machines/catalogs", label: "Tipos de equipo" },
+  { href: "/maintenance/machines/catalogs", label: "Tipos" },
 ];

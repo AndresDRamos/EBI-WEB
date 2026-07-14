@@ -107,7 +107,7 @@ export function OperativeCellsPage({
     <div className="flex h-full flex-col">
       <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 pb-4">
         <h1 className="text-xl font-semibold tracking-tight text-ezi-gray">
-          Celdas operativas
+          Listado de celdas
         </h1>
         <span className="flex items-center gap-2 text-xs text-muted-foreground">
           <LayoutGrid className="h-4 w-4" />

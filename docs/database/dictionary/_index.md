@@ -3,11 +3,12 @@
 > Maintained by the `docs-sync` sub-agent, which runs at the end of every
 > `/build-plan`. Do not edit by hand.
 >
-> Last synced: 2026-07-09. Reflects V1–V19 (V18 sourced from the
+> Last synced: 2026-07-14. Reflects V1–V20 (V18 sourced from the
 > adopted-from-live migration file `V18__org_locations_type_processes.sql` +
 > regenerated Kysely types, not direct introspection; V19 sourced from the
 > applied migration file `V19__production_operative_cells.sql` +
-> regenerated Kysely types).
+> regenerated Kysely types; V20 sourced from the applied migration file
+> `V20__laser_cut_sequencing.sql` + regenerated Kysely types).
 >
 > **How to read:** find the table below, then open only its schema page —
 > never read the whole folder. One page per schema, mirroring
@@ -20,7 +21,28 @@ when the feature is rebuilt).
 
 ## [etl](etl.md)
 
-- `etl.run_log` — one row per ETL execution per source entity; drives incremental/watermark logic.
+- `etl.run_log` — one row per ETL execution per source entity; drives incremental/watermark logic. Written by the laser-cut on-prem ETL since V20 (`entity` ∈ the five `staging.eps_*` names).
+
+## [staging](staging.md)
+
+Faithful, ETL-written landing of the EPS laser-cut domain (Plant 1 / route 9);
+first tables added in V20 (the schema was created empty in V2). Natural EPS
+keys, no identity, no FKs; the portal reads only (`ebi_app` = SELECT).
+
+- `staging.eps_nesting` — 1:1 with EPS `tblNesteo`; open-window + recent closures, filtered `IX_eps_nesting_open`, `row_hash` change detection.
+- `staging.eps_nesting_detail` — 1:1 with `tblNesteoDetail`; part lines of a nesting (PK `(eps_nesting_id, line_no)`).
+- `staging.eps_nesting_plan` — the current EPS sequence row per nesting only (`bPlanActivo = 1`).
+- `staging.eps_cutting_station` — the ~9 laser stations (`Planeacion.tblEstacionRuta`).
+- `staging.eps_part_route_step` — downstream route of parts present in open nestings (seconds, not minutes).
+
+## [planning](planning.md)
+
+Portal-owned (`ebi_app` CRUD); born in V20 (plan laser-cut-sequencing). Per-cell
+laser sequence programs + the EBI cell ↔ EPS station mapping.
+
+- `planning.cell_station_link` — 1:1 EBI cell ↔ EPS laser station mapping (FK → `production.cell`).
+- `planning.machine_program` — one sequence program per cell/date/nullable-shift; `draft → published → archived`, one published per cell/date/shift.
+- `planning.machine_program_entry` — ordered nestings inside a program (PK `(program, nesting)`, UNIQUE `(program, sequence_no)`, CASCADE with program; no FK to `staging` by design).
 
 ## [auth](auth.md)
 

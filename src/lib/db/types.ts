@@ -156,6 +156,16 @@ export interface CellCodeSequence {
   next_seq: Generated<number>;
 }
 
+export interface CellStationLink {
+  cell_id: number;
+  cell_station_link_id: Generated<number>;
+  created_at: Generated<Date>;
+  eps_plant_id: number;
+  eps_route_id: number;
+  eps_station_id: number;
+  updated_at: Generated<Date>;
+}
+
 export interface DatabaseFirewallRules {
   create_date: Date;
   end_ip_address: string;
@@ -172,6 +182,82 @@ export interface Department {
   is_active: Generated<boolean>;
   name: string;
   updated_at: Generated<Date>;
+}
+
+export interface EpsCuttingStation {
+  available_hours: number | null;
+  description: string | null;
+  eps_plant_id: number;
+  eps_process_id: number | null;
+  eps_route_id: number;
+  eps_station_id: number;
+  is_deleted: Generated<boolean>;
+  loaded_at: Generated<Date>;
+  serial_no: string | null;
+}
+
+export interface EpsNesting {
+  cut_minutes: number | null;
+  deleted_at: Date | null;
+  eps_created_at: Date;
+  eps_nesting_id: number;
+  eps_plant_id: number;
+  eps_priority: number | null;
+  eps_route_id: number;
+  eps_station_id: number | null;
+  finished_at: Date | null;
+  finished_count: number | null;
+  heat_lot: string | null;
+  is_deleted: Generated<boolean>;
+  is_kanban: boolean | null;
+  loaded_at: Generated<Date>;
+  material_issued_at: Date | null;
+  material_requested_at: Date | null;
+  plate_count: number | null;
+  plate_material_code: string | null;
+  plate_material_id: number | null;
+  plate_material_name: string | null;
+  program_name: string | null;
+  row_hash: Buffer | null;
+  scrap_pct: number | null;
+  started_at: Date | null;
+}
+
+export interface EpsNestingDetail {
+  eps_nesting_id: number;
+  line_no: number;
+  loaded_at: Generated<Date>;
+  part_code: string | null;
+  part_material_id: number;
+  part_name: string | null;
+  quantity: number | null;
+  rejected_quantity: number | null;
+  row_hash: Buffer | null;
+  wip_quantity: number | null;
+  wip_released_quantity: number | null;
+}
+
+export interface EpsNestingPlan {
+  eps_created_at: Date | null;
+  eps_nesting_id: number;
+  loaded_at: Generated<Date>;
+  plan_no: number;
+  planned_date: Date | null;
+  sequence_no: number | null;
+  shift: number | null;
+}
+
+export interface EpsPartRouteStep {
+  eps_plant_id: number | null;
+  eps_process_id: number | null;
+  eps_route_id: number;
+  fabrication_order: number | null;
+  loaded_at: Generated<Date>;
+  part_material_id: number;
+  process_name: string | null;
+  process_seconds: number | null;
+  route_name: string | null;
+  setup_seconds: number | null;
 }
 
 export interface FlywaySchemaHistory {
@@ -205,6 +291,25 @@ export interface Location {
   name: string;
   plant_id: number;
   updated_at: Generated<Date>;
+}
+
+export interface MachineProgram {
+  cell_id: number;
+  created_at: Generated<Date>;
+  created_by: number;
+  machine_program_id: Generated<number>;
+  notes: string | null;
+  program_date: Date;
+  shift: number | null;
+  status: Generated<string>;
+  updated_at: Generated<Date>;
+}
+
+export interface MachineProgramEntry {
+  created_at: Generated<Date>;
+  eps_nesting_id: number;
+  machine_program_id: number;
+  sequence_no: number;
 }
 
 export interface MaintenancePlan {
@@ -441,11 +546,19 @@ export interface DB {
   asset_type_process: AssetTypeProcess;
   cell: Cell;
   cell_code_sequence: CellCodeSequence;
+  cell_station_link: CellStationLink;
   database_firewall_rules: DatabaseFirewallRules;
   department: Department;
+  eps_cutting_station: EpsCuttingStation;
+  eps_nesting: EpsNesting;
+  eps_nesting_detail: EpsNestingDetail;
+  eps_nesting_plan: EpsNestingPlan;
+  eps_part_route_step: EpsPartRouteStep;
   flyway_schema_history: FlywaySchemaHistory;
   invitation: Invitation;
   location: Location;
+  machine_program: MachineProgram;
+  machine_program_entry: MachineProgramEntry;
   maintenance_plan: MaintenancePlan;
   nav_item: NavItem;
   nav_section: NavSection;

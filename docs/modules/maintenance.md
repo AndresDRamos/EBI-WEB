@@ -42,8 +42,8 @@ permission codes.
   `view-models.ts` exports `getMachinesCatalogViewModel()` — the shared
   data-assembly (assets + plants + locations + cells + categories/types +
   current cell names, joined into `MachineRow[]`/`ParentOption[]`) consumed
-  by both `(portal)/maintenance/machines/page.tsx` and the QR landing page
-  `src/app/asset/[code]/page.tsx`, deduping what used to be two
+  by both `(portal)/maintenance/machines/(list)/page.tsx` and the QR landing
+  page `src/app/asset/[code]/page.tsx`, deduping what used to be two
   near-identical blocks. **The asset category/type domain is no longer an
   enum**: since V17 it lives in the DB catalogs `maint.asset_category` /
   `maint.asset_type`, served by `listAssetCategories` / `listAssetTypes` (+
@@ -128,13 +128,19 @@ permission codes.
     `process_ids`; the category routes **no longer accept `code_prefix`**.
 - Owns the `(portal)/maintenance/*` UI. Since V17 `/maintenance/machines` is
   **tabbed** via the kit `PageTabs` (tab defs in `machines-tabs.ts`):
-  **Equipos** = the cards view below; **Catálogos** =
+  **Equipos** = the cards view below; **Tipos** =
   `machine-catalogs-page.tsx` at `/maintenance/machines/catalogs` (a static
   sibling route that wins over `[code]`), a `GroupedDataTable`
   Categoría → Tipos mirroring the admin `departments-roles-page` idiom, gated
-  per action by the 6 catalog permission codes. The Equipos tab is a
+  per action by the 6 catalog permission codes. Both tab pages live under the
+  route group `maintenance/machines/(list)/` (no URL segment) with a shared
+  `layout.tsx` rendering the group header ("Administración de equipos" +
+  description) + `PageTabs` — the same header/tabs treatment as
+  `admin/organization`. The group is scoped to the route group deliberately:
+  `[code]` (detail) and `[code]/label` (printable) are siblings outside it,
+  so they stay chrome-free. The Equipos tab is a
   **full-page, unboxed cards catalog** (`machines-cards-page.tsx`, design source
-  `design/Equipos.dc.html`) — `flex h-[calc(100vh-4rem)] flex-col` with three
+  `design/Equipos.dc.html`, header icon `CircuitBoard`) — `flex h-[calc(100vh-4rem)] flex-col` with three
   stacked regions (header+filters fixed, cards grid `flex-1 overflow-y-auto`,
   pagination fixed), no bordered card wrapper, matching the
   `layout-editor-page.tsx` full-page idiom. Header: breadcrumb, title, total
@@ -227,8 +233,8 @@ permission codes.
 
 ## Dependency flow
 
-- `(portal)/maintenance/machines/page.tsx` and `src/app/asset/[code]/page.tsx`
-  both call `src/modules/maintenance/view-models.ts`'s
+- `(portal)/maintenance/machines/(list)/page.tsx` and
+  `src/app/asset/[code]/page.tsx` both call `src/modules/maintenance/view-models.ts`'s
   `getMachinesCatalogViewModel()` (added by plan 5-cerrar-fronteras), which
   internally composes `src/modules/maintenance/db.ts` (`listAssets`,
   `listAssetCategories`, `listAssetTypes`) + `src/modules/org/db/org.ts`
@@ -273,7 +279,7 @@ permission codes.
   helper's single home is domain-blind infra, not a `maintenance`-local
   function; `production` imports the same one).
 - **maintenance → production (one-way, justified):** the machines list page
-  (`(portal)/maintenance/machines/page.tsx`) and the QR landing page read
+  (`(portal)/maintenance/machines/(list)/page.tsx`) and the QR landing page read
   `currentCellNamesByAssets` / `listCells` from `modules/production/db`
   (`db/assignment.ts` / `db/cell.ts` via the barrel);
   the asset GET/PATCH API routes read `listCurrentByAsset` /

@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "db:gen": "node --env-file=.env db/gen.mjs",
+    "etl:run": "node --env-file=.env etl/run.mjs",
     "worktrees:status": "pwsh -File scripts/worktree-status.ps1",
     "worktrees:clean": "pwsh -File scripts/worktree-clean.ps1"
   },

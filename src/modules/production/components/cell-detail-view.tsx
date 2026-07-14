@@ -20,7 +20,7 @@ import { CellComposition } from "@/modules/production/components/cell-compositio
 import {
   formatSize,
   type OperativeCellRow,
-} from "@/modules/production/components/location-cells-modal";
+} from "@/modules/production/components/cell-detail-modal";
 import { apiMutate } from "@/lib/api-client";
 
 function cnRow(active: boolean): string {

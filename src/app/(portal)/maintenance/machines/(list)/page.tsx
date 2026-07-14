@@ -1,6 +1,4 @@
-import { PageTabs } from "@/components/kit/page-tabs";
 import { MachinesCardsPage } from "@/modules/maintenance/components/machines-cards-page";
-import { MACHINES_TABS } from "@/modules/maintenance/components/machines-tabs";
 import { getMachinesCatalogViewModel } from "@/modules/maintenance/view-models";
 
 export const dynamic = "force-dynamic";
@@ -12,17 +10,12 @@ export default async function MachinesPage() {
     await getMachinesCatalogViewModel();
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <PageTabs tabs={MACHINES_TABS} />
-      <div className="min-h-0 flex-1">
-        <MachinesCardsPage
-          machines={rows}
-          plants={plants}
-          locations={locations}
-          cells={cells}
-          types={types}
-        />
-      </div>
-    </div>
+    <MachinesCardsPage
+      machines={rows}
+      plants={plants}
+      locations={locations}
+      cells={cells}
+      types={types}
+    />
   );
 }

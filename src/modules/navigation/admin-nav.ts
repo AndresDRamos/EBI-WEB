@@ -21,5 +21,6 @@ export const ADMIN_NAV_SECTION: ResolvedNavSection = {
   items: [
     { item_id: -1, label: "Organización", icon: "Building2", href: "/admin/organization", children: [] },
     { item_id: -2, label: "Portal", icon: "Lock", href: "/admin/portal", children: [] },
+    { item_id: -3, label: "Migraciones", icon: "Map", href: "/admin/migrations", children: [] },
   ],
 };

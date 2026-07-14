@@ -9,7 +9,12 @@
 > edit by hand; the `docs-sync` sub-agent regenerates it at the close of each
 > build.
 >
-> Last synced: 2026-07-09. Reflects V11 + V12 + V13 + V15 + V18 + V19. V15 did
+> Last synced: 2026-07-14. Reflects V11 + V12 + V13 + V15 + V18 + V19 + V20.
+> **V20 (plan laser-cut-sequencing) did not change `production`'s own
+> tables** — it added two new *inbound* cross-schema FKs pointing **at**
+> `production.cell` from the new `planning` schema
+> (`planning.cell_station_link.cell_id` and `planning.machine_program.cell_id`,
+> both NO ACTION — see [`docs/database/erd/planning.md`](planning.md)). V15 did
 > not change `production`'s tables; it transferred `auth.plant` → `org.plant`,
 > so the `plant_id` FKs below now cross to `org` (re-pointed by `object_id`,
 > not recreated). V18 added `cell.location_id` (NULLable FK to the new
@@ -133,6 +138,20 @@ erDiagram
 All FKs are NO ACTION — catalog rows and history are protected, never cascaded.
 `production_line.plant_id` (a cross-schema FK to `org.plant`) no longer
 exists — the table was dropped in V19.
+
+### Inbound cross-schema references (V20)
+
+Two tables in the new `planning` schema point **at** `production.cell` (both NO
+ACTION — the cell catalog is protected; the planning app returns 409 rather than
+cascading):
+
+- `planning.cell_station_link.cell_id` → `production.cell.cell_id` (1:1 EBI
+  cell ↔ EPS laser station mapping).
+- `planning.machine_program.cell_id` → `production.cell.cell_id` (per-cell laser
+  sequence programs).
+
+See [`docs/database/erd/planning.md`](planning.md). `production` owns neither
+table; it only supplies the referenced `cell` rows.
 
 ## Design notes (V11)
 

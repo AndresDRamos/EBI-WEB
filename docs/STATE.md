@@ -15,8 +15,11 @@
   with page-granular authz (ADR 0008), RBAC actions, maintenance CMMS (asset
   catalog, QR labels, documents), and production operative cells (V19:
   unified self-referencing `cell` hierarchy, replaces the old line/cell split).
-- Nav section `maintenance` is active. `production` remains **dark-launched**:
-  activation in `/admin/portal/permissions` is a pending human step.
+- Nav section `maintenance` is active. `production` and `planning` remain
+  **dark-launched**: activation in `/admin/portal/permissions` is a pending
+  human step (`planning` additionally needs `Planeador`/`Gerente de planta`
+  role grants, the missing laser cells created + mapped in
+  `/admin/migrations`, and the on-prem ETL's first run).
 - Branch convention: `<type>/<slug>` (`feat/`, `fix/`, `chore/`, `docs/`).
   Plans are not numbered — the slug is the identity, unique in the ledger
   (`docs/plans/README.md`).
@@ -80,6 +83,9 @@ For stack, auth, data access, migrations, and hard rules, see
   [docs/modules/maintenance.md](modules/maintenance.md)
 - `production/` — cells, layouts, placements (`production`).
   [docs/modules/production.md](modules/production.md)
+- `planning/` — Plant 1 laser-cut sequencing (`planning`) over an ETL-landed
+  `staging` replica of EPS's nesting domain; standalone on-prem ETL (`etl/`).
+  [docs/modules/planning.md](modules/planning.md)
 
 Shared UI/infra/routes follow the layout in `AGENTS.md` and
 `docs/architecture/module-blueprint.md`.

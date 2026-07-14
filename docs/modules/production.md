@@ -229,10 +229,12 @@ axes:
   `/production` now redirects straight to `/production/operative-cells`
   (`page.tsx` — `redirect("/production/operative-cells")`); the old
   `Líneas`/`Celdas` table pages and the standalone cell-detail view are
-  **deleted**. `/production/operative-cells/page.tsx` is the only route: one
-  RSC pass loads `listCells` + `listPlants` + `listLocations` +
+  **deleted**. `/production/operative-cells/page.tsx` is the only content
+  route: one RSC pass loads `listCells` + `listPlants` + `listLocations` +
   `listProcesses` and hands them to `OperativeCellsPage` (client component,
-  see Responsibilities above). The segment `layout.tsx` still gates that tree
+  see Responsibilities above). Its sibling `operative-cells/layout.tsx` adds
+  the group header ("Celdas operativas" + description) — same treatment as
+  admin's single-screen groups. The segment `layout.tsx` still gates that tree
   with `requireSectionOrRedirect("production")` (per-page nav authz, ADR 0008
   supersedes 0005) — unchanged by V19.
 - **The layout UI is dark-parked under `(portal)/test/*`** (re-scope decision

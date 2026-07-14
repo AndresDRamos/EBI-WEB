@@ -1,21 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { Factory, LayoutGrid, MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronRight, LayoutGrid, MapPin, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  EntityCard,
-  EntityCardGrid,
-} from "@/components/kit/entity-card";
+import { Badge } from "@/components/ui/badge";
+import { useCan } from "@/components/providers/permissions-provider";
 import {
   ExpandingModal,
   type ExpandingModalRect,
 } from "@/components/kit/expanding-modal";
 import {
-  LocationCellsModal,
+  CellDetailModal,
+  formatSize,
   type OperativeCellRow,
   type ProcessOption,
-} from "@/modules/production/components/location-cells-modal";
+} from "@/modules/production/components/cell-detail-modal";
+import { CellFormDialog } from "@/modules/production/components/cell-form-dialog";
 
 export interface PlantTabOption {
   plant_id: number;
@@ -32,12 +33,13 @@ export interface LocationCardOption {
 
 /**
  * Celdas operativas — one page replaces the old Celdas/Líneas tables. Plant
- * tabs act as the natural filter; each tab shows the plant's locations as
- * cards (admin-managed in Administración → Plantas); a location card expands
- * into a modal with that location's operative cells, where production users
- * create cells pre-filtered by the location (auto code, no plant/location
- * inputs). Tabs are local state, not routes: the whole catalog loads in one
- * RSC pass (same approach as the machines cards page).
+ * tabs act as the filter; each tab shows the plant's locations as board
+ * columns (admin-managed in Administración → Plantas), with that location's
+ * operative cells stacked as compact cards underneath. Clicking a cell card
+ * opens its detail (children/operations + composition) as an expanding modal;
+ * creating a cell is pre-filtered to a column's location (auto code, no
+ * plant/location inputs). Tabs are local state, not routes: the whole catalog
+ * loads in one RSC pass (same approach as the machines cards page).
  */
 export function OperativeCellsPage({
   plants,
@@ -50,13 +52,34 @@ export function OperativeCellsPage({
   cells: OperativeCellRow[];
   processes: ProcessOption[];
 }) {
+  const can = useCan();
+  const router = useRouter();
   const [activePlantId, setActivePlantId] = React.useState<number | null>(
     plants[0]?.plant_id ?? null,
   );
-  const [modal, setModal] = React.useState<{
+  const [cellModal, setCellModal] = React.useState<{
     location: LocationCardOption;
+    cellId: number;
     rect: ExpandingModalRect | null;
   } | null>(null);
+  const [createFor, setCreateFor] = React.useState<LocationCardOption | null>(
+    null,
+  );
+  const [expandedInactive, setExpandedInactive] = React.useState<
+    Set<number>
+  >(new Set());
+
+  function toggleInactive(locationId: number) {
+    setExpandedInactive((prev) => {
+      const next = new Set(prev);
+      if (next.has(locationId)) {
+        next.delete(locationId);
+      } else {
+        next.add(locationId);
+      }
+      return next;
+    });
+  }
 
   const plantLocations = locations.filter(
     (l) => l.plant_id === activePlantId,
@@ -80,15 +103,11 @@ export function OperativeCellsPage({
       plantLocations.some((l) => l.location_id === c.location_id),
   ).length;
 
-  const modalLocation = modal?.location ?? null;
-  const modalPlantName =
-    plants.find((p) => p.plant_id === modalLocation?.plant_id)?.name ?? "";
-
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 pb-4">
         <h1 className="text-xl font-semibold tracking-tight text-ezi-gray">
-          Celdas operativas
+          Listado de celdas
         </h1>
         <span className="flex items-center gap-2 text-xs text-muted-foreground">
           <LayoutGrid className="h-4 w-4" />
@@ -100,9 +119,11 @@ export function OperativeCellsPage({
       </div>
 
       {/* Plant tabs — same visual language as the kit `PageTabs`, but state
-          driven: the tab set is data (org.plant), not routes. */}
+          driven: the tab set is data (org.plant), not routes. The scrollbar
+          is hidden (kept functional) so a wide tab set doesn't add visible
+          height to the bar. */}
       <nav
-        className="flex flex-shrink-0 items-end gap-1 overflow-x-auto border-b"
+        className="flex flex-shrink-0 items-end gap-1 overflow-x-auto border-b [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         aria-label="Plantas"
       >
         {plants.map((p) => {
@@ -126,79 +147,236 @@ export function OperativeCellsPage({
         })}
       </nav>
 
-      <div className="flex-1 overflow-y-auto py-4">
-        {plantLocations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-1 py-16 text-center text-muted-foreground">
-            <MapPin className="h-10 w-10 text-gray-300" />
-            <p className="mt-2 text-sm font-semibold text-ezi-gray">
-              Sin ubicaciones en esta planta
-            </p>
-            <p className="text-xs">
-              Un administrador puede darlas de alta en Administración → Plantas.
-            </p>
-          </div>
-        ) : (
-          <EntityCardGrid>
-            {plantLocations.map((loc) => {
-              const stats = locationStats(loc.location_id);
-              return (
-                <EntityCard
-                  key={loc.location_id}
-                  code={loc.code}
-                  title={loc.name}
-                  badges={[
-                    {
-                      label:
-                        stats.cellCount === 1
-                          ? "1 celda"
-                          : `${stats.cellCount} celdas`,
-                    },
-                    ...(stats.assetCount > 0
-                      ? [
-                          {
-                            label:
-                              stats.assetCount === 1
-                                ? "1 equipo"
-                                : `${stats.assetCount} equipos`,
-                          },
-                        ]
-                      : []),
-                  ]}
-                  locations={[
-                    {
-                      icon: Factory,
-                      label:
-                        plants.find((p) => p.plant_id === loc.plant_id)?.name ??
-                        "",
-                    },
-                  ]}
-                  onExpand={(rect) => setModal({ location: loc, rect })}
-                  sourceHidden={modal?.location.location_id === loc.location_id}
-                />
-              );
-            })}
-          </EntityCardGrid>
-        )}
-      </div>
+      {plantLocations.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 text-center text-muted-foreground">
+          <MapPin className="h-10 w-10 text-gray-300" />
+          <p className="mt-2 text-sm font-semibold text-ezi-gray">
+            Sin ubicaciones en esta planta
+          </p>
+          <p className="text-xs">
+            Un administrador puede darlas de alta en Administración → Plantas.
+          </p>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto py-4">
+          {plantLocations.map((loc) => {
+            const stats = locationStats(loc.location_id);
+            const locCells = cells
+              .filter(
+                (c) => c.location_id === loc.location_id && c.parent_cell_id === null,
+              )
+              .sort((a, b) => a.code.localeCompare(b.code));
+            const activeCells = locCells.filter((c) => c.is_active);
+            const inactiveCells = locCells.filter((c) => !c.is_active);
+            const inactiveOpen = expandedInactive.has(loc.location_id);
+            return (
+              <div
+                key={loc.location_id}
+                className="flex min-h-0 w-72 shrink-0 flex-col rounded-lg border bg-gray-50/60"
+              >
+                <div className="flex-shrink-0 space-y-1.5 border-b bg-white px-3 py-2.5 rounded-t-lg">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-ezi-gray">
+                        {loc.name}
+                      </p>
+                      <p className="font-mono text-[11px] text-muted-foreground">
+                        {loc.code}
+                      </p>
+                    </div>
+                    {can("production.cell:create") ? (
+                      <button
+                        type="button"
+                        onClick={() => setCreateFor(loc)}
+                        title="Nueva celda"
+                        aria-label={`Nueva celda en ${loc.name}`}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-gray-100 hover:text-ezi-gray"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <Badge variant="outline">
+                      {stats.cellCount === 1
+                        ? "1 celda"
+                        : `${stats.cellCount} celdas`}
+                    </Badge>
+                    {stats.assetCount > 0 ? (
+                      <Badge variant="outline">
+                        {stats.assetCount === 1
+                          ? "1 equipo"
+                          : `${stats.assetCount} equipos`}
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+                  {locCells.length === 0 ? (
+                    <p className="px-1 py-4 text-center text-xs text-muted-foreground">
+                      Sin celdas
+                    </p>
+                  ) : (
+                    <>
+                      {activeCells.map((cell) => (
+                        <CompactCellCard
+                          key={cell.cell_id}
+                          cell={cell}
+                          sourceHidden={cellModal?.cellId === cell.cell_id}
+                          onOpen={(rect) =>
+                            setCellModal({ location: loc, cellId: cell.cell_id, rect })
+                          }
+                        />
+                      ))}
+                      {inactiveCells.length > 0 ? (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => toggleInactive(loc.location_id)}
+                            className="flex w-full items-center gap-1 rounded-sm px-1 py-1 text-[11px] font-medium text-muted-foreground hover:bg-gray-100 hover:text-ezi-gray"
+                            aria-expanded={inactiveOpen}
+                          >
+                            <ChevronRight
+                              className={cn(
+                                "h-3 w-3 shrink-0 transition-transform",
+                                inactiveOpen && "rotate-90",
+                              )}
+                            />
+                            Inactivas ({inactiveCells.length})
+                          </button>
+                          {inactiveOpen ? (
+                            <div className="mt-2 space-y-2">
+                              {inactiveCells.map((cell) => (
+                                <CompactCellCard
+                                  key={cell.cell_id}
+                                  cell={cell}
+                                  sourceHidden={cellModal?.cellId === cell.cell_id}
+                                  onOpen={(rect) =>
+                                    setCellModal({
+                                      location: loc,
+                                      cellId: cell.cell_id,
+                                      rect,
+                                    })
+                                  }
+                                />
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <ExpandingModal
-        open={modal !== null}
-        originRect={modal?.rect ?? null}
-        title={modalLocation ? modalLocation.name : "Ubicación"}
-        onClosed={() => setModal(null)}
+        open={cellModal !== null}
+        originRect={cellModal?.rect ?? null}
+        title={
+          cellModal
+            ? (cells.find((c) => c.cell_id === cellModal.cellId)?.name ?? "Celda")
+            : "Celda"
+        }
+        onClosed={() => setCellModal(null)}
       >
-        {modalLocation ? (
-          <LocationCellsModal
-            key={modalLocation.location_id}
-            location={modalLocation}
-            plantName={modalPlantName}
+        {cellModal ? (
+          <CellDetailModal
+            key={cellModal.cellId}
+            rootCellId={cellModal.cellId}
+            location={cellModal.location}
+            plantName={
+              plants.find((p) => p.plant_id === cellModal.location.plant_id)
+                ?.name ?? ""
+            }
             cells={cells.filter(
-              (c) => c.location_id === modalLocation.location_id,
+              (c) => c.location_id === cellModal.location.location_id,
             )}
             processes={processes}
+            onMutated={() => router.refresh()}
           />
         ) : null}
       </ExpandingModal>
+
+      {createFor ? (
+        <CellFormDialog
+          target={{ mode: "create", parent: null }}
+          location={createFor}
+          plantName={
+            plants.find((p) => p.plant_id === createFor.plant_id)?.name ?? ""
+          }
+          processes={processes}
+          onOpenChange={(open) => {
+            if (!open) setCreateFor(null);
+          }}
+          onSaved={() => {
+            setCreateFor(null);
+            router.refresh();
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Board card — compact, stacked under its location column
+// ---------------------------------------------------------------------------
+
+function CompactCellCard({
+  cell,
+  sourceHidden,
+  onOpen,
+}: {
+  cell: OperativeCellRow;
+  sourceHidden: boolean;
+  onOpen: (rect: ExpandingModalRect) => void;
+}) {
+  const size = formatSize(cell);
+  const hasMeta = cell.child_count > 0 || cell.process_name || size;
+  return (
+    <button
+      type="button"
+      onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
+      className={cn(
+        "block w-full rounded-md border bg-card px-3 py-2 text-left transition-[box-shadow,border-color] hover:border-gray-300 hover:shadow-sm",
+        !cell.is_active && "opacity-60",
+        sourceHidden && "pointer-events-none opacity-0",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="rounded border bg-gray-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-muted-foreground">
+          {cell.code}
+        </span>
+        {!cell.is_active ? (
+          <span className="text-[10px] text-muted-foreground">Inactiva</span>
+        ) : null}
+      </div>
+      <p className="mt-1 truncate text-sm font-medium leading-tight text-ezi-gray">
+        {cell.name}
+      </p>
+      {hasMeta ? (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {cell.child_count > 0 ? (
+            <Badge
+              variant="outline"
+              className="border-ezi-orange/40 text-[10px] text-ezi-orange"
+            >
+              {cell.child_count}{" "}
+              {cell.child_count === 1 ? "operación" : "operaciones"}
+            </Badge>
+          ) : null}
+          {cell.process_name ? (
+            <Badge variant="outline" className="text-[10px]">
+              {cell.process_name}
+            </Badge>
+          ) : null}
+        </div>
+      ) : null}
+    </button>
   );
 }

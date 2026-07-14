@@ -17,6 +17,7 @@ import {
   Users,
   Wallet,
   Wrench,
+  CircuitBoard,
 } from "lucide-react";
 
 /**
@@ -42,6 +43,7 @@ export const NAV_ICON_NAMES = [
   "UserSquare2",
   "Lock",
   "KeyRound",
+  "CircuitBoard",
 ] as const;
 
 /**
@@ -61,6 +63,8 @@ export function NavIcon({
   switch (name) {
     case "LayoutDashboard":
       return <LayoutDashboard className={className} />;
+    case "CircuitBoard":
+      return <CircuitBoard className={className} />;
     case "Wrench":
       return <Wrench className={className} />;
     case "ShieldCheck":

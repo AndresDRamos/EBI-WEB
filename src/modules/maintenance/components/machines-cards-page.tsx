@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircuitBoard,
   Filter,
   Plus,
   SearchX,
@@ -241,7 +242,7 @@ export function MachinesCardsPage({
           grouped together (same pairing as the generic kit `DataTable`
           header). Not boxed. */}
       <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-4 pb-4">
-        <div>
+        <div className="flex items-center gap-2">
           <h1 className="text-xl font-semibold tracking-tight text-ezi-gray">
             Listado de equipos
           </h1>

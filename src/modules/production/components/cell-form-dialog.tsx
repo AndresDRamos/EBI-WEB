@@ -11,7 +11,7 @@ import type { LocationCardOption } from "@/modules/production/components/operati
 import type {
   FormTarget,
   ProcessOption,
-} from "@/modules/production/components/location-cells-modal";
+} from "@/modules/production/components/cell-detail-modal";
 
 // ---------------------------------------------------------------------------
 // Create / edit form — location implicit, code auto-generated server-side
